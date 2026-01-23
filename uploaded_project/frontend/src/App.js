@@ -31,7 +31,7 @@ import AdminActivity from './pages/admin/AdminActivity';
 import ClientRoute from './components/ClientRoute';
 import ClientLogin from './pages/client/ClientLoginEnhanced';
 import ClientDashboard from './pages/client/ClientDashboardEnhanced';
-import ClientTools from './pages/client/ClientTools';
+import ClientTools from './pages/client/ClientToolsEnhanced';
 import ClientToolDetail from './pages/client/ClientToolDetail';
 
 function App() {
