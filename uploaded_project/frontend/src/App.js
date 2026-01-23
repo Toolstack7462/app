@@ -18,7 +18,7 @@ import Join from './pages/Join';
 
 // Admin Pages
 import AdminRoute from './components/AdminRoute';
-import AdminLogin from './pages/admin/AdminLogin';
+import AdminLogin from './pages/admin/AdminLoginEnhanced';
 import AdminDashboard from './pages/admin/AdminDashboardEnhanced';
 import AdminTools from './pages/admin/AdminToolsEnhanced';
 import AdminToolForm from './pages/admin/AdminToolForm';
@@ -29,7 +29,7 @@ import AdminActivity from './pages/admin/AdminActivity';
 
 // Client Pages
 import ClientRoute from './components/ClientRoute';
-import ClientLogin from './pages/client/ClientLogin';
+import ClientLogin from './pages/client/ClientLoginEnhanced';
 import ClientDashboard from './pages/client/ClientDashboardEnhanced';
 import ClientTools from './pages/client/ClientTools';
 import ClientToolDetail from './pages/client/ClientToolDetail';
