@@ -7,7 +7,8 @@ const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  withCredentials: true // Important for cookies
 });
 
 // Request interceptor to add auth token
@@ -24,23 +25,74 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor for error handling
+// Response interceptor for error handling and token refresh
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Unauthorized - clear token and redirect to login
-      localStorage.removeItem('crm_token');
-      localStorage.removeItem('crm_user');
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // Check if error is 401 and we haven't retried yet
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      // Check for TOKEN_VERSION_MISMATCH - force logout
+      if (error.response?.data?.code === 'TOKEN_VERSION_MISMATCH') {
+        localStorage.removeItem('crm_token');
+        localStorage.removeItem('crm_refresh_token');
+        const user = JSON.parse(localStorage.getItem('crm_user') || '{}');
+        localStorage.removeItem('crm_user');
+        
+        // Redirect based on role stored before clearing
+        if (user.role === 'CLIENT') {
+          window.location.href = '/client/login?message=session_invalidated';
+        } else {
+          window.location.href = '/admin/login?message=session_invalidated';
+        }
+        return Promise.reject(error);
+      }
       
-      // Redirect based on role
-      const role = JSON.parse(localStorage.getItem('crm_user') || '{}').role;
-      if (role === 'CLIENT') {
-        window.location.href = '/client/login';
-      } else {
-        window.location.href = '/admin/login';
+      originalRequest._retry = true;
+      
+      try {
+        // Try to refresh token
+        const refreshToken = localStorage.getItem('crm_refresh_token');
+        if (!refreshToken) {
+          throw new Error('No refresh token');
+        }
+        
+        const response = await axios.post(
+          `${API_BASE_URL}/auth/refresh`,
+          { refreshToken },
+          { withCredentials: true }
+        );
+        
+        const { accessToken, refreshToken: newRefreshToken } = response.data;
+        
+        // Update tokens
+        localStorage.setItem('crm_token', accessToken);
+        if (newRefreshToken) {
+          localStorage.setItem('crm_refresh_token', newRefreshToken);
+        }
+        
+        // Retry original request with new token
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        return api(originalRequest);
+      } catch (refreshError) {
+        // Refresh failed - clear tokens and redirect to login
+        localStorage.removeItem('crm_token');
+        localStorage.removeItem('crm_refresh_token');
+        const user = JSON.parse(localStorage.getItem('crm_user') || '{}');
+        localStorage.removeItem('crm_user');
+        
+        // Redirect based on role
+        if (user.role === 'CLIENT') {
+          window.location.href = '/client/login?message=session_expired';
+        } else {
+          window.location.href = '/admin/login?message=session_expired';
+        }
+        
+        return Promise.reject(refreshError);
       }
     }
+    
     return Promise.reject(error);
   }
 );
