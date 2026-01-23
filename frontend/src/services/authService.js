@@ -76,7 +76,8 @@ class AuthService {
   }
   
   isAuthenticated() {
-    return !!localStorage.getItem('crm_token');\n  }
+    return !!localStorage.getItem('crm_token');
+  }
   
   getToken() {
     return localStorage.getItem('crm_token');
@@ -117,4 +118,6 @@ class AuthService {
     }
     return deviceId;
   }
-}\n\nexport const authService = new AuthService();
+}
+
+export const authService = new AuthService();
