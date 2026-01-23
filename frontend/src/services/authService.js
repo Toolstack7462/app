@@ -1,4 +1,4 @@
-import api from './apiEnhanced';
+import api from './api';
 
 class AuthService {
   async adminLogin(email, password) {
