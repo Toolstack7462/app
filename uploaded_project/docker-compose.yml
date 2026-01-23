@@ -1,0 +1,130 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: toolstack-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-changeme}
+      MONGO_INITDB_DATABASE: ${DB_NAME:-toolstack_crm}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - toolstack-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Node.js CRM Backend
+  backend-crm:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: toolstack-backend-crm
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - MONGO_URL=mongodb://mongodb:27017
+      - DB_NAME=${DB_NAME:-toolstack_crm}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - COOKIES_ENCRYPTION_KEY=${COOKIES_ENCRYPTION_KEY}
+      - CRM_PORT=8002
+      - FRONTEND_URL=${FRONTEND_URL:-https://yourdomain.com}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://yourdomain.com}
+    ports:
+      - "8002:8002"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - toolstack-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/api/crm/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # FastAPI Gateway
+  backend-gateway:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.fastapi
+    container_name: toolstack-backend-gateway
+    restart: unless-stopped
+    environment:
+      - CRM_BACKEND_URL=http://backend-crm:8002
+      - PORT=8001
+    ports:
+      - "8001:8001"
+    depends_on:
+      - backend-crm
+    networks:
+      - toolstack-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend (React) - Production Build
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_BACKEND_URL=${REACT_APP_BACKEND_URL:-https://yourdomain.com}
+    container_name: toolstack-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend-gateway
+      - backend-crm
+    networks:
+      - toolstack-network
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - certbot-etc:/etc/letsencrypt
+      - certbot-var:/var/lib/letsencrypt
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Certbot for SSL (Let's Encrypt)
+  certbot:
+    image: certbot/certbot:latest
+    container_name: toolstack-certbot
+    volumes:
+      - certbot-etc:/etc/letsencrypt
+      - certbot-var:/var/lib/letsencrypt
+      - ./frontend/build:/var/www/html
+    depends_on:
+      - frontend
+    command: certonly --webroot --webroot-path=/var/www/html --email ${SSL_EMAIL} --agree-tos --no-eff-email --force-renewal -d ${DOMAIN}
+
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+  certbot-etc:
+    driver: local
+  certbot-var:
+    driver: local
+
+networks:
+  toolstack-network:
+    driver: bridge
