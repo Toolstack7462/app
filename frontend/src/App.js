@@ -18,20 +18,20 @@ import Join from './pages/Join';
 
 // Admin Pages
 import AdminRoute from './components/AdminRoute';
-import AdminLogin from './pages/admin/AdminLoginEnhanced';
-import AdminDashboard from './pages/admin/AdminDashboardEnhanced';
-import AdminTools from './pages/admin/AdminToolsEnhanced';
+import AdminLogin from './pages/admin/AdminLogin';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminTools from './pages/admin/AdminTools';
 import AdminToolForm from './pages/admin/AdminToolForm';
-import AdminClients from './pages/admin/AdminClientsEnhanced';
+import AdminClients from './pages/admin/AdminClients';
 import AdminClientForm from './pages/admin/AdminClientForm';
 import AdminBulkAssign from './pages/admin/AdminBulkAssign';
 import AdminActivity from './pages/admin/AdminActivity';
 
 // Client Pages
 import ClientRoute from './components/ClientRoute';
-import ClientLogin from './pages/client/ClientLoginEnhanced';
-import ClientDashboard from './pages/client/ClientDashboardEnhanced';
-import ClientTools from './pages/client/ClientToolsEnhanced';
+import ClientLogin from './pages/client/ClientLogin';
+import ClientDashboard from './pages/client/ClientDashboard';
+import ClientTools from './pages/client/ClientTools';
 import ClientToolDetail from './pages/client/ClientToolDetail';
 
 function App() {
