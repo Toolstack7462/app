@@ -1,4 +1,5 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, Request, Response
+from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -9,6 +10,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import List
 import uuid
 from datetime import datetime, timezone
+import httpx
 
 
 ROOT_DIR = Path(__file__).parent
@@ -68,6 +70,49 @@ async def get_status_checks():
 
 # Include the router in the main app
 app.include_router(api_router)
+
+# CRM Backend Proxy - Forward /api/crm/* to Node.js backend on port 8002
+CRM_BACKEND_URL = "http://localhost:8002"
+
+@app.api_route("/api/crm/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_to_crm(request: Request, path: str):
+    """Proxy all /api/crm/* requests to the Node.js CRM backend"""
+    async with httpx.AsyncClient() as client:
+        url = f"{CRM_BACKEND_URL}/api/crm/{path}"
+        
+        # Get request body
+        body = await request.body()
+        
+        # Forward headers (except host)
+        headers = {k: v for k, v in request.headers.items() 
+                   if k.lower() not in ['host', 'content-length']}
+        
+        try:
+            response = await client.request(
+                method=request.method,
+                url=url,
+                content=body,
+                headers=headers,
+                params=request.query_params,
+                timeout=30.0
+            )
+            
+            # Build response headers (exclude certain headers)
+            response_headers = {k: v for k, v in response.headers.items()
+                               if k.lower() not in ['content-encoding', 'content-length', 'transfer-encoding']}
+            
+            return Response(
+                content=response.content,
+                status_code=response.status_code,
+                headers=response_headers
+            )
+        except httpx.RequestError as e:
+            logger.error(f"CRM proxy error: {e}")
+            return Response(
+                content='{"error": "CRM service unavailable"}',
+                status_code=503,
+                media_type="application/json"
+            )
 
 app.add_middleware(
     CORSMiddleware,
