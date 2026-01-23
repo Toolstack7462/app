@@ -41,6 +41,12 @@ const userSchema = new mongoose.Schema({
       default: 1
     }
   },
+  expirySettings: {
+    warningDays: {
+      type: Number,
+      default: 3
+    }
+  },
   notes: String,
   lastLoginAt: Date,
   lastLoginIp: String
