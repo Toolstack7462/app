@@ -43,7 +43,7 @@ const adminActivityRoutes = require('./routes/admin/activity');
 
 // Client routes
 const clientToolsRoutes = require('./routes/client/tools');
-const clientAssignmentsRoutes = require('./routes/client/assignments');
+const clientAssignmentsRoutes = require('./routes/client/assignmentsEnhanced');
 const clientNotificationsRoutes = require('./routes/client/notifications');
 
 // Apply rate limiting to API
