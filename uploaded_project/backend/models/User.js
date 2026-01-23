@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const userSchema = new mongoose.Schema({
   role: {
     type: String,
-    enum: ['ADMIN', 'CLIENT'],
+    enum: ['SUPER_ADMIN', 'ADMIN', 'SUPPORT', 'CLIENT'],
     required: true
   },
   fullName: {
@@ -27,6 +27,10 @@ const userSchema = new mongoose.Schema({
     enum: ['active', 'disabled'],
     default: 'active'
   },
+  tokenVersion: {
+    type: Number,
+    default: 0
+  },
   devicePolicy: {
     enabled: {
       type: Boolean,
@@ -37,7 +41,9 @@ const userSchema = new mongoose.Schema({
       default: 1
     }
   },
-  notes: String
+  notes: String,
+  lastLoginAt: Date,
+  lastLoginIp: String
 }, {
   timestamps: true
 });
@@ -55,10 +61,23 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
   return bcrypt.compare(candidatePassword, this.passwordHash);
 };
 
+// Method to increment token version (force logout)
+userSchema.methods.forceLogout = async function() {
+  this.tokenVersion += 1;
+  await this.save();
+  return this.tokenVersion;
+};
+
+// Check if user has admin privileges
+userSchema.methods.isAdmin = function() {
+  return ['SUPER_ADMIN', 'ADMIN'].includes(this.role);
+};
+
 // Remove password from JSON response
 userSchema.methods.toJSON = function() {
   const obj = this.toObject();
   delete obj.passwordHash;
+  delete obj.tokenVersion;
   return obj;
 };
 
