@@ -68,9 +68,19 @@ const Home = () => {
               </Link>
             </div>
             
-            <p className="text-sm text-toolstack-muted">
-              Instant access • Cancel anytime • 24/7 support
-            </p>
+            <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-toolstack-muted">
+              <span className="flex items-center gap-2">
+                Instant access • Cancel anytime • 24/7 support
+              </span>
+              <span className="text-toolstack-border">|</span>
+              <Link to="/admin/login" className="text-toolstack-orange hover:underline">
+                Admin Portal
+              </Link>
+              <span className="text-toolstack-border">•</span>
+              <Link to="/client/login" className="text-toolstack-orange hover:underline">
+                Client Login
+              </Link>
+            </div>
           </div>
         </div>
       </section>
