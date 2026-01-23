@@ -13,8 +13,8 @@ const {
 const { validate, schemas } = require('../middleware/validation');
 const { authLimiter, registerLimiter } = require('../middleware/rateLimiter');
 
-// POST /api/crm/auth/admin/login - Admin login
-router.post('/admin/login', authLimiter, validate(schemas.adminLogin), async (req, res) => {
+// POST /api/crm/auth/admin/login - Admin login (NO RATE LIMITING for admins)
+router.post('/admin/login', validate(schemas.adminLogin), async (req, res) => {
   try {
     const { email, password } = req.body;
     const ipAddress = getClientIp(req);
@@ -91,7 +91,7 @@ router.post('/admin/login', authLimiter, validate(schemas.adminLogin), async (re
   }
 });
 
-// POST /api/crm/auth/client/login - Client login
+// POST /api/crm/auth/client/login - Client login (RATE LIMITED for security)
 router.post('/client/login', authLimiter, validate(schemas.clientLogin), async (req, res) => {
   try {
     const { email, password, deviceId } = req.body;
