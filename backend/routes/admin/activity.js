@@ -3,9 +3,15 @@ const router = express.Router();
 const ActivityLog = require('../../models/ActivityLog');
 const { requireAuth, requireRole } = require('../../middleware/auth');
 
-// Apply auth middleware
+// Apply auth middleware - accept all admin roles
 router.use(requireAuth);
-router.use(requireRole('ADMIN'));
+router.use((req, res, next) => {
+  const adminRoles = ['SUPER_ADMIN', 'ADMIN', 'SUPPORT'];
+  if (!adminRoles.includes(req.user.role)) {
+    return res.status(403).json({ error: 'Insufficient permissions' });
+  }
+  next();
+});
 
 // GET /api/admin/activity - Get activity logs
 router.get('/', async (req, res) => {

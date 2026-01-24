@@ -46,10 +46,6 @@ const clientToolsRoutes = require('./routes/client/tools');
 const clientAssignmentsRoutes = require('./routes/client/assignmentsEnhanced');
 const clientNotificationsRoutes = require('./routes/client/notifications');
 
-// Apply rate limiting to API
-const { apiLimiter } = require('./middleware/rateLimiter');
-app.use('/api/crm', apiLimiter);
-
 // Mount routes - All CRM routes under /api/crm prefix
 app.use('/api/crm/auth', authRoutes);
 app.use('/api/crm/public', publicRoutes);
