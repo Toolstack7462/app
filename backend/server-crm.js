@@ -40,6 +40,8 @@ const adminToolsRoutes = require('./routes/admin/toolsEnhanced');
 const adminClientsRoutes = require('./routes/admin/clientsEnhanced');
 const adminAssignmentsRoutes = require('./routes/admin/assignments');
 const adminActivityRoutes = require('./routes/admin/activity');
+const adminBlogRoutes = require('./routes/admin/blog');
+const adminContactsRoutes = require('./routes/admin/contacts');
 
 // Client routes
 const clientToolsRoutes = require('./routes/client/tools');
