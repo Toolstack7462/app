@@ -7,10 +7,16 @@ import asyncio
 
 app = FastAPI(title="ToolStack API Gateway")
 
-# CORS configuration
+# CORS configuration - must not use "*" with credentials=True
+ALLOWED_ORIGINS = [
+    "https://crm-complete-4.preview.emergentagent.com",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
