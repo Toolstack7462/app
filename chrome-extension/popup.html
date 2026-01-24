@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ToolStack Access</title>
+  <link rel="stylesheet" href="css/popup.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Login View -->
+    <div id="login-view" class="view">
+      <div class="header">
+        <div class="logo">
+          <img src="icons/icon48.png" alt="ToolStack">
+          <span>ToolStack</span>
+        </div>
+      </div>
+      <div class="content">
+        <h2>Sign In</h2>
+        <p class="subtitle">Use your ToolStack client credentials</p>
+        <form id="login-form">
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" placeholder="your@email.com" required>
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="••••••••" required>
+          </div>
+          <div id="login-error" class="error-message hidden"></div>
+          <button type="submit" id="login-btn" class="btn btn-primary">
+            <span class="btn-text">Sign In</span>
+            <span class="btn-loading hidden">
+              <svg class="spinner" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="60" stroke-dashoffset="20"/>
+              </svg>
+            </span>
+          </button>
+        </form>
+        <div class="api-config">
+          <button type="button" id="show-config-btn" class="btn-link">Configure API URL</button>
+          <div id="config-section" class="hidden">
+            <div class="form-group">
+              <label for="api-url">API URL</label>
+              <input type="url" id="api-url" placeholder="https://your-crm-domain.com">
+              <button type="button" id="save-config-btn" class="btn btn-secondary btn-sm">Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main View -->
+    <div id="main-view" class="view hidden">
+      <div class="header">
+        <div class="logo">
+          <img src="icons/icon48.png" alt="ToolStack">
+          <span>ToolStack</span>
+        </div>
+        <div class="header-actions">
+          <button id="sync-btn" class="btn-icon" title="Sync tools">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12a9 9 0 0 0-9-9M3 12a9 9 0 0 0 9 9m0-18v6m0 12v-6"/>
+            </svg>
+          </button>
+          <button id="profile-btn" class="btn-icon" title="Profile">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="7" r="4"/>
+              <path d="M5.5 21a8.5 8.5 0 0 1 13 0"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      
+      <div class="content">
+        <!-- Search Bar -->
+        <div class="search-container">
+          <input type="text" id="search-input" placeholder="Search tools...">
+          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+        </div>
+
+        <!-- Sync Status -->
+        <div id="sync-status" class="sync-status">
+          <span id="sync-text">Last synced: Never</span>
+        </div>
+
+        <!-- Tools List -->
+        <div id="tools-container">
+          <div id="tools-list" class="tools-list">
+            <!-- Tools will be rendered here -->
+          </div>
+          <div id="no-tools" class="no-tools hidden">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+              <path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12"/>
+            </svg>
+            <p>No tools assigned</p>
+          </div>
+          <div id="loading" class="loading hidden">
+            <div class="loading-spinner"></div>
+            <p>Loading tools...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile View -->
+    <div id="profile-view" class="view hidden">
+      <div class="header">
+        <button id="back-btn" class="btn-icon" title="Back">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+        </button>
+        <span class="header-title">Profile</span>
+        <div style="width: 32px;"></div>
+      </div>
+      <div class="content">
+        <div class="profile-info">
+          <div class="profile-avatar">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="12" cy="7" r="4"/>
+              <path d="M5.5 21a8.5 8.5 0 0 1 13 0"/>
+            </svg>
+          </div>
+          <div id="profile-name" class="profile-name">Loading...</div>
+          <div id="profile-email" class="profile-email"></div>
+        </div>
+        <div class="profile-stats">
+          <div class="stat">
+            <span id="tools-count" class="stat-value">0</span>
+            <span class="stat-label">Tools</span>
+          </div>
+          <div class="stat">
+            <span id="token-expires" class="stat-value">--</span>
+            <span class="stat-label">Token Expires</span>
+          </div>
+        </div>
+        <div class="profile-actions">
+          <button id="logout-btn" class="btn btn-danger">Sign Out</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Permission Request Modal -->
+    <div id="permission-modal" class="modal hidden">
+      <div class="modal-content">
+        <h3>Permission Required</h3>
+        <p id="permission-domain">Grant access to <strong></strong> to use this tool.</p>
+        <div class="modal-actions">
+          <button id="cancel-permission" class="btn btn-secondary">Cancel</button>
+          <button id="grant-permission" class="btn btn-primary">Grant Access</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="js/popup.js" type="module"></script>
+</body>
+</html>

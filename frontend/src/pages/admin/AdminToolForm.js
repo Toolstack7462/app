@@ -199,19 +199,19 @@ const AdminToolForm = () => {
                 name="category"
                 value={formData.category}
                 onChange={handleChange}
-                className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors appearance-none cursor-pointer"
+                className="w-full px-4 py-3 bg-toolstack-bg border border-toolstack-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all appearance-none cursor-pointer hover:border-toolstack-muted"
                 style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27 viewBox=%270 0 12 8%27%3E%3Cpath fill=%27%23999%27 d=%27M6 8L0 0h12z%27/%3E%3C/svg%3E')", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '0.75rem' }}
                 data-testid="tool-category-select"
               >
-                <option value="AI">AI</option>
-                <option value="Academic">Academic</option>
-                <option value="SEO">SEO</option>
-                <option value="Productivity">Productivity</option>
-                <option value="Graphics & SEO">Graphics & SEO</option>
-                <option value="Text Humanizers">Text Humanizers</option>
-                <option value="Career-Oriented">Career-Oriented</option>
-                <option value="Miscellaneous">Miscellaneous</option>
-                <option value="Other">Other</option>
+                <option value="AI" className="bg-toolstack-bg text-white">AI</option>
+                <option value="Academic" className="bg-toolstack-bg text-white">Academic</option>
+                <option value="SEO" className="bg-toolstack-bg text-white">SEO</option>
+                <option value="Productivity" className="bg-toolstack-bg text-white">Productivity</option>
+                <option value="Graphics & SEO" className="bg-toolstack-bg text-white">Graphics & SEO</option>
+                <option value="Text Humanizers" className="bg-toolstack-bg text-white">Text Humanizers</option>
+                <option value="Career-Oriented" className="bg-toolstack-bg text-white">Career-Oriented</option>
+                <option value="Miscellaneous" className="bg-toolstack-bg text-white">Miscellaneous</option>
+                <option value="Other" className="bg-toolstack-bg text-white">Other</option>
               </select>
             </div>
 
