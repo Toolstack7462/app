@@ -118,13 +118,20 @@ async function bootstrapAdmin() {
       console.log(`   - ID: ${admin._id}`);
       console.log(`   - Password: ${adminPassword}\n`);
       console.log('⚠️  IMPORTANT: Change the default password after first login!\n');
+      
+      // Re-count after creation
+      const newAdminCount = await User.countDocuments({ 
+        role: { $in: ['SUPER_ADMIN', 'ADMIN'] } 
+      });
+      const clientCount = await User.countDocuments({ role: 'CLIENT' });
+      console.log(`📊 Database Status: ${newAdminCount} admin(s), ${clientCount} client(s)\n`);
     } else {
       console.log(`✅ Admin accounts verified: ${adminCount} admin(s) exist in database\n`);
+      
+      // Also show client count
+      const clientCount = await User.countDocuments({ role: 'CLIENT' });
+      console.log(`📊 Database Status: ${adminCount} admin(s), ${clientCount} client(s)\n`);
     }
-    
-    // Also check for client test account
-    const clientCount = await User.countDocuments({ role: 'CLIENT' });
-    console.log(`📊 Database Status: ${adminCount} admin(s), ${clientCount} client(s)\n`);
     
   } catch (error) {
     console.error('❌ Bootstrap error:', error.message);
