@@ -79,6 +79,59 @@ mongoose.connect(FULL_MONGO_URL, {
   process.exit(1);
 });
 
+// ============================================================================
+// ADMIN BOOTSTRAP - AUTO-CREATE ADMIN IF NONE EXISTS
+// ============================================================================
+async function bootstrapAdmin() {
+  try {
+    const User = require('./models/User');
+    
+    // Check if any admin exists
+    const adminCount = await User.countDocuments({ 
+      role: { $in: ['SUPER_ADMIN', 'ADMIN'] } 
+    });
+    
+    if (adminCount === 0) {
+      console.log('\n⚠️  No admin accounts found in database!');
+      console.log('📝 Creating default admin account...\n');
+      
+      const adminEmail = process.env.INITIAL_ADMIN_EMAIL || 'admin@toolstack.com';
+      const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || 'Admin123!Secure';
+      const adminName = process.env.INITIAL_ADMIN_NAME || 'Super Admin';
+      
+      const admin = await User.create({
+        email: adminEmail.toLowerCase().trim(),
+        fullName: adminName,
+        passwordHash: adminPassword,
+        role: 'SUPER_ADMIN',
+        status: 'active',
+        devicePolicy: {
+          enabled: false,
+          maxDevices: 10
+        }
+      });
+      
+      console.log('✅ Default admin created successfully!');
+      console.log(`   - Email: ${admin.email}`);
+      console.log(`   - Name: ${admin.fullName}`);
+      console.log(`   - Role: ${admin.role}`);
+      console.log(`   - ID: ${admin._id}`);
+      console.log(`   - Password: ${adminPassword}\n`);
+      console.log('⚠️  IMPORTANT: Change the default password after first login!\n');
+    } else {
+      console.log(`✅ Admin accounts verified: ${adminCount} admin(s) exist in database\n`);
+    }
+    
+    // Also check for client test account
+    const clientCount = await User.countDocuments({ role: 'CLIENT' });
+    console.log(`📊 Database Status: ${adminCount} admin(s), ${clientCount} client(s)\n`);
+    
+  } catch (error) {
+    console.error('❌ Bootstrap error:', error.message);
+    // Don't exit - let server continue even if bootstrap fails
+  }
+}
+
 // Import enhanced routes
 const authRoutes = require('./routes/authEnhanced');
 const publicRoutes = require('./routes/public');
