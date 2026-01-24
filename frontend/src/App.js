@@ -26,6 +26,9 @@ import AdminClients from './pages/admin/AdminClients';
 import AdminClientForm from './pages/admin/AdminClientForm';
 import AdminBulkAssign from './pages/admin/AdminBulkAssign';
 import AdminActivity from './pages/admin/AdminActivity';
+import AdminBlog from './pages/admin/AdminBlog';
+import AdminBlogForm from './pages/admin/AdminBlogForm';
+import AdminContacts from './pages/admin/AdminContacts';
 
 // Client Pages
 import ClientRoute from './components/ClientRoute';
