@@ -34,9 +34,10 @@ const AdminLogin = () => {
   };
   
   const handleChange = (e) => {
+    const fieldName = e.target.name === 'admin-login-email' ? 'email' : e.target.name;
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [fieldName]: e.target.value
     });
   };
   
@@ -69,13 +70,14 @@ const AdminLogin = () => {
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-toolstack-muted" size={20} />
                 <input
                   type="email"
-                  id="email"
-                  name="email"
+                  id="admin-login-email"
+                  name="admin-login-email"
+                  autoComplete="off"
                   required
                   value={formData.email}
                   onChange={handleChange}
                   className="w-full pl-12 pr-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors"
-                  placeholder="admin@toolstack.com"
+                  placeholder="Enter your email"
                 />
               </div>
             </div>

@@ -19,7 +19,7 @@ CRM_API = f"{BASE_URL}/api/crm"
 
 # Test credentials
 ADMIN_EMAIL = "admin@toolstack.com"
-ADMIN_PASSWORD = "admin123"
+ADMIN_PASSWORD = "Admin123!Secure"
 
 # Test data prefixes for cleanup
 TEST_PREFIX = "TEST_"
@@ -51,10 +51,10 @@ class TestAdminAuth:
         assert response.status_code == 200
         data = response.json()
         assert data.get('success') == True
-        assert 'token' in data
+        assert 'accessToken' in data
         assert 'user' in data
         assert data['user']['email'] == ADMIN_EMAIL
-        assert data['user']['role'] == 'ADMIN'
+        assert data['user']['role'] in ['SUPER_ADMIN', 'ADMIN', 'SUPPORT']
         print(f"✓ Admin login successful, token received")
     
     def test_admin_login_invalid_credentials(self):
@@ -73,8 +73,8 @@ class TestAdminAuth:
         response = requests.post(f"{CRM_API}/auth/admin/login", json={
             "email": ADMIN_EMAIL
         })
-        # Should fail with 401 since password is missing
-        assert response.status_code == 401
+        # Should fail with 400 since password is missing (validation error)
+        assert response.status_code == 400
         print(f"✓ Missing password rejected")
 
 
@@ -86,7 +86,7 @@ def admin_token():
         "password": ADMIN_PASSWORD
     })
     if response.status_code == 200:
-        return response.json().get('token')
+        return response.json().get('accessToken')
     pytest.skip("Admin authentication failed")
 
 

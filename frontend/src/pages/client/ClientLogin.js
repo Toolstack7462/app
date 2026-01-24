@@ -20,7 +20,7 @@ const ClientLogin = () => {
     
     try {
       setLoading(true);
-      const deviceId = authService.getDeviceId();
+      const deviceId = authService.getOrCreateDeviceId();
       await authService.clientLogin(formData.email, formData.password, deviceId);
       navigate('/client/dashboard');
     } catch (error) {
