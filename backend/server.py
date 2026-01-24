@@ -67,13 +67,21 @@ async def options_handler(request: Request, path: str):
 # CRM Backend URL
 CRM_BACKEND_URL = os.getenv("CRM_BACKEND_URL", "http://localhost:8002")
 
+print("\n" + "="*70)
+print("🚀 TOOLSTACK API GATEWAY - STARTUP")
+print("="*70)
+print(f"CRM Backend: {CRM_BACKEND_URL}")
+print(f"Environment: {os.getenv('NODE_ENV', 'development')}")
+print("="*70 + "\n")
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
     return {
         "status": "ok",
         "service": "ToolStack API Gateway",
-        "crm_backend": CRM_BACKEND_URL
+        "crm_backend": CRM_BACKEND_URL,
+        "cors_patterns": ALLOWED_ORIGIN_PATTERNS
     }
 
 @app.get("/api/health")
