@@ -105,18 +105,16 @@ router.post('/admin/login', authLimiter, normalizeAuthInputs, validate(schemas.a
   }
 });
 
-// POST /api/crm/auth/client/login - Client login
-router.post('/client/login', authLimiter, validate(schemas.clientLogin), async (req, res) => {
+// ============================================================================
+// CLIENT LOGIN - with input normalization BEFORE validation
+// ============================================================================
+router.post('/client/login', authLimiter, normalizeAuthInputs, validate(schemas.clientLogin), async (req, res) => {
   try {
-    let { email, password, deviceId } = req.body;
+    const { email, password, deviceId } = req.body;
     const ipAddress = getClientIp(req);
     
-    // ============================================================================
-    // INPUT NORMALIZATION - Prevent login issues from whitespace/case
-    // ============================================================================
-    email = email.trim().toLowerCase();
-    password = password.trim(); // Don't lowercase password
-    deviceId = deviceId ? deviceId.trim() : deviceId;
+    // Email, password, and deviceId are already normalized by middleware
+    // No need to trim/lowercase here
     
     // Find client
     const client = await User.findOne({ email, role: 'CLIENT' });
