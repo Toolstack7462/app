@@ -364,28 +364,27 @@ class ToolStackCRMTester:
             self.log_result("admin_dashboard", "Get current user", False, f"HTTP {response.status_code if response else 'No response'}")
 
     def run_all_tests(self):
-        """Run all test suites based on review request priorities"""
-        print("🧪 Starting ToolStack CRM API Tests - URL Change Resilience & Persistence...")
+        """Run focused input normalization tests as per review request"""
+        print("🧪 RE-TESTING INPUT NORMALIZATION FIX...")
+        print("Context: Fixed critical input normalization issue by adding middleware BEFORE validation")
+        print("Fix: normalizeAuthInputs middleware runs before Joi validation to trim spaces")
         
-        # HIGH PRIORITY TESTS as per review request
+        # FOCUSED TEST as per review request
         print("\n" + "="*70)
-        print("HIGH PRIORITY TESTS - Critical Fixes")
+        print("🎯 FOCUSED TEST: Input Normalization Fix Verification")
         print("="*70)
         
-        # 1. Health Checks & Connectivity
-        self.test_health_checks_connectivity()
+        # 1. Quick connectivity check
+        print("\n📡 Quick Connectivity Check...")
+        response = self.make_request("GET", self.gateway_url + "/health", auth_required=False)
+        if response and response.status_code == 200:
+            print("✅ Gateway connectivity OK")
+        else:
+            print("❌ Gateway connectivity failed - aborting tests")
+            return
         
-        # 2. Admin Authentication with Input Normalization  
+        # 2. MAIN TEST: Input Normalization with all 5 scenarios
         self.test_input_normalization_auth()
-        
-        # 3. Admin Bootstrap Verification
-        self.test_admin_bootstrap_verification()
-        
-        # 4. Admin Dashboard Access
-        self.test_admin_dashboard_access()
-        
-        # 5. CORS Validation
-        self.test_cors_validation()
         
         # Print summary
         self.print_summary()
