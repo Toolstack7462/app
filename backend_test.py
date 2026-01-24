@@ -152,8 +152,8 @@ class ToolStackCRMTester:
         
         # Test with allowed preview subdomain
         test_origins = [
-            "https://test.preview.emergentagent.com",
-            "https://another-app.preview.emergentagent.com", 
+            "https://crmrescue-1.preview.emergentagent.com",
+            "https://crmrescue-1.preview.emergentagent.com", 
             "https://main.emergentagent.com",
             "http://localhost:3000"
         ]
