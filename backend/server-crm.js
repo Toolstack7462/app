@@ -47,6 +47,7 @@ const adminContactsRoutes = require('./routes/admin/contacts');
 const clientToolsRoutes = require('./routes/client/tools');
 const clientAssignmentsRoutes = require('./routes/client/assignmentsEnhanced');
 const clientNotificationsRoutes = require('./routes/client/notifications');
+const clientProfileRoutes = require('./routes/client/profile');
 
 // Mount routes - All CRM routes under /api/crm prefix
 app.use('/api/crm/auth', authRoutes);
@@ -64,6 +65,7 @@ app.use('/api/crm/admin/contacts', adminContactsRoutes);
 app.use('/api/crm/client/tools', clientToolsRoutes);
 app.use('/api/crm/client/assignments', clientAssignmentsRoutes);
 app.use('/api/crm/client/notifications', clientNotificationsRoutes);
+app.use('/api/crm/client', clientProfileRoutes);
 
 // Health check
 app.get('/api/crm/health', (req, res) => {
