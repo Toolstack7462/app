@@ -1,22 +1,90 @@
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Calendar, Clock, Tag } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, Tag, Eye } from 'lucide-react';
 import { getBlogPost, getRelatedPosts } from '../data/blogData';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import api from '../services/api';
 
 const BlogDetail = () => {
   const { slug } = useParams();
-  const post = getBlogPost(slug);
-  const relatedPosts = getRelatedPosts(slug, 3);
+  const [post, setPost] = useState(null);
+  const [relatedPosts, setRelatedPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [useStaticData, setUseStaticData] = useState(false);
   
   useEffect(() => {
-    // Scroll to top when component mounts
     window.scrollTo(0, 0);
-    
-    // Set page title
-    if (post) {
-      document.title = `${post.title} | ToolStack Blog`;
+    loadPost();
+  }, [slug]);
+  
+  const loadPost = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get(`/public/blog/${slug}`);
+      
+      if (res.data.post) {
+        const dbPost = res.data.post;
+        setPost({
+          slug: dbPost.slug,
+          title: dbPost.title,
+          excerpt: dbPost.excerpt,
+          content: dbPost.content,
+          category: dbPost.category,
+          tags: dbPost.tags || [],
+          date: new Date(dbPost.publishedAt || dbPost.createdAt).toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          }),
+          readTime: `${Math.ceil((dbPost.content?.length || 0) / 1000)} min read`,
+          coverImage: dbPost.coverImage,
+          coverGradient: dbPost.coverImage ? null : `linear-gradient(135deg, hsl(${Math.random() * 360}, 70%, 50%), hsl(${Math.random() * 360}, 70%, 30%))`,
+          views: dbPost.views,
+          author: dbPost.author?.fullName || 'ToolStack Team'
+        });
+        
+        // Set related posts from API
+        if (res.data.relatedPosts) {
+          setRelatedPosts(res.data.relatedPosts.map(rp => ({
+            slug: rp.slug,
+            title: rp.title,
+            category: rp.category || 'Other',
+            readTime: `${Math.ceil((rp.content?.length || 0) / 1000)} min read`,
+            coverImage: rp.coverImage,
+            coverGradient: rp.coverImage ? null : `linear-gradient(135deg, hsl(${Math.random() * 360}, 70%, 50%), hsl(${Math.random() * 360}, 70%, 30%))`
+          })));
+        }
+        
+        document.title = `${dbPost.title} | ToolStack Blog`;
+        setUseStaticData(false);
+      }
+    } catch (error) {
+      console.log('Trying static data:', error);
+      // Fallback to static data
+      const staticPost = getBlogPost(slug);
+      const staticRelated = getRelatedPosts(slug, 3);
+      
+      if (staticPost) {
+        setPost(staticPost);
+        setRelatedPosts(staticRelated);
+        document.title = `${staticPost.title} | ToolStack Blog`;
+        setUseStaticData(true);
+      } else {
+        setPost(null);
+      }
+    } finally {
+      setLoading(false);
     }
-  }, [post]);
+  };
+  
+  if (loading) {
+    return (
+      <div className="text-white min-h-screen pt-24 pb-16 px-4">
+        <div className="max-w-4xl mx-auto flex items-center justify-center min-h-[60vh]">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-toolstack-orange border-t-transparent"></div>
+        </div>
+      </div>
+    );
+  }
   
   if (!post) {
     return (
@@ -31,6 +99,29 @@ const BlogDetail = () => {
       </div>
     );
   }
+  
+  // Render markdown/HTML content
+  const renderContent = (content) => {
+    // Simple markdown to HTML conversion for basic formatting
+    if (!content) return '';
+    
+    // If content already has HTML tags, render as-is
+    if (content.includes('<') && content.includes('>')) {
+      return content;
+    }
+    
+    // Otherwise, convert basic markdown
+    let html = content
+      .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+      .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+      .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n/g, '<br/>');
+    
+    return `<p>${html}</p>`;
+  };
   
   return (
     <div className="text-white min-h-screen pt-24 pb-16 px-4">
@@ -48,11 +139,16 @@ const BlogDetail = () => {
         {/* Article Header */}
         <article>
           {/* Category Tag */}
-          <div className="mb-4">
+          <div className="mb-4 flex items-center gap-2 flex-wrap">
             <span className="inline-flex items-center gap-1 px-3 py-1 bg-toolstack-orange/20 text-toolstack-orange text-sm rounded-full">
               <Tag size={14} />
               {post.category}
             </span>
+            {post.tags?.map(tag => (
+              <span key={tag} className="px-3 py-1 bg-white/10 text-toolstack-muted text-sm rounded-full">
+                {tag}
+              </span>
+            ))}
           </div>
           
           {/* Title */}
@@ -61,7 +157,7 @@ const BlogDetail = () => {
           </h1>
           
           {/* Meta */}
-          <div className="flex items-center gap-6 text-toolstack-muted mb-8 pb-8 border-b border-toolstack-border">
+          <div className="flex items-center gap-6 text-toolstack-muted mb-8 pb-8 border-b border-toolstack-border flex-wrap">
             <div className="flex items-center gap-2">
               <Calendar size={18} />
               <span>{post.date}</span>
@@ -70,13 +166,35 @@ const BlogDetail = () => {
               <Clock size={18} />
               <span>{post.readTime}</span>
             </div>
+            {post.views > 0 && (
+              <div className="flex items-center gap-2">
+                <Eye size={18} />
+                <span>{post.views} views</span>
+              </div>
+            )}
+            {post.author && (
+              <div className="text-white">
+                By <span className="font-medium">{post.author}</span>
+              </div>
+            )}
           </div>
           
-          {/* Cover Gradient */}
+          {/* Cover Image or Gradient */}
           <div 
             className="h-64 md:h-96 w-full rounded-2xl mb-12"
-            style={{ background: post.coverGradient }}
+            style={post.coverImage ? {
+              backgroundImage: `url(${post.coverImage})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center'
+            } : { background: post.coverGradient }}
           ></div>
+          
+          {/* Excerpt */}
+          {post.excerpt && (
+            <div className="text-xl text-toolstack-muted mb-8 italic border-l-4 border-toolstack-orange pl-4">
+              {post.excerpt}
+            </div>
+          )}
           
           {/* Article Content */}
           <div 
@@ -88,7 +206,7 @@ const BlogDetail = () => {
               '--tw-prose-bold': '#FFFFFF',
               '--tw-prose-quotes': '#A1A1AA'
             }}
-            dangerouslySetInnerHTML={{ __html: post.content }}
+            dangerouslySetInnerHTML={{ __html: renderContent(post.content) }}
           />
         </article>
         
@@ -106,7 +224,11 @@ const BlogDetail = () => {
                 >
                   <div 
                     className="h-32 w-full"
-                    style={{ background: relatedPost.coverGradient }}
+                    style={relatedPost.coverImage ? {
+                      backgroundImage: `url(${relatedPost.coverImage})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center'
+                    } : { background: relatedPost.coverGradient }}
                   ></div>
                   <div className="p-4">
                     <span className="inline-block px-2 py-1 bg-toolstack-orange/20 text-toolstack-orange text-xs rounded-full mb-2">
