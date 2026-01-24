@@ -1,0 +1,338 @@
+import { useState, useEffect } from 'react';
+import AdminLayout from '../../components/AdminLayout';
+import { Search, Mail, Trash2, Eye, Filter, Clock, AlertCircle, CheckCircle, Archive, MessageSquare } from 'lucide-react';
+import api from '../../services/api';
+import { useToast } from '../../components/Toast';
+import ConfirmModal from '../../components/ConfirmModal';
+
+const AdminContacts = () => {
+  const { showSuccess, showError } = useToast();
+  const [contacts, setContacts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [selectedContact, setSelectedContact] = useState(null);
+  const [deleteModal, setDeleteModal] = useState({ open: false, contact: null });
+  const [stats, setStats] = useState({ total: 0, new: 0, read: 0, replied: 0, archived: 0 });
+
+  useEffect(() => {
+    loadContacts();
+    loadStats();
+  }, [statusFilter]);
+
+  const loadContacts = async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (statusFilter) params.append('status', statusFilter);
+      
+      const res = await api.get(`/admin/contacts?${params}`);
+      setContacts(res.data.contacts || []);
+    } catch (error) {
+      showError('Failed to load contacts');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadStats = async () => {
+    try {
+      const res = await api.get('/admin/contacts/stats');
+      setStats(res.data.stats || {});
+    } catch (error) {
+      console.error('Failed to load stats');
+    }
+  };
+
+  const viewContact = async (contact) => {
+    try {
+      const res = await api.get(`/admin/contacts/${contact._id}`);
+      setSelectedContact(res.data.contact);
+      // Update local state to reflect read status
+      if (contact.status === 'new') {
+        setContacts(contacts.map(c => c._id === contact._id ? { ...c, status: 'read' } : c));
+        loadStats();
+      }
+    } catch (error) {
+      showError('Failed to load contact details');
+    }
+  };
+
+  const updateStatus = async (contactId, status) => {
+    try {
+      await api.put(`/admin/contacts/${contactId}`, { status });
+      setContacts(contacts.map(c => c._id === contactId ? { ...c, status } : c));
+      if (selectedContact?._id === contactId) {
+        setSelectedContact(prev => ({ ...prev, status }));
+      }
+      showSuccess(`Contact marked as ${status}`);
+      loadStats();
+    } catch (error) {
+      showError('Failed to update status');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteModal.contact) return;
+    try {
+      await api.delete(`/admin/contacts/${deleteModal.contact._id}`);
+      setContacts(contacts.filter(c => c._id !== deleteModal.contact._id));
+      if (selectedContact?._id === deleteModal.contact._id) {
+        setSelectedContact(null);
+      }
+      showSuccess('Contact deleted successfully');
+      setDeleteModal({ open: false, contact: null });
+      loadStats();
+    } catch (error) {
+      showError('Failed to delete contact');
+    }
+  };
+
+  const filteredContacts = contacts.filter(contact =>
+    contact.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    contact.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    contact.subject?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'new': return <AlertCircle size={16} className="text-blue-400" />;
+      case 'read': return <Eye size={16} className="text-yellow-400" />;
+      case 'replied': return <CheckCircle size={16} className="text-green-400" />;
+      case 'archived': return <Archive size={16} className="text-gray-400" />;
+      default: return null;
+    }
+  };
+
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'high': return 'text-red-400 bg-red-400/10';
+      case 'medium': return 'text-yellow-400 bg-yellow-400/10';
+      case 'low': return 'text-green-400 bg-green-400/10';
+      default: return 'text-gray-400 bg-gray-400/10';
+    }
+  };
+
+  if (loading) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[80vh]">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-toolstack-orange border-t-transparent"></div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  return (
+    <AdminLayout>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white mb-2">Contact Messages</h1>
+          <p className="text-toolstack-muted">Manage incoming contact form submissions</p>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+          {[
+            { label: 'Total', value: stats.total, color: 'bg-white/5' },
+            { label: 'New', value: stats.new, color: 'bg-blue-500/10' },
+            { label: 'Read', value: stats.read, color: 'bg-yellow-500/10' },
+            { label: 'Replied', value: stats.replied, color: 'bg-green-500/10' },
+            { label: 'Archived', value: stats.archived, color: 'bg-gray-500/10' }
+          ].map((stat, idx) => (
+            <div key={idx} className={`${stat.color} border border-toolstack-border rounded-xl p-4 text-center`}>
+              <div className="text-2xl font-bold text-white">{stat.value}</div>
+              <div className="text-sm text-toolstack-muted">{stat.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-toolstack-muted" size={20} />
+            <input
+              type="text"
+              placeholder="Search contacts..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 bg-toolstack-card border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors"
+              data-testid="search-contacts-input"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-3 bg-toolstack-card border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors"
+            data-testid="status-filter"
+          >
+            <option value="">All Status</option>
+            <option value="new">New</option>
+            <option value="read">Read</option>
+            <option value="replied">Replied</option>
+            <option value="archived">Archived</option>
+          </select>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Contact List */}
+          <div className="lg:col-span-1">
+            <div className="bg-toolstack-card border border-toolstack-border rounded-xl overflow-hidden">
+              <div className="p-4 border-b border-toolstack-border">
+                <h2 className="font-semibold text-white flex items-center gap-2">
+                  <MessageSquare size={18} />
+                  Messages ({filteredContacts.length})
+                </h2>
+              </div>
+              
+              {filteredContacts.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Mail size={40} className="mx-auto mb-3 text-toolstack-muted opacity-50" />
+                  <p className="text-toolstack-muted">No contacts found</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-toolstack-border max-h-[600px] overflow-y-auto">
+                  {filteredContacts.map((contact) => (
+                    <button
+                      key={contact._id}
+                      onClick={() => viewContact(contact)}
+                      className={`w-full p-4 text-left hover:bg-white/5 transition-colors ${
+                        selectedContact?._id === contact._id ? 'bg-white/10' : ''
+                      } ${contact.status === 'new' ? 'bg-blue-500/5' : ''}`}
+                      data-testid={`contact-item-${contact._id}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            {getStatusIcon(contact.status)}
+                            <span className="font-medium text-white truncate">{contact.name}</span>
+                          </div>
+                          <p className="text-sm text-toolstack-muted truncate">{contact.subject}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Clock size={12} className="text-toolstack-muted" />
+                            <span className="text-xs text-toolstack-muted">
+                              {new Date(contact.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${getPriorityColor(contact.priority)}`}>
+                          {contact.priority}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Contact Detail */}
+          <div className="lg:col-span-2">
+            {selectedContact ? (
+              <div className="bg-toolstack-card border border-toolstack-border rounded-xl overflow-hidden">
+                <div className="p-4 border-b border-toolstack-border flex items-center justify-between">
+                  <div>
+                    <h2 className="font-semibold text-white">{selectedContact.subject}</h2>
+                    <p className="text-sm text-toolstack-muted">From: {selectedContact.name}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {selectedContact.status !== 'replied' && (
+                      <button
+                        onClick={() => updateStatus(selectedContact._id, 'replied')}
+                        className="p-2 text-green-400 hover:bg-green-400/10 rounded-lg transition-colors"
+                        title="Mark as Replied"
+                      >
+                        <CheckCircle size={20} />
+                      </button>
+                    )}
+                    {selectedContact.status !== 'archived' && (
+                      <button
+                        onClick={() => updateStatus(selectedContact._id, 'archived')}
+                        className="p-2 text-gray-400 hover:bg-gray-400/10 rounded-lg transition-colors"
+                        title="Archive"
+                      >
+                        <Archive size={20} />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setDeleteModal({ open: true, contact: selectedContact })}
+                      className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="p-6">
+                  {/* Contact Info */}
+                  <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-white/5 rounded-xl">
+                    <div>
+                      <span className="text-xs text-toolstack-muted block">Email</span>
+                      <a href={`mailto:${selectedContact.email}`} className="text-toolstack-orange hover:underline">
+                        {selectedContact.email}
+                      </a>
+                    </div>
+                    <div>
+                      <span className="text-xs text-toolstack-muted block">Phone</span>
+                      <span className="text-white">{selectedContact.phone || 'Not provided'}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-toolstack-muted block">Received</span>
+                      <span className="text-white">{new Date(selectedContact.createdAt).toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-toolstack-muted block">Status</span>
+                      <span className="capitalize text-white flex items-center gap-2">
+                        {getStatusIcon(selectedContact.status)}
+                        {selectedContact.status}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Message */}
+                  <div>
+                    <h3 className="text-sm font-medium text-toolstack-muted mb-2">Message</h3>
+                    <div className="p-4 bg-white/5 rounded-xl text-white whitespace-pre-wrap">
+                      {selectedContact.message}
+                    </div>
+                  </div>
+                  
+                  {/* Quick Reply */}
+                  <div className="mt-6">
+                    <a
+                      href={`mailto:${selectedContact.email}?subject=Re: ${selectedContact.subject}`}
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-orange text-white rounded-full font-medium hover:opacity-90 transition-opacity"
+                    >
+                      <Mail size={18} />
+                      Reply via Email
+                    </a>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-toolstack-card border border-toolstack-border rounded-xl p-12 text-center">
+                <Mail size={48} className="mx-auto mb-4 text-toolstack-muted opacity-50" />
+                <h3 className="text-lg font-medium text-white mb-2">Select a message</h3>
+                <p className="text-toolstack-muted">Click on a contact to view details</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <ConfirmModal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, contact: null })}
+        onConfirm={handleDelete}
+        title="Delete Contact"
+        message={`Are you sure you want to delete the message from "${deleteModal.contact?.name}"?`}
+        confirmText="Delete"
+        confirmStyle="danger"
+      />
+    </AdminLayout>
+  );
+};
+
+export default AdminContacts;
