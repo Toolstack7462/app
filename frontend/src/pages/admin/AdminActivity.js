@@ -49,12 +49,13 @@ const AdminActivity = () => {
   };
 
   const exportToCSV = () => {
-    const headers = ['Time', 'Role', 'Action', 'Details'];
+    const headers = ['Time', 'Email', 'Role', 'Action', 'Details'];
     const rows = activities.map(a => [
       formatDate(a.createdAt),
+      a.actorId?.email || a.meta?.email || 'N/A',
       a.actorRole,
       a.action,
-      a.meta ? JSON.stringify(a.meta) : ''
+      getActivityDescription(a)
     ]);
     
     const csvContent = [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
