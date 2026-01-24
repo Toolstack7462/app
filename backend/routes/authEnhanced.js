@@ -11,19 +11,19 @@ const {
   getClientIp 
 } = require('../middleware/authEnhanced');
 const { validate, schemas } = require('../middleware/validation');
+const { normalizeAuthInputs } = require('../middleware/normalize');
 const { authLimiter, registerLimiter } = require('../middleware/rateLimiter');
 
-// POST /api/crm/auth/admin/login - Admin login
-router.post('/admin/login', authLimiter, validate(schemas.adminLogin), async (req, res) => {
+// ============================================================================
+// ADMIN LOGIN - with input normalization BEFORE validation
+// ============================================================================
+router.post('/admin/login', authLimiter, normalizeAuthInputs, validate(schemas.adminLogin), async (req, res) => {
   try {
-    let { email, password } = req.body;
+    const { email, password } = req.body;
     const ipAddress = getClientIp(req);
     
-    // ============================================================================
-    // INPUT NORMALIZATION - Prevent login issues from whitespace/case
-    // ============================================================================
-    email = email.trim().toLowerCase();
-    password = password.trim(); // Don't lowercase password
+    // Email and password are already normalized by normalizeAuthInputs middleware
+    // No need to trim/lowercase here
     
     // Find admin user
     const admin = await User.findOne({ 
