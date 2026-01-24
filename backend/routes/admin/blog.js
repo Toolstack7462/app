@@ -129,9 +129,8 @@ router.post('/', async (req, res) => {
       }
     }
     
-    const post = await Blog.create({
+    const postData = {
       title,
-      slug: slug || undefined,
       excerpt,
       content,
       coverImage,
@@ -140,7 +139,13 @@ router.post('/', async (req, res) => {
       status: status || 'draft',
       featured: featured || false,
       author: req.userId
-    });
+    };
+    
+    if (slug) {
+      postData.slug = slug;
+    }
+    
+    const post = await Blog.create(postData);
     
     const ipAddress = getClientIp(req);
     
