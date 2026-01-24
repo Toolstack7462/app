@@ -187,11 +187,15 @@ router.put('/:id', normalizeStringInputs, validate(schemas.updateTool), async (r
     
     // Track changes
     const changes = {};
-    const allowedUpdates = ['name', 'description', 'targetUrl', 'category', 'status', 'cookiesEncrypted', 'fileMeta'];
+    const allowedUpdates = [
+      'name', 'description', 'targetUrl', 'category', 'status', 
+      'cookiesEncrypted', 'tokenEncrypted', 'tokenHeader', 'tokenPrefix',
+      'localStorageEncrypted', 'credentialType', 'extensionSettings', 'fileMeta'
+    ];
     
     allowedUpdates.forEach(field => {
       if (req.body[field] !== undefined && req.body[field] !== tool[field]) {
-        changes[field] = { from: tool[field], to: req.body[field] };
+        changes[field] = { from: field.includes('Encrypted') ? '[encrypted]' : tool[field], to: field.includes('Encrypted') ? '[encrypted]' : req.body[field] };
         tool[field] = req.body[field];
       }
     });
