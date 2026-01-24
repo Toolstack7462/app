@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import ClientLayoutEnhanced from '../../components/ClientLayoutEnhanced';
+import ClientLayoutEnhanced, { getCategoryGradient, getCategoryTheme, CARD_VARIANTS } from '../../components/ClientLayoutEnhanced';
 import { 
   Package, 
   Clock, 
@@ -73,19 +73,6 @@ const ClientDashboardEnhanced = () => {
     const diff = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
     return diff;
   };
-  
-  const getCategoryColor = (category) => {
-    const colors = {
-      'AI': 'from-purple-500 to-purple-600',
-      'Academic': 'from-blue-500 to-blue-600',
-      'SEO': 'from-green-500 to-green-600',
-      'Productivity': 'from-yellow-500 to-yellow-600',
-      'Graphics & SEO': 'from-pink-500 to-pink-600',
-      'Text Humanizers': 'from-indigo-500 to-indigo-600',
-      'Career-Oriented': 'from-orange-500 to-orange-600'
-    };
-    return colors[category] || 'from-gray-500 to-gray-600';
-  };
 
   if (loading) {
     return (
@@ -93,7 +80,7 @@ const ClientDashboardEnhanced = () => {
         <div className="flex items-center justify-center min-h-[80vh]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-16 w-16 border-4 border-toolstack-orange border-t-transparent mx-auto mb-4"></div>
-            <p className="text-toolstack-muted">Loading your tools...</p>
+            <p className="text-white/60">Loading your tools...</p>
           </div>
         </div>
       </ClientLayoutEnhanced>
