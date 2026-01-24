@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../components/AdminLayout';
-import { Activity, Search, Filter, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Activity, Search, Filter, RefreshCw, ChevronLeft, ChevronRight, Calendar, Download } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/Toast';
 
@@ -11,7 +11,9 @@ const AdminActivity = () => {
   const [filters, setFilters] = useState({
     role: '',
     action: '',
-    search: ''
+    search: '',
+    startDate: '',
+    endDate: ''
   });
   const [pagination, setPagination] = useState({
     page: 1,
