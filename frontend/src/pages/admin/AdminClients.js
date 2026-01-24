@@ -144,21 +144,23 @@ const AdminClients = () => {
                   setStatusFilter(e.target.value);
                   setPagination(prev => ({ ...prev, page: 1 }));
                 }}
-                className="px-4 py-2.5 bg-white/5 border border-toolstack-border rounded-lg text-white focus:outline-none focus:border-toolstack-orange transition-colors text-sm"
+                className="px-4 py-2.5 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all text-sm appearance-none cursor-pointer hover:border-toolstack-muted min-w-[120px]"
+                style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27 viewBox=%270 0 12 8%27%3E%3Cpath fill=%27%23999%27 d=%27M6 8L0 0h12z%27/%3E%3C/svg%3E')", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '0.65rem' }}
                 data-testid="status-filter"
               >
-                <option value="">All Status</option>
-                <option value="active">Active</option>
-                <option value="disabled">Disabled</option>
+                <option value="" className="bg-toolstack-bg text-white">All Status</option>
+                <option value="active" className="bg-toolstack-bg text-white">Active</option>
+                <option value="disabled" className="bg-toolstack-bg text-white">Disabled</option>
               </select>
               <select
                 value={pagination.limit}
                 onChange={(e) => setPagination(prev => ({ ...prev, limit: parseInt(e.target.value), page: 1 }))}
-                className="px-4 py-2.5 bg-white/5 border border-toolstack-border rounded-lg text-white focus:outline-none focus:border-toolstack-orange transition-colors text-sm"
+                className="px-4 py-2.5 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all text-sm appearance-none cursor-pointer hover:border-toolstack-muted min-w-[100px]"
+                style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27 viewBox=%270 0 12 8%27%3E%3Cpath fill=%27%23999%27 d=%27M6 8L0 0h12z%27/%3E%3C/svg%3E')", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '0.65rem' }}
               >
-                <option value="10">10 / page</option>
-                <option value="25">25 / page</option>
-                <option value="50">50 / page</option>
+                <option value="10" className="bg-toolstack-bg text-white">10 / page</option>
+                <option value="25" className="bg-toolstack-bg text-white">25 / page</option>
+                <option value="50" className="bg-toolstack-bg text-white">50 / page</option>
               </select>
             </div>
           </div>
