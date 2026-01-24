@@ -36,7 +36,8 @@ const AdminToolForm = () => {
         name: tool.name || '',
         description: tool.description || '',
         targetUrl: tool.targetUrl || '',
-        cookies: '', // Don't show encrypted cookies
+        category: tool.category || 'Other',
+        cookiesEncrypted: '', // Don't show encrypted cookies
         status: tool.status || 'active'
       });
     } catch (error) {
