@@ -246,11 +246,12 @@ const AdminBlogForm = () => {
                   name="category"
                   value={formData.category}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors"
+                  className="w-full px-4 py-3 bg-toolstack-bg border border-toolstack-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all appearance-none cursor-pointer hover:border-toolstack-muted"
+                  style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27 viewBox=%270 0 12 8%27%3E%3Cpath fill=%27%23999%27 d=%27M6 8L0 0h12z%27/%3E%3C/svg%3E')", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '0.75rem' }}
                   data-testid="post-category"
                 >
                   {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
+                    <option key={cat} value={cat} className="bg-toolstack-bg text-white">{cat}</option>
                   ))}
                 </select>
               </div>
@@ -276,12 +277,13 @@ const AdminBlogForm = () => {
                   name="status"
                   value={formData.status}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors"
+                  className="w-full px-4 py-3 bg-toolstack-bg border border-toolstack-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all appearance-none cursor-pointer hover:border-toolstack-muted"
+                  style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27 viewBox=%270 0 12 8%27%3E%3Cpath fill=%27%23999%27 d=%27M6 8L0 0h12z%27/%3E%3C/svg%3E')", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '0.75rem' }}
                   data-testid="post-status"
                 >
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                  <option value="archived">Archived</option>
+                  <option value="draft" className="bg-toolstack-bg text-white">Draft</option>
+                  <option value="published" className="bg-toolstack-bg text-white">Published</option>
+                  <option value="archived" className="bg-toolstack-bg text-white">Archived</option>
                 </select>
               </div>
               <div className="flex items-center">
