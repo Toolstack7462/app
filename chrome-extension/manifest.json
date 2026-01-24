@@ -1,12 +1,14 @@
 {
   "manifest_version": 3,
   "name": "ToolStack Access",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Access your assigned tools with automatic credential sync",
   "permissions": [
     "storage",
     "alarms",
-    "cookies"
+    "cookies",
+    "tabs",
+    "scripting"
   ],
   "optional_host_permissions": [
     "https://*/*",
