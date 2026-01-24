@@ -10,24 +10,72 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 
-// Middleware
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'https://route-guardian-9.preview.emergentagent.com',
+// ============================================================================
+// DYNAMIC CORS CONFIGURATION - SUPPORTS URL CHANGES
+// ============================================================================
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, postman)
+    if (!origin) return callback(null, true);
+    
+    // List of allowed origins/patterns
+    const allowedPatterns = [
+      /^https:\/\/.*\.preview\.emergentagent\.com$/,  // All preview subdomains
+      /^https:\/\/.*\.emergentagent\.com$/,           // All emergentagent subdomains
+      /^http:\/\/localhost:\d+$/,                      // Local development
+      /^http:\/\/127\.0\.0\.1:\d+$/                    // Local development
+    ];
+    
+    // Check if origin matches any pattern
+    const isAllowed = allowedPatterns.some(pattern => pattern.test(origin));
+    
+    if (isAllowed) {
+      console.log(`✅ CORS: Allowed origin: ${origin}`);
+      callback(null, true);
+    } else {
+      console.warn(`⚠️  CORS: Blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
-}));
+};
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
-// MongoDB connection
+// ============================================================================
+// PERSISTENT DATABASE CONNECTION WITH DETAILED LOGGING
+// ============================================================================
 const MONGO_URL = process.env.MONGO_URL || 'mongodb://localhost:27017';
 const DB_NAME = process.env.DB_NAME || 'toolstack_crm';
 const FULL_MONGO_URL = `${MONGO_URL}/${DB_NAME}`;
 
-mongoose.connect(FULL_MONGO_URL)
-.then(() => console.log(`✅ CRM MongoDB connected to ${DB_NAME}`))
+console.log('\n' + '='.repeat(70));
+console.log('🔌 MONGODB CONNECTION DETAILS');
+console.log('='.repeat(70));
+console.log(`Host: ${MONGO_URL}`);
+console.log(`Database: ${DB_NAME}`);
+console.log(`Full URL: ${FULL_MONGO_URL}`);
+console.log('='.repeat(70) + '\n');
+
+mongoose.connect(FULL_MONGO_URL, {
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+})
+.then(async () => {
+  console.log(`✅ MongoDB connected successfully!`);
+  console.log(`   - Host: ${mongoose.connection.host}`);
+  console.log(`   - Database: ${mongoose.connection.db.databaseName}`);
+  console.log(`   - Connection State: ${mongoose.connection.readyState === 1 ? 'Connected' : 'Not Connected'}`);
+  
+  // Bootstrap admin on first startup
+  await bootstrapAdmin();
+})
 .catch(err => {
-  console.error('❌ MongoDB connection error:', err);
+  console.error('❌ MongoDB connection FAILED:', err.message);
+  console.error('   Please check your MONGO_URL and DB_NAME in .env file');
   process.exit(1);
 });
 
