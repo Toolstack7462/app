@@ -309,8 +309,8 @@ const AdminActivity = () => {
                           {activity.action.replace(/_/g, ' ')}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-toolstack-muted max-w-md truncate">
-                        {activity.meta ? JSON.stringify(activity.meta).substring(0, 80) : '-'}
+                      <td className="px-6 py-4 text-sm text-white">
+                        {getActivityDescription(activity)}
                       </td>
                     </tr>
                   ))}
