@@ -15,6 +15,7 @@ import About from './pages/About';
 import Contact from './pages/Contact';
 import Login from './pages/Login';
 import Join from './pages/Join';
+import NotFound from './pages/NotFound';
 
 // Admin Pages
 import AdminRoute from './components/AdminRoute';
@@ -78,6 +79,9 @@ function App() {
             <Route path="/client/tools" element={<ClientRoute><ClientTools /></ClientRoute>} />
             <Route path="/client/tools/:id" element={<ClientRoute><ClientToolDetail /></ClientRoute>} />
             <Route path="/client/profile" element={<ClientRoute><ClientProfile /></ClientRoute>} />
+
+            {/* Catch-all 404 Route - MUST BE LAST */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
       </div>
