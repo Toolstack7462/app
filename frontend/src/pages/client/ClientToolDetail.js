@@ -146,7 +146,7 @@ const ClientToolDetail = () => {
               <div>
                 <h3 className="text-lg font-semibold text-white mb-2">How to Use This Tool</h3>
                 <p className="text-toolstack-muted">
-                  Click the "Open Tool Website" button above to access your assigned tool. 
+                  Click the &quot;Open Tool Website&quot; button above to access your assigned tool. 
                   Your access has been granted by your administrator and is valid until the expiry date shown above.
                 </p>
               </div>
