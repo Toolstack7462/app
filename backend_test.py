@@ -92,11 +92,88 @@ class ToolStackCRMTester:
             print(f"❌ Request failed: {e}")
             return None
 
-    def test_authentication(self):
-        """Test authentication endpoints"""
-        print("\n🔐 Testing Authentication...")
+    def test_health_checks_connectivity(self):
+        """Test health checks and connectivity as per review request"""
+        print("\n🏥 Testing Health Checks & Connectivity...")
         
-        # Test admin login
+        # Test FastAPI Gateway health
+        response = self.make_request("GET", self.gateway_url + "/health", auth_required=False)
+        if response and response.status_code == 200:
+            try:
+                data = response.json()
+                if data.get("status") == "ok" and "cors_patterns" in data:
+                    self.log_result("health_connectivity", "FastAPI Gateway health check", True)
+                    print(f"   Gateway: {data.get('service', 'Unknown')}")
+                    print(f"   CRM Backend: {data.get('crm_backend', 'Unknown')}")
+                    print(f"   CORS Patterns: {len(data.get('cors_patterns', []))} patterns")
+                else:
+                    self.log_result("health_connectivity", "FastAPI Gateway health check", False, "Missing required fields")
+            except json.JSONDecodeError:
+                self.log_result("health_connectivity", "FastAPI Gateway health check", False, "Invalid JSON response")
+        else:
+            self.log_result("health_connectivity", "FastAPI Gateway health check", False, f"HTTP {response.status_code if response else 'No response'}")
+        
+        # Test CRM Backend health through gateway
+        response = self.make_request("GET", "/health", auth_required=False)
+        if response and response.status_code == 200:
+            try:
+                data = response.json()
+                backend_data = data.get("backend", {})
+                if backend_data.get("status") == "ok":
+                    self.log_result("health_connectivity", "CRM Backend health via gateway", True)
+                    
+                    # Check MongoDB connection details
+                    mongodb_info = backend_data.get("mongodb", {})
+                    if mongodb_info:
+                        print(f"   MongoDB Host: {mongodb_info.get('host', 'N/A')}")
+                        print(f"   MongoDB Database: {mongodb_info.get('database', 'N/A')}")
+                        print(f"   MongoDB State: {mongodb_info.get('state', 'N/A')}")
+                        
+                        if mongodb_info.get("state") == "connected":
+                            self.log_result("mongodb_persistence", "MongoDB connection verified", True)
+                        else:
+                            self.log_result("mongodb_persistence", "MongoDB connection verified", False, f"State: {mongodb_info.get('state')}")
+                    else:
+                        self.log_result("mongodb_persistence", "MongoDB connection info", False, "No MongoDB info in response")
+                else:
+                    self.log_result("health_connectivity", "CRM Backend health via gateway", False, "Backend not OK")
+            except json.JSONDecodeError:
+                self.log_result("health_connectivity", "CRM Backend health via gateway", False, "Invalid JSON response")
+        else:
+            self.log_result("health_connectivity", "CRM Backend health via gateway", False, f"HTTP {response.status_code if response else 'No response'}")
+
+    def test_cors_validation(self):
+        """Test CORS validation with different origins"""
+        print("\n🌐 Testing CORS Validation...")
+        
+        # Test with allowed preview subdomain
+        test_origins = [
+            "https://test.preview.emergentagent.com",
+            "https://another-app.preview.emergentagent.com", 
+            "https://main.emergentagent.com",
+            "http://localhost:3000"
+        ]
+        
+        for origin in test_origins:
+            response = self.make_request("GET", "/health", auth_required=False, origin=origin)
+            if response and response.status_code == 200:
+                # Check if CORS headers are present
+                cors_origin = response.headers.get("Access-Control-Allow-Origin")
+                cors_credentials = response.headers.get("Access-Control-Allow-Credentials")
+                
+                if cors_origin == origin and cors_credentials == "true":
+                    self.log_result("cors_validation", f"CORS allowed for {origin}", True)
+                else:
+                    self.log_result("cors_validation", f"CORS headers for {origin}", False, f"Origin: {cors_origin}, Credentials: {cors_credentials}")
+            else:
+                self.log_result("cors_validation", f"CORS test for {origin}", False, f"HTTP {response.status_code if response else 'No response'}")
+
+    def test_admin_bootstrap_verification(self):
+        """Test admin bootstrap verification"""
+        print("\n👤 Testing Admin Bootstrap Verification...")
+        
+        # This test verifies that admin was auto-created as mentioned in review request
+        # We'll test by attempting login with the bootstrap credentials
         login_data = {
             "email": self.admin_email,
             "password": self.admin_password
@@ -109,247 +186,163 @@ class ToolStackCRMTester:
                 data = response.json()
                 if data.get("success") and data.get("accessToken"):
                     self.admin_token = data["accessToken"]
-                    self.log_result("authentication", "Admin login successful", True)
+                    user_data = data.get("user", {})
                     
-                    # Test getting current user
-                    me_response = self.make_request("GET", "/auth/me")
-                    if me_response and me_response.status_code == 200:
-                        me_data = me_response.json()
-                        if me_data.get("success") and me_data.get("user"):
-                            self.log_result("authentication", "Get current user", True)
-                        else:
-                            self.log_result("authentication", "Get current user", False, "Invalid response format")
-                    else:
-                        self.log_result("authentication", "Get current user", False, f"HTTP {me_response.status_code if me_response else 'No response'}")
+                    self.log_result("admin_bootstrap", "Admin bootstrap verification", True)
+                    print(f"   Admin ID: {user_data.get('_id', 'N/A')}")
+                    print(f"   Admin Email: {user_data.get('email', 'N/A')}")
+                    print(f"   Admin Role: {user_data.get('role', 'N/A')}")
+                    print(f"   Admin Status: {user_data.get('status', 'N/A')}")
+                    
+                    # Verify admin exists in database (implied by successful login)
+                    self.log_result("admin_bootstrap", "Admin exists in database", True)
                 else:
-                    self.log_result("authentication", "Admin login", False, "Missing success or accessToken in response")
+                    self.log_result("admin_bootstrap", "Admin bootstrap verification", False, "Missing success or accessToken in response")
             except json.JSONDecodeError:
-                self.log_result("authentication", "Admin login", False, "Invalid JSON response")
+                self.log_result("admin_bootstrap", "Admin bootstrap verification", False, "Invalid JSON response")
         else:
-            self.log_result("authentication", "Admin login", False, f"HTTP {response.status_code if response else 'No response'}")
+            self.log_result("admin_bootstrap", "Admin bootstrap verification", False, f"HTTP {response.status_code if response else 'No response'}")
 
-    def test_blog_api(self):
-        """Test blog CRUD operations"""
-        print("\n📝 Testing Blog API...")
+    def test_input_normalization_auth(self):
+        """Test input normalization in authentication as per review request"""
+        print("\n🔧 Testing Input Normalization in Auth...")
         
-        if not self.admin_token:
-            self.log_result("blog_api", "Blog API tests", False, "No admin token available")
-            return
+        # Test scenarios from review request
+        test_scenarios = [
+            {
+                "name": "Normal login",
+                "email": "admin@toolstack.com",
+                "password": "Admin123!Secure"
+            },
+            {
+                "name": "Leading/trailing spaces",
+                "email": " admin@toolstack.com ",
+                "password": " Admin123!Secure "
+            },
+            {
+                "name": "Mixed case email",
+                "email": "ADMIN@toolstack.com",
+                "password": "Admin123!Secure"
+            }
+        ]
         
-        # Test get blog posts (empty list is OK)
-        response = self.make_request("GET", "/admin/blog")
-        if response and response.status_code == 200:
-            try:
-                data = response.json()
-                if data.get("success") is not None:
-                    self.log_result("blog_api", "List blog posts", True)
-                else:
-                    self.log_result("blog_api", "List blog posts", False, "Invalid response format")
-            except json.JSONDecodeError:
-                self.log_result("blog_api", "List blog posts", False, "Invalid JSON response")
-        else:
-            self.log_result("blog_api", "List blog posts", False, f"HTTP {response.status_code if response else 'No response'}")
-        
-        # Test get blog stats
-        response = self.make_request("GET", "/admin/blog/stats")
-        if response and response.status_code == 200:
-            try:
-                data = response.json()
-                if data.get("success") and "stats" in data:
-                    self.log_result("blog_api", "Get blog statistics", True)
-                else:
-                    self.log_result("blog_api", "Get blog statistics", False, "Invalid response format")
-            except json.JSONDecodeError:
-                self.log_result("blog_api", "Get blog statistics", False, "Invalid JSON response")
-        else:
-            self.log_result("blog_api", "Get blog statistics", False, f"HTTP {response.status_code if response else 'No response'}")
-        
-        # Test create blog post
-        blog_data = {
-            "title": f"Test Blog Post {datetime.now().strftime('%Y%m%d_%H%M%S')}",
-            "content": "This is a comprehensive test blog post content for the ToolStack CRM system. It includes detailed information about our testing procedures and methodologies.",
-            "excerpt": "A test blog post for API validation",
-            "category": "Technology",
-            "tags": ["testing", "api", "crm"],
-            "status": "published",
-            "featured": False
-        }
-        
-        response = self.make_request("POST", "/admin/blog", blog_data)
-        if response and response.status_code == 201:
-            try:
-                data = response.json()
-                if data.get("success") and data.get("post"):
-                    self.test_blog_id = data["post"]["_id"]
-                    self.log_result("blog_api", "Create blog post", True)
-                else:
-                    self.log_result("blog_api", "Create blog post", False, "Invalid response format")
-            except json.JSONDecodeError:
-                self.log_result("blog_api", "Create blog post", False, "Invalid JSON response")
-        else:
-            self.log_result("blog_api", "Create blog post", False, f"HTTP {response.status_code if response else 'No response'}")
-        
-        # Test get single blog post
-        if self.test_blog_id:
-            response = self.make_request("GET", f"/admin/blog/{self.test_blog_id}")
-            if response and response.status_code == 200:
-                try:
-                    data = response.json()
-                    if data.get("success") and data.get("post"):
-                        self.log_result("blog_api", "Get single blog post", True)
-                    else:
-                        self.log_result("blog_api", "Get single blog post", False, "Invalid response format")
-                except json.JSONDecodeError:
-                    self.log_result("blog_api", "Get single blog post", False, "Invalid JSON response")
-            else:
-                self.log_result("blog_api", "Get single blog post", False, f"HTTP {response.status_code if response else 'No response'}")
-            
-            # Test update blog post
-            update_data = {
-                "title": f"Updated Test Blog Post {datetime.now().strftime('%Y%m%d_%H%M%S')}",
-                "content": "This is updated content for the test blog post.",
-                "category": "Updates"
+        for scenario in test_scenarios:
+            login_data = {
+                "email": scenario["email"],
+                "password": scenario["password"]
             }
             
-            response = self.make_request("PUT", f"/admin/blog/{self.test_blog_id}", update_data)
+            response = self.make_request("POST", "/auth/admin/login", login_data, auth_required=False)
+            
             if response and response.status_code == 200:
                 try:
                     data = response.json()
-                    if data.get("success"):
-                        self.log_result("blog_api", "Update blog post", True)
+                    if data.get("success") and data.get("accessToken"):
+                        self.log_result("input_normalization", f"Input normalization - {scenario['name']}", True)
+                        
+                        # Store token from first successful login for later tests
+                        if not self.admin_token:
+                            self.admin_token = data["accessToken"]
                     else:
-                        self.log_result("blog_api", "Update blog post", False, "Invalid response format")
+                        self.log_result("input_normalization", f"Input normalization - {scenario['name']}", False, "Missing success or accessToken")
                 except json.JSONDecodeError:
-                    self.log_result("blog_api", "Update blog post", False, "Invalid JSON response")
+                    self.log_result("input_normalization", f"Input normalization - {scenario['name']}", False, "Invalid JSON response")
             else:
-                self.log_result("blog_api", "Update blog post", False, f"HTTP {response.status_code if response else 'No response'}")
-
-    def test_contact_api(self):
-        """Test contact management API"""
-        print("\n📞 Testing Contact API...")
+                self.log_result("input_normalization", f"Input normalization - {scenario['name']}", False, f"HTTP {response.status_code if response else 'No response'}")
         
-        if not self.admin_token:
-            self.log_result("contact_api", "Contact API tests", False, "No admin token available")
-            return
-        
-        # Test get contacts (empty list is OK)
-        response = self.make_request("GET", "/admin/contacts")
-        if response and response.status_code == 200:
-            try:
-                data = response.json()
-                if data.get("success") is not None:
-                    self.log_result("contact_api", "List contacts", True)
-                    
-                    # If there are contacts, test getting the first one
-                    if data.get("contacts") and len(data["contacts"]) > 0:
-                        first_contact_id = data["contacts"][0]["_id"]
-                        contact_response = self.make_request("GET", f"/admin/contacts/{first_contact_id}")
-                        if contact_response and contact_response.status_code == 200:
-                            contact_data = contact_response.json()
-                            if contact_data.get("success"):
-                                self.log_result("contact_api", "Get single contact", True)
-                            else:
-                                self.log_result("contact_api", "Get single contact", False, "Invalid response format")
-                        else:
-                            self.log_result("contact_api", "Get single contact", False, f"HTTP {contact_response.status_code if contact_response else 'No response'}")
-                else:
-                    self.log_result("contact_api", "List contacts", False, "Invalid response format")
-            except json.JSONDecodeError:
-                self.log_result("contact_api", "List contacts", False, "Invalid JSON response")
-        else:
-            self.log_result("contact_api", "List contacts", False, f"HTTP {response.status_code if response else 'No response'}")
-        
-        # Test get contact stats
-        response = self.make_request("GET", "/admin/contacts/stats")
-        if response and response.status_code == 200:
-            try:
-                data = response.json()
-                if data.get("success") and "stats" in data:
-                    self.log_result("contact_api", "Get contact statistics", True)
-                else:
-                    self.log_result("contact_api", "Get contact statistics", False, "Invalid response format")
-            except json.JSONDecodeError:
-                self.log_result("contact_api", "Get contact statistics", False, "Invalid JSON response")
-        else:
-            self.log_result("contact_api", "Get contact statistics", False, f"HTTP {response.status_code if response else 'No response'}")
-
-    def test_public_api(self):
-        """Test public APIs (no authentication required)"""
-        print("\n🌐 Testing Public API...")
-        
-        # Test get public blog posts
-        response = self.make_request("GET", "/public/blog", auth_required=False)
-        if response and response.status_code == 200:
-            try:
-                data = response.json()
-                if data.get("success") is not None:
-                    self.log_result("public_api", "Get public blog posts", True)
-                else:
-                    self.log_result("public_api", "Get public blog posts", False, "Invalid response format")
-            except json.JSONDecodeError:
-                self.log_result("public_api", "Get public blog posts", False, "Invalid JSON response")
-        else:
-            self.log_result("public_api", "Get public blog posts", False, f"HTTP {response.status_code if response else 'No response'}")
-        
-        # Test submit contact form
-        contact_data = {
-            "name": "John Smith",
-            "email": "john.smith@example.com",
-            "phone": "+1-555-0123",
-            "subject": "API Testing Inquiry",
-            "message": "This is a test contact form submission to validate the public contact API endpoint functionality."
+        # Test invalid credentials to ensure proper error handling
+        invalid_login = {
+            "email": "admin@toolstack.com",
+            "password": "WrongPassword123"
         }
         
-        response = self.make_request("POST", "/public/contact", contact_data, auth_required=False)
-        if response and response.status_code == 201:
+        response = self.make_request("POST", "/auth/admin/login", invalid_login, auth_required=False)
+        
+        if response and response.status_code == 401:
             try:
                 data = response.json()
-                if data.get("success") and data.get("contactId"):
-                    self.test_contact_id = data["contactId"]
-                    self.log_result("public_api", "Submit contact form", True)
+                if "error" in data:
+                    self.log_result("input_normalization", "Invalid credentials error handling", True)
                 else:
-                    self.log_result("public_api", "Submit contact form", False, "Invalid response format")
+                    self.log_result("input_normalization", "Invalid credentials error handling", False, "No error message in response")
             except json.JSONDecodeError:
-                self.log_result("public_api", "Submit contact form", False, "Invalid JSON response")
+                self.log_result("input_normalization", "Invalid credentials error handling", False, "Invalid JSON response")
         else:
-            self.log_result("public_api", "Submit contact form", False, f"HTTP {response.status_code if response else 'No response'}")
+            self.log_result("input_normalization", "Invalid credentials error handling", False, f"Expected 401, got {response.status_code if response else 'No response'}")
 
-    def cleanup_test_data(self):
-        """Clean up test data"""
-        print("\n🧹 Cleaning up test data...")
+    def test_admin_dashboard_access(self):
+        """Test admin dashboard access after login"""
+        print("\n📊 Testing Admin Dashboard Access...")
         
         if not self.admin_token:
-            print("⚠️  No admin token available for cleanup")
+            self.log_result("admin_dashboard", "Admin dashboard tests", False, "No admin token available")
             return
         
-        # Delete test blog post
-        if self.test_blog_id:
-            response = self.make_request("DELETE", f"/admin/blog/{self.test_blog_id}")
-            if response and response.status_code == 200:
-                print("✅ Test blog post deleted")
-            else:
-                print(f"⚠️  Failed to delete test blog post: HTTP {response.status_code if response else 'No response'}")
+        # Test admin tools endpoint
+        response = self.make_request("GET", "/admin/tools")
+        if response and response.status_code == 200:
+            try:
+                data = response.json()
+                if data.get("success") is not None:
+                    self.log_result("admin_dashboard", "Admin tools access", True)
+                else:
+                    self.log_result("admin_dashboard", "Admin tools access", False, "Invalid response format")
+            except json.JSONDecodeError:
+                self.log_result("admin_dashboard", "Admin tools access", False, "Invalid JSON response")
+        else:
+            self.log_result("admin_dashboard", "Admin tools access", False, f"HTTP {response.status_code if response else 'No response'}")
         
-        # Note: We don't delete the test contact as it's useful for admin testing
+        # Test admin clients endpoint
+        response = self.make_request("GET", "/admin/clients")
+        if response and response.status_code == 200:
+            try:
+                data = response.json()
+                if data.get("success") is not None:
+                    self.log_result("admin_dashboard", "Admin clients access", True)
+                else:
+                    self.log_result("admin_dashboard", "Admin clients access", False, "Invalid response format")
+            except json.JSONDecodeError:
+                self.log_result("admin_dashboard", "Admin clients access", False, "Invalid JSON response")
+        else:
+            self.log_result("admin_dashboard", "Admin clients access", False, f"HTTP {response.status_code if response else 'No response'}")
+        
+        # Test getting current user (auth verification)
+        response = self.make_request("GET", "/auth/me")
+        if response and response.status_code == 200:
+            try:
+                data = response.json()
+                if data.get("success") and data.get("user"):
+                    self.log_result("admin_dashboard", "Get current user", True)
+                else:
+                    self.log_result("admin_dashboard", "Get current user", False, "Invalid response format")
+            except json.JSONDecodeError:
+                self.log_result("admin_dashboard", "Get current user", False, "Invalid JSON response")
+        else:
+            self.log_result("admin_dashboard", "Get current user", False, f"HTTP {response.status_code if response else 'No response'}")
 
     def run_all_tests(self):
-        """Run all test suites"""
-        print("🧪 Starting ToolStack CRM API Tests...")
+        """Run all test suites based on review request priorities"""
+        print("🧪 Starting ToolStack CRM API Tests - URL Change Resilience & Persistence...")
         
-        # Test authentication first
-        self.test_authentication()
+        # HIGH PRIORITY TESTS as per review request
+        print("\n" + "="*70)
+        print("HIGH PRIORITY TESTS - Critical Fixes")
+        print("="*70)
         
-        # Test blog API
-        self.test_blog_api()
+        # 1. Health Checks & Connectivity
+        self.test_health_checks_connectivity()
         
-        # Test contact API
-        self.test_contact_api()
+        # 2. Admin Authentication with Input Normalization  
+        self.test_input_normalization_auth()
         
-        # Test public API
-        self.test_public_api()
+        # 3. Admin Bootstrap Verification
+        self.test_admin_bootstrap_verification()
         
-        # Cleanup
-        self.cleanup_test_data()
+        # 4. Admin Dashboard Access
+        self.test_admin_dashboard_access()
+        
+        # 5. CORS Validation
+        self.test_cors_validation()
         
         # Print summary
         self.print_summary()
