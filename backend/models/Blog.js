@@ -8,7 +8,6 @@ const blogSchema = new mongoose.Schema({
   },
   slug: {
     type: String,
-    required: true,
     unique: true,
     trim: true,
     lowercase: true
