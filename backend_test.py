@@ -53,14 +53,21 @@ class ToolStackCRMTester:
             self.results[category]["errors"].append(f"{test_name}: {error}")
             print(f"❌ {test_name}: {error}")
 
-    def make_request(self, method, endpoint, data=None, headers=None, auth_required=True):
-        """Make HTTP request with proper headers"""
-        url = f"{self.api_base}{endpoint}"
+    def make_request(self, method, endpoint, data=None, headers=None, auth_required=True, origin=None):
+        """Make HTTP request with proper headers and CORS testing"""
+        if endpoint.startswith("http"):
+            url = endpoint  # Full URL provided
+        else:
+            url = f"{self.api_base}{endpoint}"
         
         request_headers = {
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
+        
+        # Add origin header for CORS testing
+        if origin:
+            request_headers["Origin"] = origin
         
         if auth_required and self.admin_token:
             request_headers["Authorization"] = f"Bearer {self.admin_token}"
