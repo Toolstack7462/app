@@ -173,7 +173,7 @@ const AdminToolForm = () => {
             <div>
               <label htmlFor="targetUrl" className="flex items-center gap-2 text-sm font-medium text-white mb-2">
                 <LinkIcon size={16} className="text-toolstack-orange" />
-                Target URL
+                Target URL *
               </label>
               <input
                 type="url"
@@ -181,22 +181,50 @@ const AdminToolForm = () => {
                 name="targetUrl"
                 value={formData.targetUrl}
                 onChange={handleChange}
+                required
                 className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors"
                 placeholder="https://example.com"
                 data-testid="tool-url-input"
               />
             </div>
 
+            {/* Category */}
+            <div>
+              <label htmlFor="category" className="flex items-center gap-2 text-sm font-medium text-white mb-2">
+                <Package size={16} className="text-toolstack-orange" />
+                Category
+              </label>
+              <select
+                id="category"
+                name="category"
+                value={formData.category}
+                onChange={handleChange}
+                className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors appearance-none cursor-pointer"
+                style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27 viewBox=%270 0 12 8%27%3E%3Cpath fill=%27%23999%27 d=%27M6 8L0 0h12z%27/%3E%3C/svg%3E')", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '0.75rem' }}
+                data-testid="tool-category-select"
+              >
+                <option value="AI">AI</option>
+                <option value="Academic">Academic</option>
+                <option value="SEO">SEO</option>
+                <option value="Productivity">Productivity</option>
+                <option value="Graphics & SEO">Graphics & SEO</option>
+                <option value="Text Humanizers">Text Humanizers</option>
+                <option value="Career-Oriented">Career-Oriented</option>
+                <option value="Miscellaneous">Miscellaneous</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
             {/* Cookies */}
             <div>
-              <label htmlFor="cookies" className="flex items-center gap-2 text-sm font-medium text-white mb-2">
+              <label htmlFor="cookiesEncrypted" className="flex items-center gap-2 text-sm font-medium text-white mb-2">
                 <Key size={16} className="text-toolstack-orange" />
                 Tool Cookies {isEdit && '(leave empty to keep existing)'}
               </label>
               <textarea
-                id="cookies"
-                name="cookies"
-                value={formData.cookies}
+                id="cookiesEncrypted"
+                name="cookiesEncrypted"
+                value={formData.cookiesEncrypted}
                 onChange={handleChange}
                 rows={4}
                 className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors resize-none font-mono text-sm"
