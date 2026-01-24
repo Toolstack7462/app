@@ -164,6 +164,71 @@ const ClientDashboardEnhanced = () => {
           </div>
         </div>
 
+        {/* Chrome Extension Banner */}
+        {showExtensionBanner && (
+          <div className="relative bg-gradient-to-r from-toolstack-orange/20 via-orange-500/10 to-yellow-500/10 border border-toolstack-orange/30 rounded-2xl p-6 overflow-hidden">
+            <button 
+              onClick={() => {
+                setShowExtensionBanner(false);
+                localStorage.setItem('extension_banner_dismissed', 'true');
+              }}
+              className="absolute top-4 right-4 text-toolstack-muted hover:text-white transition-colors z-10"
+            >
+              <X size={20} />
+            </button>
+            
+            <div className="flex flex-col md:flex-row items-center gap-6">
+              <div className="flex-shrink-0 w-20 h-20 bg-gradient-to-br from-toolstack-orange to-yellow-500 rounded-2xl flex items-center justify-center shadow-lg shadow-toolstack-orange/20">
+                <Chrome size={40} className="text-white" />
+              </div>
+              
+              <div className="flex-1 text-center md:text-left">
+                <h3 className="text-xl font-bold text-white mb-2">
+                  Get the ToolStack Chrome Extension
+                </h3>
+                <p className="text-toolstack-muted mb-4">
+                  Access your tools instantly with automatic credential sync. One-click login to all your assigned tools without copy-pasting credentials.
+                </p>
+                <div className="flex flex-wrap gap-3 justify-center md:justify-start">
+                  <a 
+                    href="/chrome-extension.zip" 
+                    download
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-toolstack-orange to-orange-600 text-white rounded-full font-medium hover:opacity-90 transition-all hover:scale-105 shadow-lg shadow-toolstack-orange/20"
+                    data-testid="download-extension-btn"
+                  >
+                    <Download size={18} />
+                    Download Extension
+                  </a>
+                  <a
+                    href="https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/10 text-white rounded-full font-medium hover:bg-white/20 transition-all"
+                  >
+                    <ExternalLink size={18} />
+                    Installation Guide
+                  </a>
+                </div>
+              </div>
+              
+              <div className="hidden lg:flex flex-col gap-2 text-sm text-toolstack-muted">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={16} className="text-green-400" />
+                  <span>Auto-sync credentials</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={16} className="text-green-400" />
+                  <span>One-click tool access</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={16} className="text-green-400" />
+                  <span>Secure cookie injection</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/10 border border-blue-500/30 rounded-2xl p-6">
