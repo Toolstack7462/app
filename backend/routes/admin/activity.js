@@ -16,25 +16,47 @@ router.use((req, res, next) => {
 // GET /api/admin/activity - Get activity logs
 router.get('/', async (req, res) => {
   try {
-    const { limit = 50, skip = 0, action, actorRole } = req.query;
+    const { 
+      limit = 20, 
+      page = 1, 
+      action, 
+      role,
+      startDate,
+      endDate 
+    } = req.query;
     
     const query = {};
     if (action) query.action = action;
-    if (actorRole) query.actorRole = actorRole;
+    if (role) query.actorRole = role;
+    
+    // Date range filter
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) {
+        query.createdAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = end;
+      }
+    }
+    
+    const skip = (parseInt(page) - 1) * parseInt(limit);
     
     const activities = await ActivityLog.find(query)
       .populate('actorId', 'fullName email role')
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
-      .skip(parseInt(skip));
+      .skip(skip);
     
     const total = await ActivityLog.countDocuments(query);
     
     res.json({ 
       activities,
       total,
-      limit: parseInt(limit),
-      skip: parseInt(skip)
+      page: parseInt(page),
+      limit: parseInt(limit)
     });
   } catch (error) {
     console.error('Get activity logs error:', error);
