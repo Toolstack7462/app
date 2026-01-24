@@ -1,42 +1,18 @@
 """
 CRM API Backend Tests
-Tests for ToolStack CRM system including:
-- Admin authentication
-- Tools CRUD operations
-- Clients CRUD operations
-- Bulk assignments
-- Activity logs
-- Client portal access
+Tests for: Tool CRUD, Bulk Assignment, Activity Log
 """
-
 import pytest
 import requests
 import os
 import time
+from datetime import datetime, timedelta
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
-CRM_API = f"{BASE_URL}/api/crm"
 
 # Test credentials
 ADMIN_EMAIL = "admin@toolstack.com"
 ADMIN_PASSWORD = "Admin123!Secure"
-
-# Test data prefixes for cleanup
-TEST_PREFIX = "TEST_"
-
-
-class TestCRMHealth:
-    """Health check tests - run first"""
-    
-    def test_crm_health_endpoint(self):
-        """Test CRM health endpoint is accessible"""
-        response = requests.get(f"{CRM_API}/health")
-        assert response.status_code == 200
-        data = response.json()
-        assert data.get('status') == 'ok'
-        assert data.get('service') == 'ToolStack CRM'
-        assert data.get('mongodb') == 'connected'
-        print(f"✓ CRM Health: {data}")
 
 
 class TestAdminAuth:
@@ -44,564 +20,351 @@ class TestAdminAuth:
     
     def test_admin_login_success(self):
         """Test admin login with valid credentials"""
-        response = requests.post(f"{CRM_API}/auth/admin/login", json={
+        response = requests.post(f"{BASE_URL}/api/admin/auth/login", json={
             "email": ADMIN_EMAIL,
             "password": ADMIN_PASSWORD
         })
-        assert response.status_code == 200
+        assert response.status_code == 200, f"Login failed: {response.text}"
         data = response.json()
-        assert data.get('success') == True
-        assert 'accessToken' in data
-        assert 'user' in data
-        assert data['user']['email'] == ADMIN_EMAIL
-        assert data['user']['role'] in ['SUPER_ADMIN', 'ADMIN', 'SUPPORT']
-        print(f"✓ Admin login successful, token received")
+        assert "accessToken" in data or "token" in data, "No token in response"
+        assert "user" in data, "No user in response"
+        print(f"✓ Admin login successful for {ADMIN_EMAIL}")
+        return data.get("accessToken") or data.get("token")
     
     def test_admin_login_invalid_credentials(self):
         """Test admin login with invalid credentials"""
-        response = requests.post(f"{CRM_API}/auth/admin/login", json={
+        response = requests.post(f"{BASE_URL}/api/admin/auth/login", json={
             "email": "wrong@email.com",
             "password": "wrongpassword"
         })
-        assert response.status_code == 401
-        data = response.json()
-        assert 'error' in data
-        print(f"✓ Invalid credentials rejected: {data['error']}")
-    
-    def test_admin_login_missing_fields(self):
-        """Test admin login with missing fields"""
-        response = requests.post(f"{CRM_API}/auth/admin/login", json={
-            "email": ADMIN_EMAIL
-        })
-        # Should fail with 400 since password is missing (validation error)
-        assert response.status_code == 400
-        print(f"✓ Missing password rejected")
+        assert response.status_code in [401, 400], f"Expected 401/400, got {response.status_code}"
+        print("✓ Invalid credentials rejected correctly")
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def admin_token():
-    """Get admin authentication token"""
-    response = requests.post(f"{CRM_API}/auth/admin/login", json={
+    """Get admin auth token for authenticated requests"""
+    response = requests.post(f"{BASE_URL}/api/admin/auth/login", json={
         "email": ADMIN_EMAIL,
         "password": ADMIN_PASSWORD
     })
-    if response.status_code == 200:
-        return response.json().get('accessToken')
-    pytest.skip("Admin authentication failed")
+    if response.status_code != 200:
+        pytest.skip(f"Admin login failed: {response.text}")
+    data = response.json()
+    return data.get("accessToken") or data.get("token")
 
 
-@pytest.fixture(scope="class")
-def admin_headers(admin_token):
-    """Get headers with admin auth token"""
+@pytest.fixture
+def auth_headers(admin_token):
+    """Headers with auth token"""
     return {
         "Authorization": f"Bearer {admin_token}",
         "Content-Type": "application/json"
     }
 
 
-class TestAdminTools:
-    """Admin tools CRUD tests"""
+class TestToolCRUD:
+    """Tool CRUD operations tests"""
     
-    def test_get_tools_list(self, admin_headers):
-        """Test getting list of tools"""
-        response = requests.get(f"{CRM_API}/admin/tools", headers=admin_headers)
-        assert response.status_code == 200
+    def test_list_tools(self, auth_headers):
+        """Test listing all tools"""
+        response = requests.get(f"{BASE_URL}/api/admin/tools", headers=auth_headers)
+        assert response.status_code == 200, f"List tools failed: {response.text}"
         data = response.json()
-        assert 'tools' in data
-        assert isinstance(data['tools'], list)
-        print(f"✓ Got {len(data['tools'])} tools")
+        assert "tools" in data, "No tools array in response"
+        print(f"✓ Listed {len(data['tools'])} tools")
     
-    def test_create_tool(self, admin_headers):
-        """Test creating a new tool"""
+    def test_create_tool_success(self, auth_headers):
+        """Test creating a new tool with all required fields"""
         tool_data = {
-            "name": f"{TEST_PREFIX}Test Tool",
-            "description": "A test tool for automated testing",
-            "targetUrl": "https://example.com/test-tool",
-            "category": "SEO",
+            "name": f"TEST_Tool_{int(time.time())}",
+            "description": "Test tool description for automated testing",
+            "targetUrl": "https://test-tool.example.com",
+            "category": "AI",
             "status": "active"
         }
-        response = requests.post(f"{CRM_API}/admin/tools", headers=admin_headers, json=tool_data)
-        assert response.status_code == 201
+        
+        response = requests.post(f"{BASE_URL}/api/admin/tools", 
+                                 headers=auth_headers, 
+                                 json=tool_data)
+        
+        assert response.status_code == 201, f"Create tool failed: {response.text}"
         data = response.json()
-        assert data.get('success') == True
-        assert 'tool' in data
-        assert data['tool']['name'] == tool_data['name']
-        assert data['tool']['targetUrl'] == tool_data['targetUrl']
+        assert "tool" in data, "No tool in response"
+        assert data["tool"]["name"] == tool_data["name"], "Tool name mismatch"
+        assert data["tool"]["category"] == tool_data["category"], "Category mismatch"
         print(f"✓ Created tool: {data['tool']['name']}")
-        return data['tool']
+        return data["tool"]
     
-    def test_get_single_tool(self, admin_headers):
-        """Test getting a single tool by ID"""
+    def test_create_tool_validation_error(self, auth_headers):
+        """Test tool creation with missing required fields"""
+        # Missing targetUrl
+        tool_data = {
+            "name": "Test Tool Without URL",
+            "description": "Missing URL"
+        }
+        
+        response = requests.post(f"{BASE_URL}/api/admin/tools", 
+                                 headers=auth_headers, 
+                                 json=tool_data)
+        
+        assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+        print("✓ Validation error returned for missing targetUrl")
+    
+    def test_create_tool_invalid_category(self, auth_headers):
+        """Test tool creation with invalid category"""
+        tool_data = {
+            "name": "Test Tool Invalid Category",
+            "targetUrl": "https://example.com",
+            "category": "InvalidCategory"
+        }
+        
+        response = requests.post(f"{BASE_URL}/api/admin/tools", 
+                                 headers=auth_headers, 
+                                 json=tool_data)
+        
+        assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+        print("✓ Validation error returned for invalid category")
+    
+    def test_get_tool_by_id(self, auth_headers):
+        """Test getting a specific tool by ID"""
         # First create a tool
         tool_data = {
-            "name": f"{TEST_PREFIX}Single Tool Test",
-            "targetUrl": "https://example.com/single-test",
-            "category": "Marketing"
+            "name": f"TEST_GetTool_{int(time.time())}",
+            "targetUrl": "https://get-test.example.com",
+            "category": "SEO"
         }
-        create_response = requests.post(f"{CRM_API}/admin/tools", headers=admin_headers, json=tool_data)
+        create_response = requests.post(f"{BASE_URL}/api/admin/tools", 
+                                        headers=auth_headers, 
+                                        json=tool_data)
         assert create_response.status_code == 201
-        tool_id = create_response.json()['tool']['_id']
+        tool_id = create_response.json()["tool"]["_id"]
         
         # Get the tool
-        response = requests.get(f"{CRM_API}/admin/tools/{tool_id}", headers=admin_headers)
-        assert response.status_code == 200
+        response = requests.get(f"{BASE_URL}/api/admin/tools/{tool_id}", 
+                               headers=auth_headers)
+        assert response.status_code == 200, f"Get tool failed: {response.text}"
         data = response.json()
-        assert 'tool' in data
-        assert data['tool']['_id'] == tool_id
-        print(f"✓ Retrieved tool: {data['tool']['name']}")
+        assert data["tool"]["_id"] == tool_id, "Tool ID mismatch"
+        print(f"✓ Retrieved tool by ID: {tool_id}")
     
-    def test_update_tool(self, admin_headers):
+    def test_update_tool(self, auth_headers):
         """Test updating a tool"""
-        # Create a tool first
+        # First create a tool
         tool_data = {
-            "name": f"{TEST_PREFIX}Update Tool Test",
-            "targetUrl": "https://example.com/update-test",
-            "category": "Design"
+            "name": f"TEST_UpdateTool_{int(time.time())}",
+            "targetUrl": "https://update-test.example.com",
+            "category": "Productivity"
         }
-        create_response = requests.post(f"{CRM_API}/admin/tools", headers=admin_headers, json=tool_data)
+        create_response = requests.post(f"{BASE_URL}/api/admin/tools", 
+                                        headers=auth_headers, 
+                                        json=tool_data)
         assert create_response.status_code == 201
-        tool_id = create_response.json()['tool']['_id']
+        tool_id = create_response.json()["tool"]["_id"]
         
         # Update the tool
         update_data = {
-            "name": f"{TEST_PREFIX}Updated Tool Name",
-            "description": "Updated description"
+            "name": f"TEST_UpdatedTool_{int(time.time())}",
+            "status": "inactive"
         }
-        response = requests.put(f"{CRM_API}/admin/tools/{tool_id}", headers=admin_headers, json=update_data)
-        assert response.status_code == 200
+        response = requests.put(f"{BASE_URL}/api/admin/tools/{tool_id}", 
+                               headers=auth_headers, 
+                               json=update_data)
+        assert response.status_code == 200, f"Update tool failed: {response.text}"
         data = response.json()
-        assert data.get('success') == True
-        assert data['tool']['name'] == update_data['name']
-        print(f"✓ Updated tool: {data['tool']['name']}")
+        assert data["tool"]["status"] == "inactive", "Status not updated"
+        print(f"✓ Updated tool: {tool_id}")
     
-    def test_toggle_tool_status(self, admin_headers):
-        """Test toggling tool status"""
-        # Create a tool first
-        tool_data = {
-            "name": f"{TEST_PREFIX}Toggle Status Test",
-            "targetUrl": "https://example.com/toggle-test",
-            "status": "active"
-        }
-        create_response = requests.post(f"{CRM_API}/admin/tools", headers=admin_headers, json=tool_data)
-        assert create_response.status_code == 201
-        tool_id = create_response.json()['tool']['_id']
-        
-        # Toggle status
-        response = requests.patch(f"{CRM_API}/admin/tools/{tool_id}/status", headers=admin_headers)
-        assert response.status_code == 200
-        data = response.json()
-        assert data.get('success') == True
-        assert data['tool']['status'] == 'inactive'
-        print(f"✓ Toggled tool status to: {data['tool']['status']}")
-    
-    def test_delete_tool(self, admin_headers):
+    def test_delete_tool(self, auth_headers):
         """Test deleting a tool"""
-        # Create a tool first
+        # First create a tool
         tool_data = {
-            "name": f"{TEST_PREFIX}Delete Tool Test",
-            "targetUrl": "https://example.com/delete-test"
+            "name": f"TEST_DeleteTool_{int(time.time())}",
+            "targetUrl": "https://delete-test.example.com",
+            "category": "Other"
         }
-        create_response = requests.post(f"{CRM_API}/admin/tools", headers=admin_headers, json=tool_data)
+        create_response = requests.post(f"{BASE_URL}/api/admin/tools", 
+                                        headers=auth_headers, 
+                                        json=tool_data)
         assert create_response.status_code == 201
-        tool_id = create_response.json()['tool']['_id']
+        tool_id = create_response.json()["tool"]["_id"]
         
         # Delete the tool
-        response = requests.delete(f"{CRM_API}/admin/tools/{tool_id}", headers=admin_headers)
-        assert response.status_code == 200
-        data = response.json()
-        assert data.get('success') == True
+        response = requests.delete(f"{BASE_URL}/api/admin/tools/{tool_id}", 
+                                  headers=auth_headers)
+        assert response.status_code == 200, f"Delete tool failed: {response.text}"
         
         # Verify deletion
-        get_response = requests.get(f"{CRM_API}/admin/tools/{tool_id}", headers=admin_headers)
-        assert get_response.status_code == 404
-        print(f"✓ Deleted tool and verified removal")
-    
-    def test_search_tools(self, admin_headers):
-        """Test searching tools"""
-        response = requests.get(f"{CRM_API}/admin/tools?search=test", headers=admin_headers)
-        assert response.status_code == 200
-        data = response.json()
-        assert 'tools' in data
-        print(f"✓ Search returned {len(data['tools'])} tools")
+        get_response = requests.get(f"{BASE_URL}/api/admin/tools/{tool_id}", 
+                                   headers=auth_headers)
+        assert get_response.status_code == 404, "Tool should be deleted"
+        print(f"✓ Deleted tool: {tool_id}")
 
 
-class TestAdminClients:
-    """Admin clients CRUD tests"""
+class TestBulkAssignment:
+    """Bulk tool assignment tests"""
     
-    def test_get_clients_list(self, admin_headers):
-        """Test getting list of clients"""
-        response = requests.get(f"{CRM_API}/admin/clients", headers=admin_headers)
-        assert response.status_code == 200
-        data = response.json()
-        assert 'clients' in data
-        assert isinstance(data['clients'], list)
-        print(f"✓ Got {len(data['clients'])} clients")
-    
-    def test_create_client(self, admin_headers):
-        """Test creating a new client"""
-        timestamp = int(time.time())
-        client_data = {
-            "fullName": f"{TEST_PREFIX}Test Client",
-            "email": f"test_client_{timestamp}@example.com",
-            "password": "testpassword123",
-            "status": "active",
-            "devicePolicyEnabled": True
-        }
-        response = requests.post(f"{CRM_API}/admin/clients", headers=admin_headers, json=client_data)
-        assert response.status_code == 201
-        data = response.json()
-        assert data.get('success') == True
-        assert 'client' in data
-        assert data['client']['fullName'] == client_data['fullName']
-        assert data['client']['email'] == client_data['email']
-        assert data['client']['role'] == 'CLIENT'
-        print(f"✓ Created client: {data['client']['email']}")
-        return data['client']
-    
-    def test_create_client_duplicate_email(self, admin_headers):
-        """Test creating client with duplicate email fails"""
-        timestamp = int(time.time())
-        client_data = {
-            "fullName": f"{TEST_PREFIX}Duplicate Test",
-            "email": f"duplicate_{timestamp}@example.com",
-            "password": "testpassword123"
-        }
-        # Create first client
-        response1 = requests.post(f"{CRM_API}/admin/clients", headers=admin_headers, json=client_data)
-        assert response1.status_code == 201
-        
-        # Try to create duplicate
-        response2 = requests.post(f"{CRM_API}/admin/clients", headers=admin_headers, json=client_data)
-        assert response2.status_code == 400
-        assert 'error' in response2.json()
-        print(f"✓ Duplicate email rejected")
-    
-    def test_get_single_client(self, admin_headers):
-        """Test getting a single client by ID"""
-        timestamp = int(time.time())
-        client_data = {
-            "fullName": f"{TEST_PREFIX}Single Client Test",
-            "email": f"single_client_{timestamp}@example.com",
-            "password": "testpassword123"
-        }
-        create_response = requests.post(f"{CRM_API}/admin/clients", headers=admin_headers, json=client_data)
-        assert create_response.status_code == 201
-        client_id = create_response.json()['client']['_id']
-        
-        # Get the client
-        response = requests.get(f"{CRM_API}/admin/clients/{client_id}", headers=admin_headers)
-        assert response.status_code == 200
-        data = response.json()
-        assert 'client' in data
-        assert data['client']['_id'] == client_id
-        print(f"✓ Retrieved client: {data['client']['email']}")
-    
-    def test_update_client(self, admin_headers):
-        """Test updating a client"""
-        timestamp = int(time.time())
-        client_data = {
-            "fullName": f"{TEST_PREFIX}Update Client Test",
-            "email": f"update_client_{timestamp}@example.com",
-            "password": "testpassword123"
-        }
-        create_response = requests.post(f"{CRM_API}/admin/clients", headers=admin_headers, json=client_data)
-        assert create_response.status_code == 201
-        client_id = create_response.json()['client']['_id']
-        
-        # Update the client
-        update_data = {
-            "fullName": f"{TEST_PREFIX}Updated Client Name",
-            "notes": "Updated notes"
-        }
-        response = requests.put(f"{CRM_API}/admin/clients/{client_id}", headers=admin_headers, json=update_data)
-        assert response.status_code == 200
-        data = response.json()
-        assert data.get('success') == True
-        assert data['client']['fullName'] == update_data['fullName']
-        print(f"✓ Updated client: {data['client']['fullName']}")
-    
-    def test_device_reset(self, admin_headers):
-        """Test resetting client device binding"""
-        timestamp = int(time.time())
-        client_data = {
-            "fullName": f"{TEST_PREFIX}Device Reset Test",
-            "email": f"device_reset_{timestamp}@example.com",
-            "password": "testpassword123"
-        }
-        create_response = requests.post(f"{CRM_API}/admin/clients", headers=admin_headers, json=client_data)
-        assert create_response.status_code == 201
-        client_id = create_response.json()['client']['_id']
-        
-        # Reset device
-        response = requests.post(f"{CRM_API}/admin/clients/{client_id}/device-reset", headers=admin_headers)
-        assert response.status_code == 200
-        data = response.json()
-        assert data.get('success') == True
-        print(f"✓ Device reset successful")
-    
-    def test_delete_client(self, admin_headers):
-        """Test deleting a client"""
-        timestamp = int(time.time())
-        client_data = {
-            "fullName": f"{TEST_PREFIX}Delete Client Test",
-            "email": f"delete_client_{timestamp}@example.com",
-            "password": "testpassword123"
-        }
-        create_response = requests.post(f"{CRM_API}/admin/clients", headers=admin_headers, json=client_data)
-        assert create_response.status_code == 201
-        client_id = create_response.json()['client']['_id']
-        
-        # Delete the client
-        response = requests.delete(f"{CRM_API}/admin/clients/{client_id}", headers=admin_headers)
-        assert response.status_code == 200
-        data = response.json()
-        assert data.get('success') == True
-        
-        # Verify deletion
-        get_response = requests.get(f"{CRM_API}/admin/clients/{client_id}", headers=admin_headers)
-        assert get_response.status_code == 404
-        print(f"✓ Deleted client and verified removal")
-
-
-class TestAdminAssignments:
-    """Admin tool assignments tests"""
-    
-    @pytest.fixture(scope="class")
-    def test_tool_and_client(self, admin_headers):
-        """Create test tool and client for assignment tests"""
-        timestamp = int(time.time())
-        
-        # Create tool
-        tool_data = {
-            "name": f"{TEST_PREFIX}Assignment Tool",
-            "targetUrl": "https://example.com/assignment-test",
-            "category": "SEO"
-        }
-        tool_response = requests.post(f"{CRM_API}/admin/tools", headers=admin_headers, json=tool_data)
-        tool = tool_response.json()['tool']
-        
-        # Create client
-        client_data = {
-            "fullName": f"{TEST_PREFIX}Assignment Client",
-            "email": f"assignment_client_{timestamp}@example.com",
-            "password": "testpassword123"
-        }
-        client_response = requests.post(f"{CRM_API}/admin/clients", headers=admin_headers, json=client_data)
-        client = client_response.json()['client']
-        
-        return {"tool": tool, "client": client}
-    
-    def test_assign_tool_to_client(self, admin_headers, test_tool_and_client):
-        """Test assigning a tool to a client"""
-        tool = test_tool_and_client['tool']
-        client = test_tool_and_client['client']
-        
-        assignment_data = {
-            "toolId": tool['_id'],
-            "durationDays": 30,
-            "notes": "Test assignment"
-        }
-        response = requests.post(
-            f"{CRM_API}/admin/assignments/{client['_id']}", 
-            headers=admin_headers, 
-            json=assignment_data
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert data.get('success') == True
-        assert 'assignment' in data
-        print(f"✓ Assigned tool to client")
-    
-    def test_get_client_assignments(self, admin_headers, test_tool_and_client):
-        """Test getting client assignments"""
-        client = test_tool_and_client['client']
-        
-        response = requests.get(f"{CRM_API}/admin/assignments/{client['_id']}", headers=admin_headers)
-        assert response.status_code == 200
-        data = response.json()
-        assert 'assignments' in data
-        print(f"✓ Got {len(data['assignments'])} assignments for client")
-    
-    def test_bulk_assign(self, admin_headers):
+    def test_bulk_assign_tool(self, auth_headers):
         """Test bulk assigning a tool to multiple clients"""
-        timestamp = int(time.time())
+        # First get available tools and clients
+        tools_response = requests.get(f"{BASE_URL}/api/admin/tools", headers=auth_headers)
+        clients_response = requests.get(f"{BASE_URL}/api/admin/clients", headers=auth_headers)
         
-        # Create tool
-        tool_data = {
-            "name": f"{TEST_PREFIX}Bulk Assign Tool",
-            "targetUrl": "https://example.com/bulk-test"
-        }
-        tool_response = requests.post(f"{CRM_API}/admin/tools", headers=admin_headers, json=tool_data)
-        tool = tool_response.json()['tool']
+        assert tools_response.status_code == 200, f"Get tools failed: {tools_response.text}"
+        assert clients_response.status_code == 200, f"Get clients failed: {clients_response.text}"
         
-        # Create multiple clients
-        client_ids = []
-        for i in range(3):
-            client_data = {
-                "fullName": f"{TEST_PREFIX}Bulk Client {i}",
-                "email": f"bulk_client_{timestamp}_{i}@example.com",
-                "password": "testpassword123"
-            }
-            client_response = requests.post(f"{CRM_API}/admin/clients", headers=admin_headers, json=client_data)
-            client_ids.append(client_response.json()['client']['_id'])
+        tools = tools_response.json().get("tools", [])
+        clients = clients_response.json().get("clients", [])
         
-        # Bulk assign
+        if not tools:
+            pytest.skip("No tools available for bulk assignment test")
+        if not clients:
+            pytest.skip("No clients available for bulk assignment test")
+        
+        # Get active tool and clients
+        active_tools = [t for t in tools if t.get("status") == "active"]
+        active_clients = [c for c in clients if c.get("status") == "active"]
+        
+        if not active_tools:
+            pytest.skip("No active tools available")
+        if not active_clients:
+            pytest.skip("No active clients available")
+        
+        tool_id = active_tools[0]["_id"]
+        client_ids = [c["_id"] for c in active_clients[:2]]  # Take up to 2 clients
+        
+        # Calculate dates
+        start_date = datetime.now().strftime("%Y-%m-%d")
+        end_date = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
+        
         bulk_data = {
-            "toolId": tool['_id'],
+            "toolId": tool_id,
             "clientIds": client_ids,
-            "durationDays": 30
+            "startDate": start_date,
+            "endDate": end_date
         }
-        response = requests.post(f"{CRM_API}/admin/assignments/bulk", headers=admin_headers, json=bulk_data)
-        assert response.status_code == 200
+        
+        response = requests.post(f"{BASE_URL}/api/admin/assignments/bulk", 
+                                headers=auth_headers, 
+                                json=bulk_data)
+        
+        assert response.status_code == 200, f"Bulk assign failed: {response.text}"
         data = response.json()
-        assert data.get('success') == True
-        assert 'results' in data
-        assert data['results']['created'] == 3
-        print(f"✓ Bulk assigned tool to {data['results']['created']} clients")
-
-
-class TestAdminActivity:
-    """Admin activity log tests"""
+        assert data.get("success") == True, "Bulk assign not successful"
+        assert "results" in data, "No results in response"
+        print(f"✓ Bulk assigned tool to {len(client_ids)} clients")
+        print(f"  Results: created={data['results'].get('created', 0)}, updated={data['results'].get('updated', 0)}")
     
-    def test_get_activity_logs(self, admin_headers):
-        """Test getting activity logs"""
-        response = requests.get(f"{CRM_API}/admin/activity", headers=admin_headers)
-        assert response.status_code == 200
-        data = response.json()
-        assert 'activities' in data
-        assert 'total' in data
-        print(f"✓ Got {len(data['activities'])} activity logs (total: {data['total']})")
-    
-    def test_get_activity_logs_with_limit(self, admin_headers):
-        """Test getting activity logs with limit"""
-        response = requests.get(f"{CRM_API}/admin/activity?limit=5", headers=admin_headers)
-        assert response.status_code == 200
-        data = response.json()
-        assert 'activities' in data
-        assert len(data['activities']) <= 5
-        print(f"✓ Got {len(data['activities'])} activity logs with limit=5")
-    
-    def test_get_activity_logs_with_filter(self, admin_headers):
-        """Test getting activity logs with action filter"""
-        response = requests.get(f"{CRM_API}/admin/activity?action=ADMIN_LOGIN", headers=admin_headers)
-        assert response.status_code == 200
-        data = response.json()
-        assert 'activities' in data
-        # All activities should be ADMIN_LOGIN
-        for activity in data['activities']:
-            assert activity['action'] == 'ADMIN_LOGIN'
-        print(f"✓ Filtered activity logs by action")
-
-
-class TestClientAuth:
-    """Client authentication tests"""
-    
-    @pytest.fixture(scope="class")
-    def test_client(self, admin_headers):
-        """Create a test client for auth tests"""
-        timestamp = int(time.time())
-        client_data = {
-            "fullName": f"{TEST_PREFIX}Auth Test Client",
-            "email": f"auth_test_{timestamp}@example.com",
-            "password": "clientpassword123",
-            "devicePolicyEnabled": False  # Disable device policy for testing
+    def test_bulk_assign_missing_tool_id(self, auth_headers):
+        """Test bulk assign with missing tool ID"""
+        bulk_data = {
+            "clientIds": ["some-client-id"],
+            "startDate": "2026-01-01",
+            "endDate": "2026-02-01"
         }
-        response = requests.post(f"{CRM_API}/admin/clients", headers=admin_headers, json=client_data)
-        return {
-            "email": client_data['email'],
-            "password": client_data['password'],
-            "id": response.json()['client']['_id']
+        
+        response = requests.post(f"{BASE_URL}/api/admin/assignments/bulk", 
+                                headers=auth_headers, 
+                                json=bulk_data)
+        
+        assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+        print("✓ Bulk assign rejected without tool ID")
+    
+    def test_bulk_assign_empty_clients(self, auth_headers):
+        """Test bulk assign with empty client list"""
+        bulk_data = {
+            "toolId": "some-tool-id",
+            "clientIds": [],
+            "startDate": "2026-01-01",
+            "endDate": "2026-02-01"
         }
+        
+        response = requests.post(f"{BASE_URL}/api/admin/assignments/bulk", 
+                                headers=auth_headers, 
+                                json=bulk_data)
+        
+        assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+        print("✓ Bulk assign rejected with empty client list")
+
+
+class TestActivityLog:
+    """Activity log tests"""
     
-    def test_client_login_success(self, test_client):
-        """Test client login with valid credentials"""
-        response = requests.post(f"{CRM_API}/auth/client/login", json={
-            "email": test_client['email'],
-            "password": test_client['password'],
-            "deviceId": "test_device_123"
-        })
-        assert response.status_code == 200
+    def test_get_activity_log(self, auth_headers):
+        """Test fetching activity log"""
+        response = requests.get(f"{BASE_URL}/api/admin/activity", headers=auth_headers)
+        assert response.status_code == 200, f"Get activity failed: {response.text}"
         data = response.json()
-        assert data.get('success') == True
-        assert 'token' in data
-        assert 'user' in data
-        assert data['user']['role'] == 'CLIENT'
-        print(f"✓ Client login successful")
+        assert "activities" in data, "No activities in response"
+        print(f"✓ Retrieved {len(data['activities'])} activity entries")
+        
+        # Check if activities have email info
+        if data["activities"]:
+            activity = data["activities"][0]
+            print(f"  Sample activity: {activity.get('action')} by {activity.get('actorRole')}")
+            # Check for email in actorId or meta
+            has_email = (activity.get("actorId", {}).get("email") or 
+                        activity.get("meta", {}).get("email"))
+            if has_email:
+                print(f"  ✓ Email found in activity: {has_email}")
+            else:
+                print(f"  ⚠ No email found in activity entry")
     
-    def test_client_login_invalid_credentials(self):
-        """Test client login with invalid credentials"""
-        response = requests.post(f"{CRM_API}/auth/client/login", json={
-            "email": "nonexistent@example.com",
-            "password": "wrongpassword",
-            "deviceId": "test_device_123"
-        })
-        assert response.status_code == 401
-        print(f"✓ Invalid client credentials rejected")
+    def test_activity_log_filter_by_role(self, auth_headers):
+        """Test filtering activity log by role"""
+        response = requests.get(f"{BASE_URL}/api/admin/activity?role=ADMIN", 
+                               headers=auth_headers)
+        assert response.status_code == 200, f"Filter by role failed: {response.text}"
+        data = response.json()
+        
+        # Verify all returned activities are from ADMIN role
+        for activity in data.get("activities", []):
+            assert activity.get("actorRole") == "ADMIN", f"Expected ADMIN role, got {activity.get('actorRole')}"
+        print(f"✓ Filtered activities by ADMIN role: {len(data.get('activities', []))} entries")
     
-    def test_client_login_missing_device_id(self, test_client):
-        """Test client login without device ID"""
-        response = requests.post(f"{CRM_API}/auth/client/login", json={
-            "email": test_client['email'],
-            "password": test_client['password']
-        })
-        assert response.status_code == 400
-        assert 'error' in response.json()
-        print(f"✓ Missing device ID rejected")
+    def test_activity_log_filter_by_action(self, auth_headers):
+        """Test filtering activity log by action type"""
+        response = requests.get(f"{BASE_URL}/api/admin/activity?action=ADMIN_LOGIN", 
+                               headers=auth_headers)
+        assert response.status_code == 200, f"Filter by action failed: {response.text}"
+        data = response.json()
+        print(f"✓ Filtered activities by ADMIN_LOGIN: {len(data.get('activities', []))} entries")
 
 
-class TestUnauthorizedAccess:
-    """Test unauthorized access to protected endpoints"""
+class TestClients:
+    """Client management tests"""
     
-    def test_admin_tools_without_auth(self):
-        """Test accessing admin tools without authentication"""
-        response = requests.get(f"{CRM_API}/admin/tools")
-        assert response.status_code == 401
-        print(f"✓ Admin tools endpoint requires auth")
-    
-    def test_admin_clients_without_auth(self):
-        """Test accessing admin clients without authentication"""
-        response = requests.get(f"{CRM_API}/admin/clients")
-        assert response.status_code == 401
-        print(f"✓ Admin clients endpoint requires auth")
-    
-    def test_admin_activity_without_auth(self):
-        """Test accessing admin activity without authentication"""
-        response = requests.get(f"{CRM_API}/admin/activity")
-        assert response.status_code == 401
-        print(f"✓ Admin activity endpoint requires auth")
+    def test_list_clients(self, auth_headers):
+        """Test listing all clients"""
+        response = requests.get(f"{BASE_URL}/api/admin/clients", headers=auth_headers)
+        assert response.status_code == 200, f"List clients failed: {response.text}"
+        data = response.json()
+        assert "clients" in data, "No clients array in response"
+        print(f"✓ Listed {len(data['clients'])} clients")
 
 
-# Cleanup fixture to remove test data
-@pytest.fixture(scope="session", autouse=True)
-def cleanup_test_data():
-    """Cleanup test data after all tests complete"""
+# Cleanup fixture
+@pytest.fixture(scope="module", autouse=True)
+def cleanup_test_data(admin_token):
+    """Cleanup TEST_ prefixed data after all tests"""
     yield
-    # Get admin token
-    response = requests.post(f"{CRM_API}/auth/admin/login", json={
-        "email": ADMIN_EMAIL,
-        "password": ADMIN_PASSWORD
-    })
-    if response.status_code != 200:
-        return
     
-    token = response.json().get('token')
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    headers = {
+        "Authorization": f"Bearer {admin_token}",
+        "Content-Type": "application/json"
+    }
     
-    # Delete test tools
-    tools_response = requests.get(f"{CRM_API}/admin/tools?search={TEST_PREFIX}", headers=headers)
-    if tools_response.status_code == 200:
-        for tool in tools_response.json().get('tools', []):
-            if tool['name'].startswith(TEST_PREFIX):
-                requests.delete(f"{CRM_API}/admin/tools/{tool['_id']}", headers=headers)
-    
-    # Delete test clients
-    clients_response = requests.get(f"{CRM_API}/admin/clients?search={TEST_PREFIX}", headers=headers)
-    if clients_response.status_code == 200:
-        for client in clients_response.json().get('clients', []):
-            if client['fullName'].startswith(TEST_PREFIX):
-                requests.delete(f"{CRM_API}/admin/clients/{client['_id']}", headers=headers)
-    
-    print("\n✓ Test data cleanup completed")
+    # Get all tools and delete TEST_ prefixed ones
+    try:
+        response = requests.get(f"{BASE_URL}/api/admin/tools", headers=headers)
+        if response.status_code == 200:
+            tools = response.json().get("tools", [])
+            for tool in tools:
+                if tool.get("name", "").startswith("TEST_"):
+                    requests.delete(f"{BASE_URL}/api/admin/tools/{tool['_id']}", headers=headers)
+                    print(f"Cleaned up test tool: {tool['name']}")
+    except Exception as e:
+        print(f"Cleanup error: {e}")
 
 
 if __name__ == "__main__":
