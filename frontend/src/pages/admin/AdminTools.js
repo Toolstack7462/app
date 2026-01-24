@@ -159,7 +159,7 @@ const AdminTools = () => {
             {filteredTools.map((tool) => (
               <div
                 key={tool._id}
-                className="bg-toolstack-card border border-toolstack-border rounded-xl p-6 hover:border-toolstack-orange/50 transition-all duration-300"
+                className="bg-toolstack-card border border-toolstack-border rounded-xl p-5 hover:border-toolstack-orange/50 transition-all duration-300"
                 data-testid={`tool-card-${tool._id}`}
               >
                 <div className="flex flex-col sm:flex-row justify-between gap-4">
@@ -173,6 +173,11 @@ const AdminTools = () => {
                       }`}>
                         {tool.status}
                       </span>
+                      {tool.category && (
+                        <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-400">
+                          {tool.category}
+                        </span>
+                      )}
                     </div>
                     <p className="text-toolstack-muted text-sm mb-3 line-clamp-2">{tool.description}</p>
                     {tool.targetUrl && (
