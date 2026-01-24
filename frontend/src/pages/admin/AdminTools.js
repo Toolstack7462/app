@@ -94,18 +94,44 @@ const AdminTools = () => {
           </button>
         </div>
 
-        {/* Search */}
-        <div className="mb-6">
-          <div className="relative max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-toolstack-muted" size={20} />
-            <input
-              type="text"
-              placeholder="Search tools..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-toolstack-card border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors"
-              data-testid="search-tools-input"
-            />
+        {/* Search & Filters */}
+        <div className="bg-toolstack-card border border-toolstack-border rounded-xl p-4 mb-6">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-toolstack-muted" size={18} />
+              <input
+                type="text"
+                placeholder="Search tools..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-11 pr-4 py-2.5 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors text-sm"
+                data-testid="search-tools-input"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <Filter size={18} className="text-toolstack-muted hidden md:block" />
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="px-4 py-2.5 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors text-sm min-w-[140px]"
+                data-testid="filter-category"
+              >
+                <option value="">All Categories</option>
+                {CATEGORIES.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-4 py-2.5 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors text-sm min-w-[120px]"
+                data-testid="filter-status"
+              >
+                <option value="">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
           </div>
         </div>
 
