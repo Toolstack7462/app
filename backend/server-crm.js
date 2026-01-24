@@ -57,6 +57,8 @@ app.use('/api/crm/admin/tools', adminToolsRoutes);
 app.use('/api/crm/admin/clients', adminClientsRoutes);
 app.use('/api/crm/admin/assignments', adminAssignmentsRoutes);
 app.use('/api/crm/admin/activity', adminActivityRoutes);
+app.use('/api/crm/admin/blog', adminBlogRoutes);
+app.use('/api/crm/admin/contacts', adminContactsRoutes);
 
 // Client routes
 app.use('/api/crm/client/tools', clientToolsRoutes);
