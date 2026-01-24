@@ -1,6 +1,7 @@
 """
 CRM API Backend Tests
 Tests for: Tool CRUD, Bulk Assignment, Activity Log
+API Base: /api/crm/
 """
 import pytest
 import requests
@@ -20,20 +21,20 @@ class TestAdminAuth:
     
     def test_admin_login_success(self):
         """Test admin login with valid credentials"""
-        response = requests.post(f"{BASE_URL}/api/admin/auth/login", json={
+        response = requests.post(f"{BASE_URL}/api/crm/auth/admin/login", json={
             "email": ADMIN_EMAIL,
             "password": ADMIN_PASSWORD
         })
         assert response.status_code == 200, f"Login failed: {response.text}"
         data = response.json()
-        assert "accessToken" in data or "token" in data, "No token in response"
+        assert "accessToken" in data, "No accessToken in response"
         assert "user" in data, "No user in response"
         print(f"✓ Admin login successful for {ADMIN_EMAIL}")
-        return data.get("accessToken") or data.get("token")
+        return data.get("accessToken")
     
     def test_admin_login_invalid_credentials(self):
         """Test admin login with invalid credentials"""
-        response = requests.post(f"{BASE_URL}/api/admin/auth/login", json={
+        response = requests.post(f"{BASE_URL}/api/crm/auth/admin/login", json={
             "email": "wrong@email.com",
             "password": "wrongpassword"
         })
@@ -44,14 +45,14 @@ class TestAdminAuth:
 @pytest.fixture(scope="module")
 def admin_token():
     """Get admin auth token for authenticated requests"""
-    response = requests.post(f"{BASE_URL}/api/admin/auth/login", json={
+    response = requests.post(f"{BASE_URL}/api/crm/auth/admin/login", json={
         "email": ADMIN_EMAIL,
         "password": ADMIN_PASSWORD
     })
     if response.status_code != 200:
         pytest.skip(f"Admin login failed: {response.text}")
     data = response.json()
-    return data.get("accessToken") or data.get("token")
+    return data.get("accessToken")
 
 
 @pytest.fixture
@@ -68,7 +69,7 @@ class TestToolCRUD:
     
     def test_list_tools(self, auth_headers):
         """Test listing all tools"""
-        response = requests.get(f"{BASE_URL}/api/admin/tools", headers=auth_headers)
+        response = requests.get(f"{BASE_URL}/api/crm/admin/tools", headers=auth_headers)
         assert response.status_code == 200, f"List tools failed: {response.text}"
         data = response.json()
         assert "tools" in data, "No tools array in response"
@@ -84,7 +85,7 @@ class TestToolCRUD:
             "status": "active"
         }
         
-        response = requests.post(f"{BASE_URL}/api/admin/tools", 
+        response = requests.post(f"{BASE_URL}/api/crm/admin/tools", 
                                  headers=auth_headers, 
                                  json=tool_data)
         
@@ -104,7 +105,7 @@ class TestToolCRUD:
             "description": "Missing URL"
         }
         
-        response = requests.post(f"{BASE_URL}/api/admin/tools", 
+        response = requests.post(f"{BASE_URL}/api/crm/admin/tools", 
                                  headers=auth_headers, 
                                  json=tool_data)
         
@@ -119,7 +120,7 @@ class TestToolCRUD:
             "category": "InvalidCategory"
         }
         
-        response = requests.post(f"{BASE_URL}/api/admin/tools", 
+        response = requests.post(f"{BASE_URL}/api/crm/admin/tools", 
                                  headers=auth_headers, 
                                  json=tool_data)
         
@@ -134,14 +135,14 @@ class TestToolCRUD:
             "targetUrl": "https://get-test.example.com",
             "category": "SEO"
         }
-        create_response = requests.post(f"{BASE_URL}/api/admin/tools", 
+        create_response = requests.post(f"{BASE_URL}/api/crm/admin/tools", 
                                         headers=auth_headers, 
                                         json=tool_data)
         assert create_response.status_code == 201
         tool_id = create_response.json()["tool"]["_id"]
         
         # Get the tool
-        response = requests.get(f"{BASE_URL}/api/admin/tools/{tool_id}", 
+        response = requests.get(f"{BASE_URL}/api/crm/admin/tools/{tool_id}", 
                                headers=auth_headers)
         assert response.status_code == 200, f"Get tool failed: {response.text}"
         data = response.json()
@@ -156,7 +157,7 @@ class TestToolCRUD:
             "targetUrl": "https://update-test.example.com",
             "category": "Productivity"
         }
-        create_response = requests.post(f"{BASE_URL}/api/admin/tools", 
+        create_response = requests.post(f"{BASE_URL}/api/crm/admin/tools", 
                                         headers=auth_headers, 
                                         json=tool_data)
         assert create_response.status_code == 201
@@ -167,7 +168,7 @@ class TestToolCRUD:
             "name": f"TEST_UpdatedTool_{int(time.time())}",
             "status": "inactive"
         }
-        response = requests.put(f"{BASE_URL}/api/admin/tools/{tool_id}", 
+        response = requests.put(f"{BASE_URL}/api/crm/admin/tools/{tool_id}", 
                                headers=auth_headers, 
                                json=update_data)
         assert response.status_code == 200, f"Update tool failed: {response.text}"
@@ -183,19 +184,19 @@ class TestToolCRUD:
             "targetUrl": "https://delete-test.example.com",
             "category": "Other"
         }
-        create_response = requests.post(f"{BASE_URL}/api/admin/tools", 
+        create_response = requests.post(f"{BASE_URL}/api/crm/admin/tools", 
                                         headers=auth_headers, 
                                         json=tool_data)
         assert create_response.status_code == 201
         tool_id = create_response.json()["tool"]["_id"]
         
         # Delete the tool
-        response = requests.delete(f"{BASE_URL}/api/admin/tools/{tool_id}", 
+        response = requests.delete(f"{BASE_URL}/api/crm/admin/tools/{tool_id}", 
                                   headers=auth_headers)
         assert response.status_code == 200, f"Delete tool failed: {response.text}"
         
         # Verify deletion
-        get_response = requests.get(f"{BASE_URL}/api/admin/tools/{tool_id}", 
+        get_response = requests.get(f"{BASE_URL}/api/crm/admin/tools/{tool_id}", 
                                    headers=auth_headers)
         assert get_response.status_code == 404, "Tool should be deleted"
         print(f"✓ Deleted tool: {tool_id}")
@@ -207,8 +208,8 @@ class TestBulkAssignment:
     def test_bulk_assign_tool(self, auth_headers):
         """Test bulk assigning a tool to multiple clients"""
         # First get available tools and clients
-        tools_response = requests.get(f"{BASE_URL}/api/admin/tools", headers=auth_headers)
-        clients_response = requests.get(f"{BASE_URL}/api/admin/clients", headers=auth_headers)
+        tools_response = requests.get(f"{BASE_URL}/api/crm/admin/tools", headers=auth_headers)
+        clients_response = requests.get(f"{BASE_URL}/api/crm/admin/clients", headers=auth_headers)
         
         assert tools_response.status_code == 200, f"Get tools failed: {tools_response.text}"
         assert clients_response.status_code == 200, f"Get clients failed: {clients_response.text}"
@@ -244,7 +245,7 @@ class TestBulkAssignment:
             "endDate": end_date
         }
         
-        response = requests.post(f"{BASE_URL}/api/admin/assignments/bulk", 
+        response = requests.post(f"{BASE_URL}/api/crm/admin/assignments/bulk", 
                                 headers=auth_headers, 
                                 json=bulk_data)
         
@@ -263,7 +264,7 @@ class TestBulkAssignment:
             "endDate": "2026-02-01"
         }
         
-        response = requests.post(f"{BASE_URL}/api/admin/assignments/bulk", 
+        response = requests.post(f"{BASE_URL}/api/crm/admin/assignments/bulk", 
                                 headers=auth_headers, 
                                 json=bulk_data)
         
@@ -279,7 +280,7 @@ class TestBulkAssignment:
             "endDate": "2026-02-01"
         }
         
-        response = requests.post(f"{BASE_URL}/api/admin/assignments/bulk", 
+        response = requests.post(f"{BASE_URL}/api/crm/admin/assignments/bulk", 
                                 headers=auth_headers, 
                                 json=bulk_data)
         
@@ -292,7 +293,7 @@ class TestActivityLog:
     
     def test_get_activity_log(self, auth_headers):
         """Test fetching activity log"""
-        response = requests.get(f"{BASE_URL}/api/admin/activity", headers=auth_headers)
+        response = requests.get(f"{BASE_URL}/api/crm/admin/activity", headers=auth_headers)
         assert response.status_code == 200, f"Get activity failed: {response.text}"
         data = response.json()
         assert "activities" in data, "No activities in response"
@@ -303,8 +304,8 @@ class TestActivityLog:
             activity = data["activities"][0]
             print(f"  Sample activity: {activity.get('action')} by {activity.get('actorRole')}")
             # Check for email in actorId or meta
-            has_email = (activity.get("actorId", {}).get("email") or 
-                        activity.get("meta", {}).get("email"))
+            has_email = (activity.get("actorId", {}).get("email") if activity.get("actorId") else None) or \
+                        (activity.get("meta", {}).get("email") if activity.get("meta") else None)
             if has_email:
                 print(f"  ✓ Email found in activity: {has_email}")
             else:
@@ -312,7 +313,7 @@ class TestActivityLog:
     
     def test_activity_log_filter_by_role(self, auth_headers):
         """Test filtering activity log by role"""
-        response = requests.get(f"{BASE_URL}/api/admin/activity?role=ADMIN", 
+        response = requests.get(f"{BASE_URL}/api/crm/admin/activity?role=ADMIN", 
                                headers=auth_headers)
         assert response.status_code == 200, f"Filter by role failed: {response.text}"
         data = response.json()
@@ -324,7 +325,7 @@ class TestActivityLog:
     
     def test_activity_log_filter_by_action(self, auth_headers):
         """Test filtering activity log by action type"""
-        response = requests.get(f"{BASE_URL}/api/admin/activity?action=ADMIN_LOGIN", 
+        response = requests.get(f"{BASE_URL}/api/crm/admin/activity?action=ADMIN_LOGIN", 
                                headers=auth_headers)
         assert response.status_code == 200, f"Filter by action failed: {response.text}"
         data = response.json()
@@ -336,7 +337,7 @@ class TestClients:
     
     def test_list_clients(self, auth_headers):
         """Test listing all clients"""
-        response = requests.get(f"{BASE_URL}/api/admin/clients", headers=auth_headers)
+        response = requests.get(f"{BASE_URL}/api/crm/admin/clients", headers=auth_headers)
         assert response.status_code == 200, f"List clients failed: {response.text}"
         data = response.json()
         assert "clients" in data, "No clients array in response"
@@ -356,12 +357,12 @@ def cleanup_test_data(admin_token):
     
     # Get all tools and delete TEST_ prefixed ones
     try:
-        response = requests.get(f"{BASE_URL}/api/admin/tools", headers=headers)
+        response = requests.get(f"{BASE_URL}/api/crm/admin/tools", headers=headers)
         if response.status_code == 200:
             tools = response.json().get("tools", [])
             for tool in tools:
                 if tool.get("name", "").startswith("TEST_"):
-                    requests.delete(f"{BASE_URL}/api/admin/tools/{tool['_id']}", headers=headers)
+                    requests.delete(f"{BASE_URL}/api/crm/admin/tools/{tool['_id']}", headers=headers)
                     print(f"Cleaned up test tool: {tool['name']}")
     except Exception as e:
         print(f"Cleanup error: {e}")
