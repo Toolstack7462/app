@@ -57,10 +57,13 @@ const AdminTools = () => {
     }
   };
 
-  const filteredTools = tools.filter(tool =>
-    tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tool.description?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredTools = tools.filter(tool => {
+    const matchesSearch = tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tool.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = !categoryFilter || tool.category === categoryFilter;
+    const matchesStatus = !statusFilter || tool.status === statusFilter;
+    return matchesSearch && matchesCategory && matchesStatus;
+  });
 
   if (loading) {
     return (
