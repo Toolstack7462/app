@@ -5,6 +5,84 @@ const Contact = require('../models/Contact');
 const User = require('../models/User');
 const { normalizeAuthInputs } = require('../middleware/normalize');
 
+// POST /api/crm/public/register - Public client registration
+router.post('/register', normalizeAuthInputs, async (req, res) => {
+  try {
+    const { fullName, email, password } = req.body;
+    
+    // Validation
+    if (!fullName || !email || !password) {
+      return res.status(400).json({ 
+        error: 'Full name, email, and password are required' 
+      });
+    }
+    
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Invalid email address' });
+    }
+    
+    // Password validation
+    if (password.length < 6) {
+      return res.status(400).json({ 
+        error: 'Password must be at least 6 characters' 
+      });
+    }
+    
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(409).json({ 
+        error: 'An account with this email already exists' 
+      });
+    }
+    
+    // Create new client user
+    const client = await User.create({
+      fullName: fullName.trim(),
+      email: email.trim().toLowerCase(),
+      passwordHash: password, // Will be hashed by pre-save hook
+      role: 'CLIENT',
+      status: 'active',
+      devicePolicy: {
+        enabled: true, // Enable device binding for clients
+        maxDevices: 1
+      }
+    });
+    
+    console.log(`✅ New client registered: ${client.email} (ID: ${client._id})`);
+    
+    res.status(201).json({
+      success: true,
+      message: 'Account created successfully! You can now login.',
+      user: {
+        id: client._id,
+        email: client.email,
+        fullName: client.fullName,
+        role: client.role
+      }
+    });
+  } catch (error) {
+    console.error('❌ Client registration error:', error);
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({ error: errors.join(', ') });
+    }
+    
+    // Handle duplicate key errors (shouldn't happen with pre-check, but just in case)
+    if (error.code === 11000) {
+      return res.status(409).json({ 
+        error: 'An account with this email already exists' 
+      });
+    }
+    
+    res.status(500).json({ error: 'Registration failed. Please try again.' });
+  }
+});
+
 // GET /api/crm/public/blog - Get published blog posts
 router.get('/blog', async (req, res) => {
   try {
