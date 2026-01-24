@@ -102,122 +102,110 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Complete all features of the ToolStack CRM application including dynamic blog management, contact form with backend, and admin panels for blog and contacts."
+user_problem_statement: "Fix persistent login issues and routing errors when preview URL changes. Ensure database persistence, admin bootstrap, dynamic CORS, input normalization, and client portal routing work correctly."
 
 backend:
-  - task: "Blog API - CRUD operations"
+  - task: "Dynamic CORS Configuration"
     implemented: true
     working: "NA"
-    file: "/app/backend/routes/admin/blog.js"
+    file: "/app/backend/server.py, /app/backend/server-crm.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Created Blog model and admin CRUD routes for blog posts"
+        comment: "Implemented pattern-based CORS matching to support any *.preview.emergentagent.com subdomain. No hardcoded URLs. Logs all CORS decisions."
 
-  - task: "Public Blog API"
+  - task: "MongoDB Persistent Connection with Logging"
     implemented: true
     working: "NA"
-    file: "/app/backend/routes/public.js"
+    file: "/app/backend/server-crm.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Added public endpoints for fetching published blog posts"
+        comment: "Added detailed MongoDB connection logging on startup showing host, database name, and connection state"
 
-  - task: "Contact API - CRUD operations"
+  - task: "Admin Bootstrap Auto-Creation"
     implemented: true
     working: "NA"
-    file: "/app/backend/routes/admin/contacts.js"
+    file: "/app/backend/server-crm.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Created Contact model and admin CRUD routes for contact submissions"
+        comment: "Implemented automatic admin creation on first startup if no admin exists. Uses INITIAL_ADMIN_* env vars. Idempotent and safe."
 
-  - task: "Public Contact Form API"
+  - task: "Input Normalization in Auth"
     implemented: true
     working: "NA"
-    file: "/app/backend/routes/public.js"
+    file: "/app/backend/routes/authEnhanced.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Added public endpoint for contact form submissions"
+        comment: "Added email.trim().toLowerCase() and password.trim() to prevent whitespace/case issues. Better error messages."
+
+  - task: "Cookie Settings for Cross-Subdomain"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/routes/authEnhanced.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Changed sameSite from 'strict' to 'lax' to support subdomain changes while maintaining security"
 
 frontend:
-  - task: "Admin Blog Management Page"
+  - task: "SPA 404 Catch-All Route"
     implemented: true
     working: "NA"
-    file: "/app/frontend/src/pages/admin/AdminBlog.js"
+    file: "/app/frontend/src/App.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Created admin blog list and form pages with CRUD operations"
+        comment: "Added catch-all route (path='*') to handle 404s and page refreshes properly"
 
-  - task: "Admin Contacts Management Page"
+  - task: "404 Error Page"
     implemented: true
     working: "NA"
-    file: "/app/frontend/src/pages/admin/AdminContacts.js"
+    file: "/app/frontend/src/pages/NotFound.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Created admin contacts page to view and manage contact submissions"
-
-  - task: "Public Blog Page - Dynamic Data"
-    implemented: true
-    working: "NA"
-    file: "/app/frontend/src/pages/Blog.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: true
-    status_history:
-      - working: "NA"
-        agent: "main"
-        comment: "Updated to fetch blog posts from API with fallback to static data"
-
-  - task: "Public Contact Form - Backend Integration"
-    implemented: true
-    working: "NA"
-    file: "/app/frontend/src/pages/Contact.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: true
-    status_history:
-      - working: "NA"
-        agent: "main"
-        comment: "Updated to submit contact form to backend API"
+        comment: "Created user-friendly 404 page with navigation options and helpful links"
 
 metadata:
   created_by: "main_agent"
-  version: "1.0"
-  test_sequence: 1
-  run_ui: false
+  version: "2.0"
+  test_sequence: 2
+  run_ui: true
 
 test_plan:
   current_focus:
-    - "Blog API - CRUD operations"
-    - "Contact API - CRUD operations"
-    - "Public Blog API"
-    - "Public Contact Form API"
+    - "Dynamic CORS Configuration"
+    - "Admin Bootstrap Auto-Creation"
+    - "Input Normalization in Auth"
+    - "SPA 404 Catch-All Route"
   stuck_tasks: []
-  test_all: false
+  test_all: true
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
-    message: "Implemented blog and contact features for CRM. Created backend models (Blog, Contact), admin routes for CRUD, public routes for blog listing and contact submission. Updated frontend with admin pages for blog/contacts management and connected public pages to backend APIs. Please test all new API endpoints."
+    message: "Implemented comprehensive fixes for URL change resilience and persistence. Key changes: 1) Dynamic CORS pattern matching (no hardcoded URLs), 2) MongoDB connection logging for persistence verification, 3) Auto-admin bootstrap on startup, 4) Input normalization (trim/lowercase), 5) Cookie sameSite='lax' for cross-subdomain, 6) SPA catch-all routing for 404s. CRM backend must be started separately: cd /app/backend && node server-crm.js (or use ./start-crm.sh). Please test: admin login, client login, URL change scenario, page refresh, routing."
