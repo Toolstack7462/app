@@ -182,6 +182,27 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: Cookie settings implemented correctly. sameSite='lax' configured for both accessToken and refreshToken cookies. This supports cross-subdomain authentication while maintaining security."
+<<<<<<< HEAD
+=======
+
+  - task: "Tool Creation with Input Normalization"
+    implemented: true
+    working: true
+    file: "/app/backend/routes/admin/toolsEnhanced.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added normalizeStringInputs middleware to tool creation and update routes to prevent validation errors from whitespace. Enhanced error handling to provide detailed validation error messages. CRM backend restarted successfully with new code."
+      - working: true
+        agent: "testing"
+        comment: "✅ TOOL CREATION FIX VERIFIED - CRITICAL SUCCESS: Comprehensive testing of tool creation with input normalization completed successfully. ALL 4 test scenarios passed: (1) Normal tool creation ✅ - Tool created with ID 6974a8882383741594d70779, (2) Tool with spaces in fields ✅ - normalizeStringInputs middleware working perfectly, spaces trimmed from '  Marketing Automation Tool  ' to 'Marketing Automation Tool', (3) Tool with special characters in URL ✅ - Complex URLs with query parameters handled correctly, (4) Tool with mixed case category ✅ - Category validation working with allowed values. Database persistence verified: All 4 created tools found in database. Input normalization middleware (normalizeStringInputs) is functioning as intended - runs BEFORE validation to trim whitespace from all string fields. Tool creation API endpoint POST /api/crm/admin/tools working perfectly with proper authentication and validation."
+      - working: true
+        agent: "testing"
+        comment: "✅ TOOL CREATION VALIDATION FIX RE-VERIFIED - ALL 5 CRITICAL TEST SCENARIOS FROM REVIEW REQUEST PASSED: (1) Complete Fields (CRITICAL) ✅ - Tool created successfully with ID 6974b6c7d9960df400387146, all fields (name, description, targetUrl, category, cookiesEncrypted, status) properly validated and stored, (2) Minimal Fields (HIGH) ✅ - Tool created with ID 6974b6c7d9960df40038714b using only required fields (name, targetUrl, category), optional fields (description, cookiesEncrypted) correctly handled, (3) Missing Required Field (HIGH) ✅ - Proper 400 validation error returned: 'targetUrl is required', (4) Invalid URL (MEDIUM) ✅ - Proper 400 validation error returned: 'Please provide a valid URL' for 'not-a-valid-url', (5) Invalid Category (MEDIUM) ✅ - Proper 400 validation error returned with list of valid categories [AI, Academic, SEO, Productivity, Graphics & SEO, Text Humanizers, Career-Oriented, Miscellaneous, Other]. Backend validation schema working perfectly: name (required), targetUrl (required, valid URI), category (from specific list), cookiesEncrypted (optional), status (optional, defaults to 'active'). Database persistence verified: Both created tools found in database. The tool creation validation fix is working exactly as intended - frontend form changes and backend validation are perfectly aligned."
+>>>>>>> 50524b5 (Squashed after rollback: b35d0b22-fd0c-49a4-9da4-89095b06d1d6)
 
 frontend:
   - task: "SPA 404 Catch-All Route"
@@ -213,6 +234,24 @@ frontend:
       - working: true
         agent: "testing"
         comment: "✅ 404 ERROR PAGE WORKING PERFECTLY: Custom 404 page displays correctly for invalid routes (/invalid-route-xyz123). All elements functional: (1) 'Go to Home' button ✅, (2) 'Go Back' button ✅, (3) Quick navigation links ✅ - Admin Login, Client Login, Tools, Contact all present and clickable. Page has proper styling with clear messaging 'Page Not Found' and helpful user guidance. Screenshot captured showing professional appearance."
+<<<<<<< HEAD
+=======
+
+  - task: "Registration Endpoint Fix and Route Verification"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Join.js, /app/backend/routes/authEnhanced.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Fixed critical missing registration endpoint. Registration form connects to /public/register API endpoint for client account creation."
+      - working: true
+        agent: "testing"
+        comment: "✅ REGISTRATION FIX VERIFICATION COMPLETE - ALL SUCCESS CRITERIA MET: Conducted comprehensive 5-test suite covering registration flow, admin portal, client login, client navigation, and error scenarios. PERFECT RESULTS: (1) Registration Flow (/join) ✅ - NO 'Route not found' errors, form loads correctly, successful account creation with test email, proper success message and redirect to /client/login, (2) Admin Portal ✅ - NO 'Route not found' errors on any admin pages, all navigation and page refreshes work correctly, (3) Client Login ✅ - newly created account logs in successfully, redirects to dashboard showing 'Welcome back, UI Test User!', (4) Client Portal Navigation ✅ - all client pages (/dashboard, /tools, /profile) load without errors and refresh correctly, (5) Error Handling ✅ - proper error messages displayed ('An account with this email already exists' for duplicate registration), NO 'Route not found' errors in error scenarios. The registration endpoint fix is working perfectly and eliminates all 'Route not found' errors!"
+>>>>>>> 50524b5 (Squashed after rollback: b35d0b22-fd0c-49a4-9da4-89095b06d1d6)
 
 metadata:
   created_by: "main_agent"
@@ -221,11 +260,15 @@ metadata:
   run_ui: true
 
 test_plan:
+<<<<<<< HEAD
   current_focus:
     - "Dynamic CORS Configuration"
     - "Admin Bootstrap Auto-Creation"
     - "Input Normalization in Auth"
     - "SPA 404 Catch-All Route"
+=======
+  current_focus: []
+>>>>>>> 50524b5 (Squashed after rollback: b35d0b22-fd0c-49a4-9da4-89095b06d1d6)
   stuck_tasks: []
   test_all: true
   test_priority: "high_first"
@@ -233,9 +276,23 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: "Implemented comprehensive fixes for URL change resilience and persistence. Key changes: 1) Dynamic CORS pattern matching (no hardcoded URLs), 2) MongoDB connection logging for persistence verification, 3) Auto-admin bootstrap on startup, 4) Input normalization (trim/lowercase), 5) Cookie sameSite='lax' for cross-subdomain, 6) SPA catch-all routing for 404s. CRM backend must be started separately: cd /app/backend && node server-crm.js (or use ./start-crm.sh). Please test: admin login, client login, URL change scenario, page refresh, routing."
+<<<<<<< HEAD
+=======
+  - agent: "main"
+    message: "LATEST UPDATE: Fixed tool creation validation error by adding normalizeStringInputs middleware to tool routes. CRM backend restarted successfully with all fixes applied. Please test: (1) Admin login with spaces/mixed case, (2) Tool creation with proper validation, (3) Client login and navigation, (4) Page refresh on all routes. System is ready for comprehensive testing."
+>>>>>>> 50524b5 (Squashed after rollback: b35d0b22-fd0c-49a4-9da4-89095b06d1d6)
   - agent: "testing"
     message: "✅ BACKEND TESTING COMPLETE: 4/5 critical fixes working perfectly. ❌ CRITICAL ISSUE FOUND: Input normalization has design flaw - validation rejects emails with spaces before normalization can trim them. All other fixes (CORS, MongoDB, admin bootstrap, cookies) working as intended. Admin dashboard fully accessible. Architecture: FastAPI Gateway (8001) → CRM Backend (8002) → MongoDB (toolstack_crm) all connected and operational."
   - agent: "testing"
     message: "🎉 INPUT NORMALIZATION FIX VERIFIED: Critical issue RESOLVED! All 5 test scenarios now pass perfectly. The normalizeAuthInputs middleware successfully runs BEFORE validation, allowing emails with leading/trailing spaces to be trimmed and processed correctly. Test results: (1) '  admin@toolstack.com  ' ✅, (2) Password with spaces ✅, (3) Both with spaces ✅, (4) Mixed case email ✅, (5) Normal login ✅. The fix is working as intended - no more validation errors for spaced inputs."
   - agent: "testing"
+<<<<<<< HEAD
     message: "🎯 COMPREHENSIVE FRONTEND TESTING COMPLETE - ALL CRITICAL SUCCESS CRITERIA MET: Conducted exhaustive testing covering 10 test suites with 50+ individual test scenarios. PERFECT RESULTS: ✅ Admin Portal (login, dashboard, tools, clients, blog, contacts, activity) - full functionality working, ✅ SPA Routing - ALL routes work flawlessly with page refresh (no 404s), ✅ Input Normalization - spaces and mixed case emails work perfectly, ✅ 404 Handling - custom page displays correctly with proper navigation, ✅ Session Persistence - auth cookies maintained across refreshes, ✅ Protected Routes - proper redirects to login when unauthenticated, ✅ Browser Navigation - back/forward buttons work correctly, ✅ Public Routes - all accessible and refreshable, ✅ Performance - pages load under 3 seconds, ✅ Cross-route navigation working perfectly. URL change resilience fixes are working as intended. Application is production-ready!"
+=======
+    message: "🎯 COMPREHENSIVE FRONTEND TESTING COMPLETE - ALL CRITICAL SUCCESS CRITERIA MET: Conducted exhaustive testing covering 10 test suites with 50+ individual test scenarios. PERFECT RESULTS: ✅ Admin Portal (login, dashboard, tools, clients, blog, contacts, activity) - full functionality working, ✅ SPA Routing - ALL routes work flawlessly with page refresh (no 404s), ✅ Input Normalization - spaces and mixed case emails work perfectly, ✅ 404 Handling - custom page displays correctly with proper navigation, ✅ Session Persistence - auth cookies maintained across refreshes, ✅ Protected Routes - proper redirects to login when unauthenticated, ✅ Browser Navigation - back/forward buttons work correctly, ✅ Public Routes - all accessible and refreshable, ✅ Performance - pages load under 3 seconds, ✅ Cross-route navigation working perfectly. URL change resilience fixes are working as intended. Application is production-ready!"
+  - agent: "testing"
+    message: "🎉 REGISTRATION FIX VERIFICATION COMPLETE - ALL SUCCESS CRITERIA MET: Conducted comprehensive testing of the registration endpoint fix and route verification. PERFECT RESULTS: ✅ Registration Flow (/join) - NO 'Route not found' errors, form loads correctly, successful account creation with email 'uitest1769251782@test.com', proper redirect to /client/login, ✅ Admin Portal - NO 'Route not found' errors on any admin pages (/admin/login, /admin/dashboard, /admin/tools, /admin/clients, /admin/activity, /admin/blog, /admin/contacts), all pages load and refresh correctly, ✅ Client Login - newly created account logs in successfully, redirects to /client/dashboard, ✅ Client Portal Navigation - all client pages (/client/dashboard, /client/tools, /client/profile) load without errors and refresh correctly, ✅ Error Handling - proper error messages displayed (e.g., 'An account with this email already exists' for duplicate registration), NO 'Route not found' errors in error scenarios. The registration endpoint fix is working perfectly and all routes are functioning correctly!"
+  - agent: "testing"
+    message: "🎉 TOOL CREATION CRITICAL FIX VERIFICATION COMPLETE - ALL SUCCESS CRITERIA MET: Conducted comprehensive backend testing focusing on recently fixed tool creation issue and overall system stability. PERFECT RESULTS: ✅ Tool Creation (CRITICAL) - ALL 4 test scenarios passed with normalizeStringInputs middleware working perfectly, spaces trimmed correctly from inputs, all tools created successfully and persisted in database, ✅ Admin Login - ALL 5 input normalization scenarios working (spaces, mixed case, normal login), ✅ Database Persistence - MongoDB connection verified (toolstack_crm database), admin count: 1, client count: 4 as expected, ✅ CORS Configuration - Dynamic CORS working for all test origins (preview subdomains, main domain, localhost), ✅ Admin Dashboard - All endpoints accessible (tools, clients, auth/me). Architecture verified: FastAPI Gateway (8001) → CRM Backend (8002) → MongoDB (toolstack_crm). The tool creation fix is working as intended - no more validation errors from whitespace in tool fields."
+  - agent: "testing"
+    message: "🎉 TOOL CREATION VALIDATION FIX RE-VERIFICATION COMPLETE - ALL 5 CRITICAL TEST SCENARIOS PASSED: Conducted focused testing of the specific tool creation validation scenarios from the review request. PERFECT RESULTS: ✅ (1) Complete Fields (CRITICAL) - Tool created successfully with all fields (name, description, targetUrl, category, cookiesEncrypted, status), ✅ (2) Minimal Fields (HIGH) - Tool created with only required fields (name, targetUrl, category), optional fields handled correctly, ✅ (3) Missing Required Field (HIGH) - Proper 400 validation error: 'targetUrl is required', ✅ (4) Invalid URL (MEDIUM) - Proper 400 validation error: 'Please provide a valid URL', ✅ (5) Invalid Category (MEDIUM) - Proper 400 validation error with list of valid categories. Backend validation schema working perfectly: name (required), targetUrl (required, valid URI), category (from specific list), cookiesEncrypted (optional), status (optional, defaults to 'active'). Database persistence verified. The tool creation validation fix is working exactly as intended - frontend form changes and backend validation are perfectly aligned. CRM backend running on port 8002, FastAPI gateway on 8001, MongoDB connected to toolstack_crm database."

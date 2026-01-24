@@ -293,7 +293,7 @@ tail -f /var/log/crm-backend.out.log
 tail -f /var/log/crm-backend.out.log | grep CORS
 
 # Should see:
-# ✅ CORS: Allowed origin: https://[subdomain].preview.emergentagent.com
+# ✅ CORS: Allowed origin: https://crmrescue-1.preview.emergentagent.com
 ```
 
 ### 4. Test Admin Login

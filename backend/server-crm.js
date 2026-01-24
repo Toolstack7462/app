@@ -157,9 +157,15 @@ const clientAssignmentsRoutes = require('./routes/client/assignmentsEnhanced');
 const clientNotificationsRoutes = require('./routes/client/notifications');
 const clientProfileRoutes = require('./routes/client/profile');
 
+// Extension routes
+const extensionRoutes = require('./routes/extension');
+
 // Mount routes - All CRM routes under /api/crm prefix
 app.use('/api/crm/auth', authRoutes);
 app.use('/api/crm/public', publicRoutes);
+
+// Extension routes (for Chrome Extension)
+app.use('/api/crm/extension', extensionRoutes);
 
 // Admin routes
 app.use('/api/crm/admin/tools', adminToolsRoutes);

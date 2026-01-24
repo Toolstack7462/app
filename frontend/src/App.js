@@ -34,7 +34,7 @@ import AdminContacts from './pages/admin/AdminContacts';
 // Client Pages
 import ClientRoute from './components/ClientRoute';
 import ClientLogin from './pages/client/ClientLogin';
-import ClientDashboard from './pages/client/ClientDashboard';
+import ClientDashboardEnhanced from './pages/client/ClientDashboardEnhanced';
 import ClientTools from './pages/client/ClientTools';
 import ClientToolDetail from './pages/client/ClientToolDetail';
 import ClientProfile from './pages/client/ClientProfile';
@@ -75,7 +75,7 @@ function App() {
 
             {/* Client Routes */}
             <Route path="/client/login" element={<ClientLogin />} />
-            <Route path="/client/dashboard" element={<ClientRoute><ClientDashboard /></ClientRoute>} />
+            <Route path="/client/dashboard" element={<ClientRoute><ClientDashboardEnhanced /></ClientRoute>} />
             <Route path="/client/tools" element={<ClientRoute><ClientTools /></ClientRoute>} />
             <Route path="/client/tools/:id" element={<ClientRoute><ClientToolDetail /></ClientRoute>} />
             <Route path="/client/profile" element={<ClientRoute><ClientProfile /></ClientRoute>} />

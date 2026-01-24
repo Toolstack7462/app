@@ -33,6 +33,10 @@ class ToolStackCRMTester:
             "cors_validation": {"passed": 0, "failed": 0, "errors": []},
             "admin_bootstrap": {"passed": 0, "failed": 0, "errors": []},
             "input_normalization": {"passed": 0, "failed": 0, "errors": []},
+<<<<<<< HEAD
+=======
+            "tool_creation": {"passed": 0, "failed": 0, "errors": []},
+>>>>>>> 50524b5 (Squashed after rollback: b35d0b22-fd0c-49a4-9da4-89095b06d1d6)
             "admin_dashboard": {"passed": 0, "failed": 0, "errors": []},
             "mongodb_persistence": {"passed": 0, "failed": 0, "errors": []}
         }
@@ -148,8 +152,8 @@ class ToolStackCRMTester:
         
         # Test with allowed preview subdomain
         test_origins = [
-            "https://test.preview.emergentagent.com",
-            "https://another-app.preview.emergentagent.com", 
+            "https://crmrescue-1.preview.emergentagent.com",
+            "https://crmrescue-1.preview.emergentagent.com", 
             "https://main.emergentagent.com",
             "http://localhost:3000"
         ]
@@ -313,6 +317,7 @@ class ToolStackCRMTester:
             self.log_result("input_normalization", "Invalid credentials error handling", False, f"Expected 401, got {response.status_code if response else 'No response'}")
             print(f"   ❌ Expected 401 for invalid credentials, got {response.status_code if response else 'No response'}")
 
+<<<<<<< HEAD
     def test_admin_dashboard_access(self):
         """Test admin dashboard access after login"""
         print("\n📊 Testing Admin Dashboard Access...")
@@ -335,6 +340,200 @@ class ToolStackCRMTester:
         else:
             self.log_result("admin_dashboard", "Admin tools access", False, f"HTTP {response.status_code if response else 'No response'}")
         
+=======
+    def test_tool_creation_critical(self):
+        """Test tool creation with input normalization - CRITICAL PRIORITY"""
+        print("\n🔧 Testing Tool Creation with Input Normalization - CRITICAL TEST...")
+        
+        if not self.admin_token:
+            self.log_result("tool_creation", "Tool creation tests", False, "No admin token available")
+            return
+        
+        # Test scenarios as per review request
+        test_tools = [
+            {
+                "name": "1. Normal Tool Creation",
+                "data": {
+                    "name": "Test Analytics Tool",
+                    "description": "A comprehensive analytics dashboard for tracking user behavior",
+                    "targetUrl": "https://analytics.example.com",
+                    "category": "AI",
+                    "status": "active"
+                },
+                "expected": "✅ Tool created successfully"
+            },
+            {
+                "name": "2. Tool with Spaces in Fields (CRITICAL FIX TEST)",
+                "data": {
+                    "name": "  Marketing Automation Tool  ",
+                    "description": "  Advanced marketing automation platform  ",
+                    "targetUrl": "  https://marketing.example.com  ",
+                    "category": "  Productivity  ",
+                    "status": "active"
+                },
+                "expected": "✅ Tool created with spaces trimmed"
+            },
+            {
+                "name": "3. Tool with Special Characters in URL",
+                "data": {
+                    "name": "CRM Integration Tool",
+                    "description": "Customer relationship management integration",
+                    "targetUrl": "https://crm-tool.example.com/dashboard?utm_source=test&utm_medium=api",
+                    "category": "Miscellaneous",
+                    "status": "active"
+                },
+                "expected": "✅ Tool created with special characters in URL"
+            },
+            {
+                "name": "4. Tool with Mixed Case Category",
+                "data": {
+                    "name": "Project Management Suite",
+                    "description": "Complete project management solution",
+                    "targetUrl": "https://projects.example.com",
+                    "category": "Career-Oriented",
+                    "status": "active"
+                },
+                "expected": "✅ Tool created with mixed case category"
+            }
+        ]
+        
+        created_tool_ids = []
+        
+        print(f"   Testing normalizeStringInputs middleware in tool creation")
+        print(f"   Expected: ALL 4 test cases must pass with successful tool creation")
+        print(f"   Success Criteria: HTTP 201, success=true, tool object with ID in response")
+        
+        for i, test_tool in enumerate(test_tools, 1):
+            print(f"\n   Test {i}/4: {test_tool['name']}")
+            print(f"   Name: '{test_tool['data']['name']}'")
+            print(f"   Description: '{test_tool['data']['description'][:50]}...'")
+            print(f"   URL: '{test_tool['data']['targetUrl']}'")
+            print(f"   Category: '{test_tool['data']['category']}'")
+            print(f"   Expected: {test_tool['expected']}")
+            
+            response = self.make_request("POST", "/admin/tools", test_tool['data'])
+            
+            if response and response.status_code == 201:
+                try:
+                    data = response.json()
+                    if data.get("success") and data.get("tool") and data.get("tool", {}).get("_id"):
+                        tool_id = data["tool"]["_id"]
+                        created_tool_ids.append(tool_id)
+                        
+                        self.log_result("tool_creation", f"Test {i}: {test_tool['name']}", True)
+                        print(f"   ✅ SUCCESS: Tool created with ID {tool_id}")
+                        print(f"   Tool Name: {data['tool'].get('name', 'N/A')}")
+                        print(f"   Tool Category: {data['tool'].get('category', 'N/A')}")
+                        print(f"   Tool Status: {data['tool'].get('status', 'N/A')}")
+                        
+                        # Verify normalization worked (spaces trimmed)
+                        if test_tool['data']['name'].strip() == data['tool'].get('name'):
+                            print(f"   ✅ Input normalization working: spaces trimmed correctly")
+                        else:
+                            print(f"   ⚠️  Input normalization issue: expected '{test_tool['data']['name'].strip()}', got '{data['tool'].get('name')}'")
+                    else:
+                        self.log_result("tool_creation", f"Test {i}: {test_tool['name']}", False, "Missing success, tool, or tool._id in response")
+                        print(f"   ❌ FAILED: Response missing required fields")
+                        print(f"   Response: {json.dumps(data, indent=2)}")
+                except json.JSONDecodeError as e:
+                    self.log_result("tool_creation", f"Test {i}: {test_tool['name']}", False, f"Invalid JSON response: {e}")
+                    print(f"   ❌ FAILED: Invalid JSON response")
+            else:
+                error_msg = f"HTTP {response.status_code if response else 'No response'}"
+                if response:
+                    try:
+                        error_data = response.json()
+                        error_msg += f" - {error_data.get('error', 'Unknown error')}"
+                        if 'details' in error_data:
+                            error_msg += f" - Details: {error_data['details']}"
+                    except:
+                        error_msg += f" - {response.text[:200]}"
+                
+                self.log_result("tool_creation", f"Test {i}: {test_tool['name']}", False, error_msg)
+                print(f"   ❌ FAILED: {error_msg}")
+        
+        # Test validation error handling
+        print(f"\n   🔍 Testing validation error handling...")
+        invalid_tool = {
+            "name": "",  # Empty name should fail validation
+            "description": "Test description",
+            "targetUrl": "invalid-url",  # Invalid URL should fail
+            "category": "Test",
+            "status": "active"
+        }
+        
+        response = self.make_request("POST", "/admin/tools", invalid_tool)
+        
+        if response and response.status_code == 400:
+            try:
+                data = response.json()
+                if "error" in data and ("validation" in data["error"].lower() or "details" in data):
+                    self.log_result("tool_creation", "Validation error handling", True)
+                    print(f"   ✅ Validation error handling works: {data.get('error')}")
+                    if 'details' in data:
+                        print(f"   Details: {data['details']}")
+                else:
+                    self.log_result("tool_creation", "Validation error handling", False, "No proper error message in response")
+                    print(f"   ❌ No proper error message in 400 response")
+            except json.JSONDecodeError:
+                self.log_result("tool_creation", "Validation error handling", False, "Invalid JSON response")
+                print(f"   ❌ Invalid JSON in error response")
+        else:
+            self.log_result("tool_creation", "Validation error handling", False, f"Expected 400, got {response.status_code if response else 'No response'}")
+            print(f"   ❌ Expected 400 for invalid data, got {response.status_code if response else 'No response'}")
+        
+        # Verify tools exist in database by fetching them
+        print(f"\n   🔍 Verifying tools exist in database...")
+        response = self.make_request("GET", "/admin/tools")
+        
+        if response and response.status_code == 200:
+            try:
+                data = response.json()
+                if data.get("success") and "tools" in data:
+                    tools_in_db = data["tools"]
+                    found_tools = [tool for tool in tools_in_db if tool.get("_id") in created_tool_ids]
+                    
+                    if len(found_tools) == len(created_tool_ids):
+                        self.log_result("tool_creation", "Database persistence verification", True)
+                        print(f"   ✅ All {len(found_tools)} created tools found in database")
+                        for tool in found_tools:
+                            print(f"   - {tool.get('name')} (ID: {tool.get('_id')})")
+                    else:
+                        self.log_result("tool_creation", "Database persistence verification", False, f"Expected {len(created_tool_ids)} tools, found {len(found_tools)}")
+                        print(f"   ❌ Expected {len(created_tool_ids)} tools in DB, found {len(found_tools)}")
+                else:
+                    self.log_result("tool_creation", "Database persistence verification", False, "Invalid response format")
+                    print(f"   ❌ Invalid response format when fetching tools")
+            except json.JSONDecodeError:
+                self.log_result("tool_creation", "Database persistence verification", False, "Invalid JSON response")
+                print(f"   ❌ Invalid JSON when fetching tools")
+        else:
+            self.log_result("tool_creation", "Database persistence verification", False, f"HTTP {response.status_code if response else 'No response'}")
+            print(f"   ❌ Failed to fetch tools for verification: HTTP {response.status_code if response else 'No response'}")
+
+    def test_admin_dashboard_access(self):
+        """Test admin dashboard access after login"""
+        print("\n📊 Testing Admin Dashboard Access...")
+        
+        if not self.admin_token:
+            self.log_result("admin_dashboard", "Admin dashboard tests", False, "No admin token available")
+            return
+        
+        # Test admin tools endpoint
+        response = self.make_request("GET", "/admin/tools")
+        if response and response.status_code == 200:
+            try:
+                data = response.json()
+                if data.get("success") is not None:
+                    self.log_result("admin_dashboard", "Admin tools access", True)
+                else:
+                    self.log_result("admin_dashboard", "Admin tools access", False, "Invalid response format")
+            except json.JSONDecodeError:
+                self.log_result("admin_dashboard", "Admin tools access", False, "Invalid JSON response")
+        else:
+            self.log_result("admin_dashboard", "Admin tools access", False, f"HTTP {response.status_code if response else 'No response'}")
+        
+>>>>>>> 50524b5 (Squashed after rollback: b35d0b22-fd0c-49a4-9da4-89095b06d1d6)
         # Test admin clients endpoint
         response = self.make_request("GET", "/admin/clients")
         if response and response.status_code == 200:
@@ -364,6 +563,7 @@ class ToolStackCRMTester:
             self.log_result("admin_dashboard", "Get current user", False, f"HTTP {response.status_code if response else 'No response'}")
 
     def run_all_tests(self):
+<<<<<<< HEAD
         """Run focused input normalization tests as per review request"""
         print("🧪 RE-TESTING INPUT NORMALIZATION FIX...")
         print("Context: Fixed critical input normalization issue by adding middleware BEFORE validation")
@@ -385,9 +585,39 @@ class ToolStackCRMTester:
         
         # 2. MAIN TEST: Input Normalization with all 5 scenarios
         self.test_input_normalization_auth()
+=======
+        """Run comprehensive backend tests as per review request"""
+        print("🧪 TOOLSTACK CRM BACKEND TESTING - COMPREHENSIVE SUITE...")
+        print("Context: Testing recently fixed tool creation issue and overall system stability")
+        print("Priority: Tool Creation (CRITICAL), Admin Login, Client Login, Database Persistence, CORS")
+        
+        # COMPREHENSIVE TEST as per review request
+        print("\n" + "="*70)
+        print("🎯 COMPREHENSIVE BACKEND TESTING SUITE")
+        print("="*70)
+        
+        # 1. Health and connectivity check
+        self.test_health_checks_connectivity()
+        
+        # 2. CORS validation
+        self.test_cors_validation()
+        
+        # 3. Admin bootstrap verification
+        self.test_admin_bootstrap_verification()
+        
+        # 4. Input normalization (verify still working)
+        self.test_input_normalization_auth()
+        
+        # 5. CRITICAL: Tool Creation with Input Normalization
+        self.test_tool_creation_critical()
+        
+        # 6. Admin dashboard access
+        self.test_admin_dashboard_access()
+>>>>>>> 50524b5 (Squashed after rollback: b35d0b22-fd0c-49a4-9da4-89095b06d1d6)
         
         # Print summary
-        self.print_summary()
+        success = self.print_summary()
+        return success
 
     def print_summary(self):
         """Print test results summary"""

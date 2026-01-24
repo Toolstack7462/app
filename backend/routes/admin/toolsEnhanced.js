@@ -5,6 +5,7 @@ const ToolAssignment = require('../../models/ToolAssignment');
 const ActivityLog = require('../../models/ActivityLog');
 const { requireAuth, requireAdmin, getClientIp } = require('../../middleware/authEnhanced');
 const { validate, schemas } = require('../../middleware/validation');
+const { normalizeStringInputs } = require('../../middleware/normalize');
 
 // Apply auth middleware
 router.use(requireAuth);
@@ -137,7 +138,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/crm/admin/tools - Create tool
-router.post('/', validate(schemas.createTool), async (req, res) => {
+router.post('/', normalizeStringInputs, validate(schemas.createTool), async (req, res) => {
   try {
     const toolData = {
       ...req.body,
@@ -161,12 +162,22 @@ router.post('/', validate(schemas.createTool), async (req, res) => {
     });
   } catch (error) {
     console.error('Create tool error:', error);
+    
+    // Provide detailed error for validation issues
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        details: errors 
+      });
+    }
+    
     res.status(500).json({ error: 'Failed to create tool' });
   }
 });
 
 // PUT /api/crm/admin/tools/:id - Update tool
-router.put('/:id', validate(schemas.updateTool), async (req, res) => {
+router.put('/:id', normalizeStringInputs, validate(schemas.updateTool), async (req, res) => {
   try {
     const tool = await Tool.findById(req.params.id);
     
@@ -176,11 +187,15 @@ router.put('/:id', validate(schemas.updateTool), async (req, res) => {
     
     // Track changes
     const changes = {};
-    const allowedUpdates = ['name', 'description', 'targetUrl', 'category', 'status', 'cookiesEncrypted', 'fileMeta'];
+    const allowedUpdates = [
+      'name', 'description', 'targetUrl', 'category', 'status', 
+      'cookiesEncrypted', 'tokenEncrypted', 'tokenHeader', 'tokenPrefix',
+      'localStorageEncrypted', 'credentialType', 'extensionSettings', 'fileMeta'
+    ];
     
     allowedUpdates.forEach(field => {
       if (req.body[field] !== undefined && req.body[field] !== tool[field]) {
-        changes[field] = { from: tool[field], to: req.body[field] };
+        changes[field] = { from: field.includes('Encrypted') ? '[encrypted]' : tool[field], to: field.includes('Encrypted') ? '[encrypted]' : req.body[field] };
         tool[field] = req.body[field];
       }
     });

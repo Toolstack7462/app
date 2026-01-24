@@ -87,3 +87,39 @@ code {
         border-bottom-color: inherit;
     }
 }
+
+/* Fix select dropdown styling - remove browser default ring/outline */
+@layer components {
+    select {
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        outline: none !important;
+    }
+    
+    select:focus {
+        outline: none !important;
+        box-shadow: none !important;
+    }
+    
+    select option {
+        background-color: #1a1d24;
+        color: #ffffff;
+        padding: 8px 12px;
+    }
+    
+    /* Disable spellcheck underlines in code/cookie textareas */
+    textarea[spellcheck="false"],
+    .code-textarea {
+        -webkit-text-fill-color: inherit;
+    }
+    
+    /* Consistent focus states for all form elements */
+    input:focus,
+    textarea:focus,
+    select:focus {
+        outline: none;
+        border-color: #f97316 !important;
+        box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2);
+    }
+}

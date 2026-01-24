@@ -85,22 +85,68 @@ const AdminDashboard = () => {
     return d.toLocaleDateString();
   };
   
-  const getActionLabel = (action) => {
-    const labels = {
-      'ADMIN_LOGIN': 'Admin logged in',
-      'CLIENT_LOGIN': 'Client logged in',
-      'TOOL_CREATED': 'Tool created',
-      'TOOL_UPDATED': 'Tool updated',
-      'TOOL_DELETED': 'Tool deleted',
-      'CLIENT_CREATED': 'Client created',
-      'CLIENT_UPDATED': 'Client updated',
-      'TOOL_ASSIGNED': 'Tool assigned',
-      'BULK_ASSIGNMENT': 'Bulk assignment',
-      'DEVICE_RESET': 'Device reset',
-      'BLOG_CREATED': 'Blog post created',
-      'CONTACT_UPDATED': 'Contact updated'
-    };
-    return labels[action] || action.replace(/_/g, ' ').toLowerCase();
+  const getActionLabel = (activity) => {
+    // Get email from populated actorId or use role as fallback
+    const email = activity.actorId?.email || null;
+    const role = activity.actorRole;
+    
+    // Get base action
+    const action = activity.action;
+    
+    // Create descriptive labels with email
+    if (action === 'ADMIN_LOGIN') {
+      return email ? `${email} logged in` : 'Admin logged in';
+    }
+    if (action === 'ADMIN_LOGIN_FAILED') {
+      // Check meta for email if actorId not available
+      const failedEmail = email || activity.meta?.email;
+      return failedEmail ? `${failedEmail} login failed` : 'Admin login failed';
+    }
+    if (action === 'CLIENT_LOGIN') {
+      return email ? `${email} logged in` : 'Client logged in';
+    }
+    if (action === 'CLIENT_LOGIN_FAILED') {
+      const failedEmail = email || activity.meta?.email;
+      return failedEmail ? `${failedEmail} login failed` : 'Client login failed';
+    }
+    if (action === 'TOOL_CREATED') {
+      const toolName = activity.meta?.toolName || 'Tool';
+      return email ? `${email} created ${toolName}` : `${toolName} created`;
+    }
+    if (action === 'TOOL_UPDATED') {
+      const toolName = activity.meta?.toolName || 'Tool';
+      return email ? `${email} updated ${toolName}` : `${toolName} updated`;
+    }
+    if (action === 'TOOL_DELETED') {
+      const toolName = activity.meta?.toolName || 'Tool';
+      return email ? `${email} deleted ${toolName}` : `${toolName} deleted`;
+    }
+    if (action === 'CLIENT_CREATED') {
+      const clientName = activity.meta?.clientName || 'Client';
+      return email ? `${email} created ${clientName}` : `${clientName} created`;
+    }
+    if (action === 'CLIENT_UPDATED') {
+      const clientName = activity.meta?.clientName || 'Client';
+      return email ? `${email} updated ${clientName}` : `${clientName} updated`;
+    }
+    if (action === 'TOOL_ASSIGNED') {
+      return email ? `${email} assigned tool` : 'Tool assigned';
+    }
+    if (action === 'BULK_ASSIGNMENT') {
+      return email ? `${email} performed bulk assignment` : 'Bulk assignment';
+    }
+    if (action === 'DEVICE_RESET') {
+      return email ? `${email} reset device` : 'Device reset';
+    }
+    if (action === 'BLOG_CREATED') {
+      return email ? `${email} created blog post` : 'Blog post created';
+    }
+    if (action === 'CONTACT_UPDATED') {
+      return email ? `${email} updated contact` : 'Contact updated';
+    }
+    
+    // Default fallback
+    return email ? `${email} - ${action.replace(/_/g, ' ').toLowerCase()}` : action.replace(/_/g, ' ').toLowerCase();
   };
   
   if (loading) {
@@ -201,11 +247,12 @@ const AdminDashboard = () => {
                           activity.action.includes('LOGIN') ? 'bg-blue-400' :
                           activity.action.includes('CREATE') ? 'bg-green-400' :
                           activity.action.includes('DELETE') ? 'bg-red-400' :
+                          activity.action.includes('FAILED') ? 'bg-red-400' :
                           'bg-yellow-400'
                         }`} />
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p className="text-sm text-white truncate">
-                            {getActionLabel(activity.action)}
+                            {getActionLabel(activity)}
                           </p>
                           <p className="text-xs text-toolstack-muted">
                             {activity.actorRole}

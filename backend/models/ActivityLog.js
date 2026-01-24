@@ -21,8 +21,10 @@ const activityLogSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// TTL Index - Automatically delete documents after 24 hours
+activityLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 }); // 86400 seconds = 24 hours
+
 // Index for queries
-activityLogSchema.index({ createdAt: -1 });
 activityLogSchema.index({ actorId: 1, createdAt: -1 });
 activityLogSchema.index({ action: 1 });
 
