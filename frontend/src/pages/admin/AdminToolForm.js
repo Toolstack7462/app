@@ -227,7 +227,11 @@ const AdminToolForm = () => {
                 value={formData.cookiesEncrypted}
                 onChange={handleChange}
                 rows={4}
-                className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors resize-none font-mono text-sm"
+                spellCheck="false"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors resize-none font-mono text-sm code-textarea"
                 placeholder="Paste tool cookies here (will be encrypted)..."
                 data-testid="tool-cookies-input"
               />
