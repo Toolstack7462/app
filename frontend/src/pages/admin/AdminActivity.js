@@ -75,6 +75,48 @@ const AdminActivity = () => {
   const formatDate = (date) => {
     return new Date(date).toLocaleString();
   };
+  
+  const getActivityDescription = (activity) => {
+    const email = activity.actorId?.email || activity.meta?.email || null;
+    const action = activity.action;
+    
+    // Build description with email if available
+    if (action.includes('LOGIN')) {
+      if (action.includes('FAILED')) {
+        return email ? `Login failed for ${email}` : 'Login failed';
+      }
+      return email ? `${email} logged in` : 'Login successful';
+    }
+    
+    if (action.includes('TOOL_CREATED')) {
+      const toolName = activity.meta?.toolName || 'tool';
+      return email ? `${email} created ${toolName}` : `Created ${toolName}`;
+    }
+    
+    if (action.includes('TOOL_UPDATED')) {
+      const toolName = activity.meta?.toolName || 'tool';
+      return email ? `${email} updated ${toolName}` : `Updated ${toolName}`;
+    }
+    
+    if (action.includes('TOOL_DELETED')) {
+      const toolName = activity.meta?.toolName || 'tool';
+      return email ? `${email} deleted ${toolName}` : `Deleted ${toolName}`;
+    }
+    
+    if (action.includes('CLIENT_CREATED')) {
+      const clientEmail = activity.meta?.clientEmail || 'client';
+      return email ? `${email} created client ${clientEmail}` : `Created client ${clientEmail}`;
+    }
+    
+    if (action.includes('CLIENT_UPDATED')) {
+      const clientEmail = activity.meta?.clientEmail || 'client';
+      return email ? `${email} updated client ${clientEmail}` : `Updated client ${clientEmail}`;
+    }
+    
+    // Default with email if available
+    const actionText = action.replace(/_/g, ' ').toLowerCase();
+    return email ? `${email} - ${actionText}` : actionText;
+  };
 
   const getActionColor = (action) => {
     if (action.includes('LOGIN')) return 'text-blue-400 bg-blue-400/10';
