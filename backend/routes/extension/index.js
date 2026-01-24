@@ -62,12 +62,12 @@ router.post('/auth', async (req, res) => {
     }
     
     // Check if user has a password set
-    if (!user.password) {
+    if (!user.passwordHash) {
       return res.status(401).json({ error: 'Password not set. Please reset your password.' });
     }
     
-    // Verify password
-    const isMatch = await bcrypt.compare(password, user.password);
+    // Verify password using model method
+    const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
