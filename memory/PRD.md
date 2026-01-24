@@ -31,12 +31,19 @@ Chrome Extension ←→ /api/crm/extension/*
 
 ## ✅ Completed Features (Jan 24, 2026)
 
-### Recent Fixes (Session)
+### Chrome Extension Feature Complete ✅
+- [x] **Admin Tool Form** - Added credential type selector (cookies/token/localStorage/none)
+- [x] **Token Config** - Token header name, prefix, and value fields for bearer auth
+- [x] **Extension Settings** - Checkboxes for auto-inject, inject on page load, clear existing cookies
+- [x] **Client Portal Banner** - Chrome Extension download banner with link to /chrome-extension.zip
+- [x] **Permanent Fixes** - Server.py now auto-starts CRM backend, validation updated for all credential fields
+
+### Bug Fixes
 - [x] **Tool Creation/Editing Fixed** - Fixed `next is not a function` error in Tool.js pre-save hook by converting to async/await
 - [x] **Filter Dropdowns Styling** - Added global CSS to remove browser default focus rings and ensure consistent dark theme styling
 - [x] **Tools Page Layout** - Improved to use 3-column professional card grid with hover effects
 - [x] **Cookies Textarea** - Added spellCheck="false" to prevent red underlines on JSON content
-- [x] **CRM Backend** - Ensure Node.js CRM server is running on port 8002
+- [x] **CRM Backend Auto-Start** - FastAPI gateway now auto-starts Node.js CRM server on port 8002
 
 ---
 
