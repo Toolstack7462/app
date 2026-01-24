@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import ClientLayout from '../../components/ClientLayout';
+import ClientLayoutEnhanced from '../../components/ClientLayoutEnhanced';
 import { Package, Search, Clock, ExternalLink, AlertTriangle } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/Toast';
@@ -43,16 +43,16 @@ const ClientTools = () => {
 
   if (loading) {
     return (
-      <ClientLayout>
+      <ClientLayoutEnhanced>
         <div className="flex items-center justify-center min-h-[80vh]">
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-toolstack-orange border-t-transparent"></div>
         </div>
-      </ClientLayout>
+      </ClientLayoutEnhanced>
     );
   }
 
   return (
-    <ClientLayout>
+    <ClientLayoutEnhanced>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -159,7 +159,7 @@ const ClientTools = () => {
           </div>
         )}
       </div>
-    </ClientLayout>
+    </ClientLayoutEnhanced>
   );
 };
 
