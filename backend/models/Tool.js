@@ -89,7 +89,7 @@ toolSchema.index({ category: 1, status: 1 });
 toolSchema.index({ credentialVersion: 1 });
 
 // Pre-save hook to extract domain and bump version
-toolSchema.pre('save', function(next) {
+toolSchema.pre('save', async function() {
   // Extract domain from targetUrl
   if (this.isModified('targetUrl') && this.targetUrl) {
     try {
@@ -107,8 +107,6 @@ toolSchema.pre('save', function(next) {
     this.credentialVersion = (this.credentialVersion || 0) + 1;
     this.credentialUpdatedAt = new Date();
   }
-  
-  next();
 });
 
 // Method to check if credentials are available
