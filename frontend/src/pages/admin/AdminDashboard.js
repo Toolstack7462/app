@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/AdminLayout';
-import { Package, Users, TrendingUp, Activity as ActivityIcon } from 'lucide-react';
+import { Package, Users, TrendingUp, Activity as ActivityIcon, Link2, FileText, Mail, ArrowRight } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/Toast';
 
@@ -12,7 +12,9 @@ const AdminDashboard = () => {
     totalTools: 0,
     totalClients: 0,
     activeClients: 0,
-    totalAssignments: 0
+    totalAssignments: 0,
+    newContacts: 0,
+    publishedPosts: 0
   });
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,10 +27,12 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
       
-      const [toolsRes, clientsRes, activityRes] = await Promise.all([
+      const [toolsRes, clientsRes, activityRes, contactsRes, blogRes] = await Promise.all([
         api.get('/admin/tools'),
         api.get('/admin/clients'),
-        api.get('/admin/activity?limit=10')
+        api.get('/admin/activity?limit=8'),
+        api.get('/admin/contacts/stats').catch(() => ({ data: { stats: {} } })),
+        api.get('/admin/blog/stats').catch(() => ({ data: { stats: {} } }))
       ]);
       
       const tools = toolsRes.data.tools || [];
@@ -40,7 +44,9 @@ const AdminDashboard = () => {
         totalTools: tools.length,
         totalClients: clients.length,
         activeClients,
-        totalAssignments
+        totalAssignments,
+        newContacts: contactsRes.data.stats?.new || 0,
+        publishedPosts: blogRes.data.stats?.published || 0
       });
       
       setRecentActivity(activityRes.data.activities || []);
@@ -53,14 +59,48 @@ const AdminDashboard = () => {
   };
   
   const statCards = [
-    { icon: Package, label: 'Total Tools', value: stats.totalTools, color: 'bg-blue-500' },
-    { icon: Users, label: 'Total Clients', value: stats.totalClients, color: 'bg-green-500' },
-    { icon: TrendingUp, label: 'Active Clients', value: stats.activeClients, color: 'bg-purple-500' },
-    { icon: ActivityIcon, label: 'Assignments', value: stats.totalAssignments, color: 'bg-orange-500' }
+    { icon: Package, label: 'Total Tools', value: stats.totalTools, color: 'bg-blue-500', path: '/admin/tools' },
+    { icon: Users, label: 'Total Clients', value: stats.totalClients, color: 'bg-green-500', path: '/admin/clients' },
+    { icon: TrendingUp, label: 'Active Clients', value: stats.activeClients, color: 'bg-purple-500', path: '/admin/clients' },
+    { icon: Link2, label: 'Assignments', value: stats.totalAssignments, color: 'bg-orange-500', path: '/admin/assign' },
+    { icon: Mail, label: 'New Contacts', value: stats.newContacts, color: 'bg-pink-500', path: '/admin/contacts' },
+    { icon: FileText, label: 'Blog Posts', value: stats.publishedPosts, color: 'bg-cyan-500', path: '/admin/blog' }
+  ];
+  
+  const quickActions = [
+    { icon: Package, label: 'Create Tool', desc: 'Add a new tool', path: '/admin/tools/new', color: 'text-blue-400' },
+    { icon: Users, label: 'Add Client', desc: 'Create account', path: '/admin/clients/new', color: 'text-green-400' },
+    { icon: Link2, label: 'Bulk Assign', desc: 'Assign tools', path: '/admin/assign', color: 'text-orange-400' },
+    { icon: FileText, label: 'New Post', desc: 'Write blog post', path: '/admin/blog/new', color: 'text-cyan-400' }
   ];
   
   const formatDate = (date) => {
-    return new Date(date).toLocaleString();
+    const d = new Date(date);
+    const now = new Date();
+    const diff = Math.floor((now - d) / 1000);
+    
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return d.toLocaleDateString();
+  };
+  
+  const getActionLabel = (action) => {
+    const labels = {
+      'ADMIN_LOGIN': 'Admin logged in',
+      'CLIENT_LOGIN': 'Client logged in',
+      'TOOL_CREATED': 'Tool created',
+      'TOOL_UPDATED': 'Tool updated',
+      'TOOL_DELETED': 'Tool deleted',
+      'CLIENT_CREATED': 'Client created',
+      'CLIENT_UPDATED': 'Client updated',
+      'TOOL_ASSIGNED': 'Tool assigned',
+      'BULK_ASSIGNMENT': 'Bulk assignment',
+      'DEVICE_RESET': 'Device reset',
+      'BLOG_CREATED': 'Blog post created',
+      'CONTACT_UPDATED': 'Contact updated'
+    };
+    return labels[action] || action.replace(/_/g, ' ').toLowerCase();
   };
   
   if (loading) {
@@ -78,96 +118,109 @@ const AdminDashboard = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Dashboard</h1>
-          <p className="text-toolstack-muted">Welcome back! Here&apos;s what&apos;s happening with your CRM.</p>
+          <h1 className="text-2xl font-bold text-white mb-1">Dashboard</h1>
+          <p className="text-toolstack-muted text-sm">Welcome back! Here's your CRM overview.</p>
         </div>
         
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
           {statCards.map((stat, index) => {
             const Icon = stat.icon;
             return (
-              <div
+              <button
                 key={index}
-                className="bg-toolstack-card border border-toolstack-border rounded-xl p-6 hover:border-toolstack-orange transition-all duration-300"
+                onClick={() => navigate(stat.path)}
+                className="bg-toolstack-card border border-toolstack-border rounded-xl p-4 hover:border-toolstack-orange transition-all duration-300 text-left group"
               >
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`w-12 h-12 ${stat.color} rounded-lg flex items-center justify-center`}>
-                    <Icon size={24} className="text-white" />
-                  </div>
+                <div className={`w-10 h-10 ${stat.color} rounded-lg flex items-center justify-center mb-3`}>
+                  <Icon size={20} className="text-white" />
                 </div>
-                <div className="text-3xl font-bold text-white mb-1">{stat.value}</div>
-                <div className="text-sm text-toolstack-muted">{stat.label}</div>
-              </div>
+                <div className="text-2xl font-bold text-white mb-0.5 group-hover:text-toolstack-orange transition-colors">{stat.value}</div>
+                <div className="text-xs text-toolstack-muted">{stat.label}</div>
+              </button>
             );
           })}
         </div>
         
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <button
-            onClick={() => navigate('/admin/tools/new')}
-            className="bg-toolstack-card border border-toolstack-border rounded-xl p-6 text-left hover:border-toolstack-orange transition-all duration-300 group"
-          >
-            <Package size={32} className="text-toolstack-orange mb-3" />
-            <h3 className="text-lg font-semibold text-white mb-1 group-hover:text-toolstack-orange transition-colors">Create Tool</h3>
-            <p className="text-sm text-toolstack-muted">Add a new tool to the platform</p>
-          </button>
-          
-          <button
-            onClick={() => navigate('/admin/clients/new')}
-            className="bg-toolstack-card border border-toolstack-border rounded-xl p-6 text-left hover:border-toolstack-orange transition-all duration-300 group"
-          >
-            <Users size={32} className="text-toolstack-orange mb-3" />
-            <h3 className="text-lg font-semibold text-white mb-1 group-hover:text-toolstack-orange transition-colors">Add Client</h3>
-            <p className="text-sm text-toolstack-muted">Create a new client account</p>
-          </button>
-          
-          <button
-            onClick={() => navigate('/admin/assign')}
-            className="bg-toolstack-card border border-toolstack-border rounded-xl p-6 text-left hover:border-toolstack-orange transition-all duration-300 group"
-          >
-            <TrendingUp size={32} className="text-toolstack-orange mb-3" />
-            <h3 className="text-lg font-semibold text-white mb-1 group-hover:text-toolstack-orange transition-colors">Bulk Assign</h3>
-            <p className="text-sm text-toolstack-muted">Assign tools to multiple clients</p>
-          </button>
-        </div>
-        
-        {/* Recent Activity */}
-        <div className="bg-toolstack-card border border-toolstack-border rounded-xl p-6">
-          <h2 className="text-xl font-bold text-white mb-4">Recent Activity</h2>
-          
-          {recentActivity.length === 0 ? (
-            <div className="text-center py-8 text-toolstack-muted">
-              <ActivityIcon size={48} className="mx-auto mb-3 opacity-50" />
-              <p>No recent activity</p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Quick Actions */}
+          <div className="lg:col-span-1">
+            <div className="bg-toolstack-card border border-toolstack-border rounded-xl p-5">
+              <h2 className="text-lg font-semibold text-white mb-4">Quick Actions</h2>
+              <div className="space-y-2">
+                {quickActions.map((action, index) => {
+                  const Icon = action.icon;
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => navigate(action.path)}
+                      className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors group text-left"
+                    >
+                      <div className={`w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center ${action.color}`}>
+                        <Icon size={18} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-white group-hover:text-toolstack-orange transition-colors">{action.label}</div>
+                        <div className="text-xs text-toolstack-muted">{action.desc}</div>
+                      </div>
+                      <ArrowRight size={16} className="text-toolstack-muted group-hover:text-toolstack-orange transition-colors" />
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {recentActivity.map((activity) => (
-                <div
-                  key={activity._id}
-                  className="flex items-start justify-between p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
+          </div>
+          
+          {/* Recent Activity */}
+          <div className="lg:col-span-2">
+            <div className="bg-toolstack-card border border-toolstack-border rounded-xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-white">Recent Activity</h2>
+                <button 
+                  onClick={() => navigate('/admin/activity')}
+                  className="text-xs text-toolstack-orange hover:underline"
                 >
-                  <div className="flex-1">
-                    <p className="text-white text-sm">
-                      <span className="font-semibold">{activity.actorRole}</span>
-                      {' '}
-                      <span className="text-toolstack-muted">{activity.action.replace(/_/g, ' ').toLowerCase()}</span>
-                    </p>
-                    {activity.meta && (
-                      <p className="text-xs text-toolstack-muted mt-1">
-                        {JSON.stringify(activity.meta).substring(0, 100)}
-                      </p>
-                    )}
-                  </div>
-                  <span className="text-xs text-toolstack-muted ml-4">
-                    {formatDate(activity.createdAt)}
-                  </span>
+                  View All
+                </button>
+              </div>
+              
+              {recentActivity.length === 0 ? (
+                <div className="text-center py-8 text-toolstack-muted">
+                  <ActivityIcon size={40} className="mx-auto mb-3 opacity-50" />
+                  <p className="text-sm">No recent activity</p>
                 </div>
-              ))}
+              ) : (
+                <div className="space-y-2">
+                  {recentActivity.map((activity) => (
+                    <div
+                      key={activity._id}
+                      className="flex items-center justify-between p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                          activity.action.includes('LOGIN') ? 'bg-blue-400' :
+                          activity.action.includes('CREATE') ? 'bg-green-400' :
+                          activity.action.includes('DELETE') ? 'bg-red-400' :
+                          'bg-yellow-400'
+                        }`} />
+                        <div className="min-w-0">
+                          <p className="text-sm text-white truncate">
+                            {getActionLabel(activity.action)}
+                          </p>
+                          <p className="text-xs text-toolstack-muted">
+                            {activity.actorRole}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-xs text-toolstack-muted flex-shrink-0 ml-4">
+                        {formatDate(activity.createdAt)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </AdminLayout>
