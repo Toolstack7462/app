@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, LogOut, Bell } from 'lucide-react';
+import { LayoutDashboard, Package, LogOut, User } from 'lucide-react';
 import { authService } from '../services/authService';
 import ToolStackLogo from './ToolStackLogo';
 
@@ -16,7 +16,8 @@ const ClientLayout = ({ children }) => {
   
   const navItems = [
     { path: '/client/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/client/tools', icon: Package, label: 'My Tools' }
+    { path: '/client/tools', icon: Package, label: 'My Tools' },
+    { path: '/client/profile', icon: User, label: 'Profile' }
   ];
   
   return (
