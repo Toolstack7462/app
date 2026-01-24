@@ -108,7 +108,7 @@ const ClientDashboardEnhanced = () => {
               <h3 className="text-2xl font-bold text-white">Access Expiring Soon!</h3>
             </div>
             
-            <p className="text-toolstack-muted mb-6 text-lg">
+            <p className="text-white/60 mb-6 text-lg">
               The following tools will expire within 3 days:
             </p>
             
@@ -123,7 +123,7 @@ const ClientDashboardEnhanced = () => {
               ))}
             </div>
             
-            <p className="text-sm text-toolstack-muted mb-6">
+            <p className="text-sm text-white/50 mb-6">
               Please contact your administrator to extend access.
             </p>
             
@@ -144,7 +144,7 @@ const ClientDashboardEnhanced = () => {
             <h1 className="text-4xl font-bold text-white mb-2">
               Welcome back, {user?.fullName || 'User'}! 👋
             </h1>
-            <p className="text-toolstack-muted flex items-center gap-2">
+            <p className="text-white/60 flex items-center gap-2">
               <Calendar size={16} />
               Access your tools and manage your account
             </p>
@@ -159,7 +159,7 @@ const ClientDashboardEnhanced = () => {
                 setShowExtensionBanner(false);
                 localStorage.setItem('extension_banner_dismissed', 'true');
               }}
-              className="absolute top-4 right-4 text-toolstack-muted hover:text-white transition-colors z-10"
+              className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors z-10"
             >
               <X size={20} />
             </button>
@@ -173,7 +173,7 @@ const ClientDashboardEnhanced = () => {
                 <h3 className="text-xl font-bold text-white mb-2">
                   Get the ToolStack Chrome Extension
                 </h3>
-                <p className="text-toolstack-muted mb-4">
+                <p className="text-white/60 mb-4">
                   Access your tools instantly with automatic credential sync. One-click login to all your assigned tools without copy-pasting credentials.
                 </p>
                 <div className="flex flex-wrap gap-3 justify-center md:justify-start">
