@@ -107,63 +107,78 @@ user_problem_statement: "Fix persistent login issues and routing errors when pre
 backend:
   - task: "Dynamic CORS Configuration"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py, /app/backend/server-crm.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented pattern-based CORS matching to support any *.preview.emergentagent.com subdomain. No hardcoded URLs. Logs all CORS decisions."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Dynamic CORS working perfectly. All test origins (preview subdomains, main domain, localhost) are correctly allowed. CORS headers properly set with Access-Control-Allow-Origin and Access-Control-Allow-Credentials. Pattern matching supports URL changes as intended."
 
   - task: "MongoDB Persistent Connection with Logging"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server-crm.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Added detailed MongoDB connection logging on startup showing host, database name, and connection state"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: MongoDB connection verified. Health endpoint shows: state='connected', host='localhost', database='toolstack_crm'. Connection logging working correctly on startup."
 
   - task: "Admin Bootstrap Auto-Creation"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server-crm.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented automatic admin creation on first startup if no admin exists. Uses INITIAL_ADMIN_* env vars. Idempotent and safe."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Admin bootstrap working perfectly. Admin auto-created with ID 6974991cc881022d1ee90237, email admin@toolstack.com, role SUPER_ADMIN, status active. Login works immediately after creation."
 
   - task: "Input Normalization in Auth"
     implemented: true
-    working: "NA"
+    working: false
     file: "/app/backend/routes/authEnhanced.js"
-    stuck_count: 0
+    stuck_count: 1
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Added email.trim().toLowerCase() and password.trim() to prevent whitespace/case issues. Better error messages."
+      - working: false
+        agent: "testing"
+        comment: "❌ CRITICAL ISSUE: Input normalization not working as intended. Validation happens BEFORE normalization, so emails with leading/trailing spaces are rejected by Joi validation before reaching the trim() code. Mixed case emails work fine (ADMIN@toolstack.com → admin@toolstack.com). Design flaw: normalization should happen before validation or validation should allow spaces."
 
   - task: "Cookie Settings for Cross-Subdomain"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/routes/authEnhanced.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Changed sameSite from 'strict' to 'lax' to support subdomain changes while maintaining security"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Cookie settings implemented correctly. sameSite='lax' configured for both accessToken and refreshToken cookies. This supports cross-subdomain authentication while maintaining security."
 
 frontend:
   - task: "SPA 404 Catch-All Route"
