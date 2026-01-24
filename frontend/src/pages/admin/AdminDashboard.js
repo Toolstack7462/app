@@ -247,11 +247,12 @@ const AdminDashboard = () => {
                           activity.action.includes('LOGIN') ? 'bg-blue-400' :
                           activity.action.includes('CREATE') ? 'bg-green-400' :
                           activity.action.includes('DELETE') ? 'bg-red-400' :
+                          activity.action.includes('FAILED') ? 'bg-red-400' :
                           'bg-yellow-400'
                         }`} />
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p className="text-sm text-white truncate">
-                            {getActionLabel(activity.action)}
+                            {getActionLabel(activity)}
                           </p>
                           <p className="text-xs text-toolstack-muted">
                             {activity.actorRole}
