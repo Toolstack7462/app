@@ -55,20 +55,26 @@ const AdminToolForm = () => {
       showError('Tool name is required');
       return;
     }
+    
+    if (!formData.targetUrl.trim()) {
+      showError('Target URL is required');
+      return;
+    }
 
     try {
       setSaving(true);
       
       const payload = {
-        name: formData.name,
-        description: formData.description,
-        targetUrl: formData.targetUrl,
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        targetUrl: formData.targetUrl.trim(),
+        category: formData.category,
         status: formData.status
       };
       
-      // Only include cookies if provided (for create or update)
-      if (formData.cookies.trim()) {
-        payload.cookies = formData.cookies;
+      // Only include cookiesEncrypted if provided (for create or update)
+      if (formData.cookiesEncrypted.trim()) {
+        payload.cookiesEncrypted = formData.cookiesEncrypted.trim();
       }
 
       if (isEdit) {
@@ -81,7 +87,11 @@ const AdminToolForm = () => {
       
       navigate('/admin/tools');
     } catch (error) {
-      showError(error.response?.data?.error || 'Failed to save tool');
+      console.error('Save tool error:', error);
+      const errorMessage = error.response?.data?.details 
+        ? error.response.data.details.map(d => d.message || d).join(', ')
+        : error.response?.data?.error || 'Failed to save tool';
+      showError(errorMessage);
     } finally {
       setSaving(false);
     }
