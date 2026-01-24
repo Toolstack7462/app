@@ -23,7 +23,7 @@ const AdminActivity = () => {
 
   useEffect(() => {
     loadActivities();
-  }, [pagination.page, filters.role, filters.action]);
+  }, [pagination.page, filters.role, filters.action, filters.startDate, filters.endDate]);
 
   const loadActivities = async () => {
     try {
@@ -35,6 +35,8 @@ const AdminActivity = () => {
       
       if (filters.role) params.append('role', filters.role);
       if (filters.action) params.append('action', filters.action);
+      if (filters.startDate) params.append('startDate', filters.startDate);
+      if (filters.endDate) params.append('endDate', filters.endDate);
       
       const res = await api.get(`/admin/activity?${params}`);
       setActivities(res.data.activities || []);
@@ -44,6 +46,30 @@ const AdminActivity = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const exportToCSV = () => {
+    const headers = ['Time', 'Role', 'Action', 'Details'];
+    const rows = activities.map(a => [
+      formatDate(a.createdAt),
+      a.actorRole,
+      a.action,
+      a.meta ? JSON.stringify(a.meta) : ''
+    ]);
+    
+    const csvContent = [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `activity-log-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const clearFilters = () => {
+    setFilters({ role: '', action: '', search: '', startDate: '', endDate: '' });
+    setPagination(prev => ({ ...prev, page: 1 }));
   };
 
   const formatDate = (date) => {
