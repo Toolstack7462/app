@@ -16,8 +16,14 @@ const { authLimiter, registerLimiter } = require('../middleware/rateLimiter');
 // POST /api/crm/auth/admin/login - Admin login
 router.post('/admin/login', authLimiter, validate(schemas.adminLogin), async (req, res) => {
   try {
-    const { email, password } = req.body;
+    let { email, password } = req.body;
     const ipAddress = getClientIp(req);
+    
+    // ============================================================================
+    // INPUT NORMALIZATION - Prevent login issues from whitespace/case
+    // ============================================================================
+    email = email.trim().toLowerCase();
+    password = password.trim(); // Don't lowercase password
     
     // Find admin user
     const admin = await User.findOne({ 
@@ -31,7 +37,7 @@ router.post('/admin/login', authLimiter, validate(schemas.adminLogin), async (re
         reason: 'User not found',
         ipAddress 
       });
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({ error: 'Invalid credentials. Please check your email and password.' });
     }
     
     // Verify password
@@ -42,7 +48,7 @@ router.post('/admin/login', authLimiter, validate(schemas.adminLogin), async (re
         reason: 'Invalid password',
         ipAddress 
       });
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({ error: 'Invalid credentials. Please check your email and password.' });
     }
     
     // Check if account is disabled
@@ -64,20 +70,28 @@ router.post('/admin/login', authLimiter, validate(schemas.adminLogin), async (re
     
     await ActivityLog.log('ADMIN', admin._id, 'ADMIN_LOGIN', { ipAddress });
     
-    // Set cookies
+    // ============================================================================
+    // COOKIE SETTINGS - Support cross-subdomain and URL changes
+    // ============================================================================
+    const isProduction = process.env.NODE_ENV === 'production';
+    
     res.cookie('accessToken', accessToken, {
       httpOnly: true,
       maxAge: 15 * 60 * 1000, // 15 minutes
-      sameSite: 'strict',
-      secure: process.env.NODE_ENV === 'production'
+      sameSite: 'lax', // Changed from 'strict' to support subdomain changes
+      secure: isProduction,
+      path: '/'
     });
     
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      sameSite: 'strict',
-      secure: process.env.NODE_ENV === 'production'
+      sameSite: 'lax', // Changed from 'strict' to support subdomain changes
+      secure: isProduction,
+      path: '/'
     });
+    
+    console.log(`✅ Admin login successful: ${email} from ${ipAddress}`);
     
     res.json({
       success: true,
@@ -86,8 +100,8 @@ router.post('/admin/login', authLimiter, validate(schemas.adminLogin), async (re
       refreshToken
     });
   } catch (error) {
-    console.error('Admin login error:', error);
-    res.status(500).json({ error: 'Login failed' });
+    console.error('❌ Admin login error:', error);
+    res.status(500).json({ error: 'Login failed. Please try again.' });
   }
 });
 
