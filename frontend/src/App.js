@@ -34,7 +34,7 @@ import AdminContacts from './pages/admin/AdminContacts';
 // Client Pages
 import ClientRoute from './components/ClientRoute';
 import ClientLogin from './pages/client/ClientLogin';
-import ClientDashboard from './pages/client/ClientDashboard';
+import ClientDashboardEnhanced from './pages/client/ClientDashboardEnhanced';
 import ClientTools from './pages/client/ClientTools';
 import ClientToolDetail from './pages/client/ClientToolDetail';
 import ClientProfile from './pages/client/ClientProfile';
