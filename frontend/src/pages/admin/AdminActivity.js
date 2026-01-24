@@ -115,11 +115,31 @@ const AdminActivity = () => {
 
         {/* Filters */}
         <div className="bg-toolstack-card border border-toolstack-border rounded-xl p-4 mb-6">
-          <div className="flex items-center gap-2 mb-4 text-white">
-            <Filter size={18} />
-            <span className="font-medium">Filters</span>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-white">
+              <Filter size={18} />
+              <span className="font-medium">Filters</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {(filters.role || filters.action || filters.startDate || filters.endDate) && (
+                <button
+                  onClick={clearFilters}
+                  className="text-xs text-toolstack-orange hover:underline"
+                >
+                  Clear all
+                </button>
+              )}
+              <button
+                onClick={exportToCSV}
+                disabled={activities.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-toolstack-border rounded-lg text-sm text-white hover:border-toolstack-orange transition-colors disabled:opacity-50"
+              >
+                <Download size={14} />
+                Export CSV
+              </button>
+            </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
               <label className="text-sm text-toolstack-muted mb-1 block">Role</label>
               <select
@@ -128,7 +148,7 @@ const AdminActivity = () => {
                   setFilters(prev => ({ ...prev, role: e.target.value }));
                   setPagination(prev => ({ ...prev, page: 1 }));
                 }}
-                className="w-full px-4 py-2 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors"
+                className="w-full px-4 py-2 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors text-sm"
                 data-testid="filter-role"
               >
                 <option value="">All Roles</option>
@@ -145,7 +165,7 @@ const AdminActivity = () => {
                   setFilters(prev => ({ ...prev, action: e.target.value }));
                   setPagination(prev => ({ ...prev, page: 1 }));
                 }}
-                className="w-full px-4 py-2 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors"
+                className="w-full px-4 py-2 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors text-sm"
                 data-testid="filter-action"
               >
                 <option value="">All Actions</option>
@@ -155,15 +175,46 @@ const AdminActivity = () => {
               </select>
             </div>
             <div>
+              <label className="text-sm text-toolstack-muted mb-1 block flex items-center gap-1">
+                <Calendar size={12} /> From Date
+              </label>
+              <input
+                type="date"
+                value={filters.startDate}
+                onChange={(e) => {
+                  setFilters(prev => ({ ...prev, startDate: e.target.value }));
+                  setPagination(prev => ({ ...prev, page: 1 }));
+                }}
+                className="w-full px-4 py-2 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors text-sm"
+                data-testid="filter-start-date"
+              />
+            </div>
+            <div>
+              <label className="text-sm text-toolstack-muted mb-1 block flex items-center gap-1">
+                <Calendar size={12} /> To Date
+              </label>
+              <input
+                type="date"
+                value={filters.endDate}
+                min={filters.startDate}
+                onChange={(e) => {
+                  setFilters(prev => ({ ...prev, endDate: e.target.value }));
+                  setPagination(prev => ({ ...prev, page: 1 }));
+                }}
+                className="w-full px-4 py-2 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors text-sm"
+                data-testid="filter-end-date"
+              />
+            </div>
+            <div>
               <label className="text-sm text-toolstack-muted mb-1 block">Search</label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-toolstack-muted" size={16} />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-toolstack-muted" size={14} />
                 <input
                   type="text"
-                  placeholder="Search in metadata..."
+                  placeholder="Search metadata..."
                   value={filters.search}
                   onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                  className="w-full pl-10 pr-4 py-2 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors"
+                  className="w-full pl-9 pr-4 py-2 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors text-sm"
                   data-testid="filter-search"
                 />
               </div>
