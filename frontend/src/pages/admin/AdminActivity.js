@@ -184,36 +184,38 @@ const AdminActivity = () => {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
-              <label className="text-sm text-toolstack-muted mb-1 block">Role</label>
+              <label className="text-sm text-toolstack-muted mb-1.5 block">Role</label>
               <select
                 value={filters.role}
                 onChange={(e) => {
                   setFilters(prev => ({ ...prev, role: e.target.value }));
                   setPagination(prev => ({ ...prev, page: 1 }));
                 }}
-                className="w-full px-4 py-2 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors text-sm"
+                className="w-full px-3 py-2.5 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all text-sm appearance-none cursor-pointer hover:border-toolstack-muted"
+                style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27 viewBox=%270 0 12 8%27%3E%3Cpath fill=%27%23999%27 d=%27M6 8L0 0h12z%27/%3E%3C/svg%3E')", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '0.75rem' }}
                 data-testid="filter-role"
               >
-                <option value="">All Roles</option>
-                <option value="ADMIN">Admin</option>
-                <option value="CLIENT">Client</option>
-                <option value="SYSTEM">System</option>
+                <option value="" className="bg-toolstack-bg text-white">All Roles</option>
+                <option value="ADMIN" className="bg-toolstack-bg text-white">Admin</option>
+                <option value="CLIENT" className="bg-toolstack-bg text-white">Client</option>
+                <option value="SYSTEM" className="bg-toolstack-bg text-white">System</option>
               </select>
             </div>
             <div>
-              <label className="text-sm text-toolstack-muted mb-1 block">Action</label>
+              <label className="text-sm text-toolstack-muted mb-1.5 block">Action</label>
               <select
                 value={filters.action}
                 onChange={(e) => {
                   setFilters(prev => ({ ...prev, action: e.target.value }));
                   setPagination(prev => ({ ...prev, page: 1 }));
                 }}
-                className="w-full px-4 py-2 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors text-sm"
+                className="w-full px-3 py-2.5 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all text-sm appearance-none cursor-pointer hover:border-toolstack-muted"
+                style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27 viewBox=%270 0 12 8%27%3E%3Cpath fill=%27%23999%27 d=%27M6 8L0 0h12z%27/%3E%3C/svg%3E')", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '0.75rem' }}
                 data-testid="filter-action"
               >
-                <option value="">All Actions</option>
+                <option value="" className="bg-toolstack-bg text-white">All Actions</option>
                 {actionTypes.map(action => (
-                  <option key={action} value={action}>{action.replace(/_/g, ' ')}</option>
+                  <option key={action} value={action} className="bg-toolstack-bg text-white">{action.replace(/_/g, ' ')}</option>
                 ))}
               </select>
             </div>
