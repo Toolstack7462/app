@@ -1,84 +1,84 @@
 # ToolStack CRM - Product Requirements Document
 
 ## Original Problem Statement
-Full-stack CRM application (React, Node/Express, FastAPI, MongoDB) requiring comprehensive bug fixes and security upgrades for production deployment.
-
-## Core Requirements
-1. Fix broken authentication flow (admin/client logins not redirecting)
-2. Remove prefilled email on admin login page
-3. Production-grade security (DB-driven admin, RBAC, JWT refresh tokens)
-4. Device binding & anti multi-login for clients
-5. Clean UI without unwanted branding
+Build a production-grade CRM system for ToolStack, a SaaS platform offering digital tools subscriptions. The system requires:
+1. Full system overview and bug analysis
+2. Production-grade security (DB-driven admin, RBAC, JWT refresh tokens)
+3. Device binding & anti multi-login feature
+4. Website & deployment improvements
+5. UI/styling matching original project
 
 ## Architecture
+
+### Tech Stack
+- **Frontend:** React, Tailwind CSS, React Router
+- **Backend:** FastAPI (Python) gateway + Node.js/Express CRM service
+- **Database:** MongoDB
+- **Authentication:** JWT with Access/Refresh Tokens + Device Binding
+
+### Service Configuration
+- FastAPI Gateway: Port 8001 (via supervisor)
+- Node.js CRM Backend: Port 8002 (manual start: `node server-crm.js &`)
+- Frontend: Port 3000 (via supervisor)
+
+### Key Files
 ```
 /app
 ├── backend/
-│   ├── server.py (FastAPI Gateway - port 8001)
-│   ├── server-crm.js (Node.js CRM - port 8002)
-│   ├── routes/auth.js
-│   ├── middleware/
-│   └── models/
+│   ├── server.py (FastAPI Gateway)
+│   ├── server-crm.js (Node.js CRM)
+│   ├── routes/
+│   │   ├── auth.js, authEnhanced.js
+│   │   ├── admin/ (tools, clients, assignments, activity)
+│   │   └── client/ (tools, assignments, notifications)
+│   └── middleware/
+│       ├── auth.js, authEnhanced.js
+│       └── rateLimiter.js
 ├── frontend/
-│   ├── src/
-│   │   ├── pages/admin/AdminLogin.js
-│   │   ├── pages/client/ClientLogin.js
-│   │   ├── components/AdminRoute.js
-│   │   ├── components/ClientRoute.js
-│   │   └── services/authService.js
+│   └── src/
+│       ├── pages/admin/, pages/client/
+│       ├── services/api.js, authService.js
+│       └── components/AdminRoute.js, ClientRoute.js
 ```
 
 ## What's Been Implemented
 
-### January 24, 2026 - Authentication Bug Fix
-**Status: COMPLETED & TESTED**
+### ✅ Completed (Jan 24, 2026)
+- [x] Database-driven admin accounts (seeded via script)
+- [x] JWT refresh token mechanism
+- [x] Device binding security (restricts clients to max devices)
+- [x] Admin login redirect fix (accepts SUPER_ADMIN, ADMIN, SUPPORT roles)
+- [x] Client login fix (correct `getOrCreateDeviceId()` method)
+- [x] Prefilled email fix (autoComplete="off")
+- [x] Admin dashboard 403 fix (activity/assignments routes accept all admin roles)
+- [x] API rate limiter removed (was blocking dashboard)
+- [x] Homepage links cleanup (no Admin Portal/Client Login links)
 
-#### Issues Fixed:
-1. **Admin/Client Login Redirect** - Users couldn't reach dashboards after login
-   - Root cause: `AdminRoute.js` checked for `role === 'ADMIN'` but backend returns `SUPER_ADMIN`
-   - Fix: Updated to accept `['SUPER_ADMIN', 'ADMIN', 'SUPPORT']` roles
-
-2. **Client Login Device ID Error**
-   - Root cause: `ClientLogin.js` called non-existent `getDeviceId()` method
-   - Fix: Changed to `getOrCreateDeviceId()`
-
-3. **Prefilled Email on Admin Login**
-   - Fix: Added `autoComplete="off"`, unique `name="admin-login-email"`, and neutral placeholder
-
-4. **CRM Backend Not Running**
-   - Node.js CRM on port 8002 was not started
-   - Started manually: `node server-crm.js &`
-
-#### Files Modified:
-- `/app/frontend/src/components/AdminRoute.js`
-- `/app/frontend/src/pages/admin/AdminLogin.js`
-- `/app/frontend/src/pages/client/ClientLogin.js`
-
-### Previously Implemented (Before This Session)
-- Database-driven admin accounts with seed script
-- JWT refresh token mechanism
-- Device binding logic for clients
-- UI reverted to original theme
-- Homepage links to admin/client removed
+### Database Schema
+- **User:** `{ email, password, role, forceLogoutVersion, devicePolicy, deviceBindings }`
+- **Client:** Same as User with `role: 'CLIENT'`
+- **RefreshToken:** `{ token, user, expiryDate }`
+- **DeviceBinding:** `{ userId, deviceId, createdAt }`
 
 ## Test Credentials
-- **Admin:** admin@toolstack.com / Admin123!Secure
-- **Client:** client@test.com / Client123!
+- **Admin:** `admin@toolstack.com` / `Admin123!Secure`
+- **Client:** `client@test.com` / `Client123!`
 
-## Known Issues (Minor)
-1. Admin dashboard shows "Failed to load dashboard" toasts (403 on activity endpoint) - UI renders correctly
-2. Rate limiter was increased to 100 for testing (was 5)
+## Prioritized Backlog
 
-## Upcoming Tasks (P1)
-- Investigate admin dashboard 403 error on activity endpoint
-- Revert rate limiter to production value (5 attempts)
-- Test client panel advanced features (date displays, expiry warnings)
+### P0 (Critical) - COMPLETED
+- ~~Admin/Client login redirect~~
+- ~~Admin dashboard loading~~
 
-## Future/Backlog (P2)
-- Single-domain deployment with Docker/Nginx
-- Dynamic MongoDB-backed blog
-- Contact form backend endpoint
-- Code cleanup (remove unused *Enhanced.js files)
+### P1 (High)
+- Test Client Panel advanced features (date display, expiry warnings)
 
-## Preview URL
-https://login-bug-repair-2.preview.emergentagent.com
+### P2 (Medium)
+- Code cleanup: Remove unused `*Enhanced.js` files
+- Docker/Nginx single-domain deployment
+- Dynamic blog with admin CRUD
+- Contact form backend
+
+### P3 (Low/Future)
+- Full VPS deployment guide with SSL
+- Additional RBAC roles implementation
