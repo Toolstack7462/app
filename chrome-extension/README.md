@@ -1,152 +1,214 @@
 # ToolStack Chrome Extension
 
-A Chrome Extension (Manifest V3) for accessing tools assigned through the ToolStack CRM with automatic credential synchronization.
+Access your assigned tools with automatic credential sync and cookie injection.
 
-## Features
+## Version 1.1.0
 
-- **One Extension for All Tools**: Access any assigned tool from a single extension
-- **Auto-sync Credentials**: Extension automatically detects and pulls latest credentials when admin updates them
-- **Multiple Credential Types**: Supports cookies, tokens/headers, and localStorage
-- **Permission Management**: Requests domain permissions only when needed
-- **Secure Storage**: Credentials are encrypted and stored securely
+### Features
+
+- **Automatic Cookie Injection**: Cookies are injected BEFORE opening the tool tab, then reloaded for proper session initialization
+- **Subdomain Support**: Handles cookies for both exact domains and subdomain wildcards (`.example.com`)
+- **Secure Cookie Handling**: Properly handles `Secure`, `SameSite`, and `HttpOnly` attributes
+- **localStorage/sessionStorage Support**: Can inject storage-based credentials
+- **Token Injection**: Supports bearer token authentication
+- **Verification**: Reads back cookies after setting to verify success
+- **Detailed Error Messages**: Shows exact failure reasons (domain mismatch, secure flag, etc.)
 
 ## Installation
 
-### Development/Testing
+### Method 1: Manual Installation (Development)
 
-1. Open Chrome and navigate to `chrome://extensions/`
-2. Enable "Developer mode" in the top right
-3. Click "Load unpacked"
-4. Select the `chrome-extension` folder
+1. Download or clone this extension folder
+2. Open Chrome and go to `chrome://extensions/`
+3. Enable "Developer mode" (toggle in top right)
+4. Click "Load unpacked"
+5. Select the `chrome-extension` folder
 
-### Production
+### Method 2: From ZIP
 
-Package the extension as a `.crx` file or publish to Chrome Web Store.
+1. Download the `chrome-extension.zip` file
+2. Extract to a folder
+3. Follow steps 2-5 from Method 1
 
 ## Usage
 
-### First-time Setup
+### Initial Setup
 
-1. Click the ToolStack icon in Chrome toolbar
-2. Click "Configure API URL" and enter your CRM URL (e.g., `https://your-crm.com`)
-3. Sign in with your ToolStack client credentials
+1. Click the extension icon in Chrome toolbar
+2. Click "Configure API" and enter your ToolStack API URL
+3. Login with your ToolStack credentials
 
-### Accessing Tools
+### Opening Tools
 
-1. Click the extension icon to see your assigned tools
-2. Click "Open" on any tool to:
-   - Automatically apply the latest credentials
-   - Open the tool in a new tab
-3. If a tool shows "Grant Access", click to grant the necessary domain permission
+1. Click on any tool in the list
+2. If prompted, grant permission for that domain
+3. The extension will:
+   - Fetch credentials from ToolStack API
+   - Inject cookies BEFORE opening the tab
+   - Open the tool website
+   - Reload the page to ensure cookies are applied
+   - Verify cookies were set correctly
 
-### Auto-sync
+### Credential Types
 
-- The extension checks for credential updates every 15 minutes
-- When updates are available, a badge appears on the extension icon
-- Click the sync button (↻) to manually check for updates
+The extension supports multiple credential types:
 
-## API Endpoints
-
-The extension communicates with the following backend endpoints:
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/crm/extension/auth` | POST | Authenticate and get extension token |
-| `/api/crm/extension/logout` | POST | Revoke extension token |
-| `/api/crm/extension/tools` | GET | Get assigned tools with versions |
-| `/api/crm/extension/tools/versions` | GET | Lightweight version check |
-| `/api/crm/extension/tools/:id/credentials` | GET | Get decrypted credentials |
-| `/api/crm/extension/tools/:id/opened` | POST | Log tool opened event |
-| `/api/crm/extension/profile` | GET | Get user profile |
-| `/api/crm/extension/domains` | GET | Get list of tool domains |
-
-## Credential Format
-
-### Cookies
+#### 1. Cookies (Most Common)
 ```json
-[
-  {
-    "name": "session_id",
-    "value": "abc123",
-    "domain": ".example.com",
-    "path": "/",
-    "secure": true,
-    "httpOnly": true,
-    "sameSite": "lax",
-    "expirationDate": 1735689600
+{
+  "type": "cookies",
+  "data": [
+    {
+      "name": "session_id",
+      "value": "abc123",
+      "domain": ".example.com",
+      "path": "/",
+      "secure": true,
+      "httpOnly": true,
+      "sameSite": "lax",
+      "expirationDate": 1735689600
+    }
+  ]
+}
+```
+
+**Cookie Properties:**
+- `name` (required): Cookie name
+- `value` (required): Cookie value
+- `domain` (optional): Cookie domain (defaults to tool domain)
+  - Use `.example.com` for subdomain cookies
+  - Use `example.com` for exact domain
+- `path` (optional): Cookie path (defaults to `/`)
+- `secure` (optional): HTTPS only (defaults to `true`)
+- `httpOnly` (optional): Not accessible via JavaScript (defaults to `false`)
+- `sameSite` (optional): `strict`, `lax`, or `none` (defaults to `lax`)
+  - Note: `SameSite=None` requires `Secure=true`
+- `expirationDate` (optional): Unix timestamp (defaults to 30 days from now)
+
+#### 2. localStorage/sessionStorage
+```json
+{
+  "type": "localStorage",
+  "data": {
+    "auth_token": "eyJhbGc...",
+    "user_id": "12345"
   }
-]
-```
-
-### Token/Header
-```json
-{
-  "header": "Authorization",
-  "prefix": "Bearer ",
-  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
 ```
 
-### LocalStorage
+If automatic injection fails, the extension will show manual instructions.
+
+#### 3. Bearer Token
 ```json
 {
-  "key1": "value1",
-  "key2": "value2"
+  "type": "token",
+  "data": {
+    "value": "eyJhbGc...",
+    "header": "Authorization",
+    "prefix": "Bearer "
+  }
 }
 ```
-
-## Security
-
-- Extension tokens expire after 30 days
-- Credentials are encrypted at rest in the database (AES-256-GCM)
-- Each credential fetch is logged for audit purposes
-- Tokens can be revoked from the admin panel
-
-## Adding a New Tool Domain
-
-1. In the admin panel, create or edit a tool
-2. Set the Target URL (domain is extracted automatically)
-3. Upload credentials (cookies, token, or localStorage data)
-4. The tool will appear in assigned clients' extension
-5. Clients will be prompted to grant permission for the new domain
 
 ## Troubleshooting
 
-### "Invalid credentials" on login
-- Ensure you're using your ToolStack client account (not admin)
-- Check the API URL is correct
+### Cookies Not Being Set
 
-### Tool shows "Grant Access"
-- Click to grant Chrome permission for that domain
-- This is required for the extension to set cookies
+**Error: SECURE_FLAG_REQUIRES_HTTPS**
+- The cookie has `secure: true` but the target URL is HTTP
+- Solution: Use HTTPS URL or set `secure: false`
 
-### Credentials not working
-- Click sync to get the latest credentials
-- Check if the tool assignment hasn't expired
-- Contact admin if credentials are outdated
+**Error: SAMESITE_NONE_REQUIRES_SECURE**
+- `SameSite=None` cookies must have `Secure=true`
+- Solution: Either set `secure: true` or use `sameSite: "lax"`
 
-## Development
+**Error: DOMAIN_MISMATCH**
+- Cookie domain doesn't match the target URL
+- Solution: Use a compatible domain or remove the domain property
 
-### File Structure
+### Still Not Logged In After Cookie Injection
+
+1. **Check the console**: Open DevTools (F12) and check for errors
+2. **Verify cookies**: Go to Application tab > Cookies in DevTools
+3. **Check domain matching**: Ensure cookie domains match the site
+4. **Try subdomain format**: Use `.example.com` instead of `example.com`
+5. **Check for additional requirements**:
+   - Some sites need localStorage tokens in addition to cookies
+   - Some sites verify additional headers or fingerprints
+
+### Permission Issues
+
+If you see "Grant Access" on a tool:
+1. Click "Grant" button
+2. Approve the permission request
+3. The tool will open automatically
+
+## Technical Details
+
+### Cookie Injection Flow
+
+1. **Pre-injection**: Cookies are set via `chrome.cookies.set()` BEFORE opening the tab
+2. **Tab Open**: New tab is created with the tool URL
+3. **Wait for Load**: Extension waits for tab to finish loading
+4. **Reload**: Tab is reloaded to ensure cookies are sent with initial requests
+5. **Verification**: Cookies are read back to confirm they were set
+
+### Subdomain Handling
+
+- Cookies with domain `.example.com` will be sent to:
+  - `example.com`
+  - `www.example.com`
+  - `api.example.com`
+  - Any other subdomain
+
+- Cookies with domain `example.com` (no dot) will only be sent to:
+  - `example.com`
+
+### Security Considerations
+
+- Extension only requests permissions for domains you explicitly grant
+- Credentials are stored in Chrome's secure local storage
+- Cookies are set with appropriate security flags
+- The extension never sends credentials to third parties
+
+## API Reference
+
+### Extension API Endpoints
+
+The extension expects these endpoints from your ToolStack API:
+
 ```
-chrome-extension/
-├── manifest.json      # Extension manifest (MV3)
-├── popup.html         # Popup UI
-├── css/
-│   └── popup.css      # Popup styles
-├── js/
-│   ├── api.js         # API client and storage utilities
-│   ├── popup.js       # Popup logic
-│   └── background.js  # Service worker for auto-sync
-└── icons/
-    └── *.png          # Extension icons
+POST /api/crm/extension/auth
+  Body: { email, password }
+  Response: { token, expiresAt, user }
+
+GET /api/crm/extension/tools
+  Response: { tools: [...] }
+
+GET /api/crm/extension/tools/:id/credentials
+  Response: { tool, credentials }
+
+POST /api/crm/extension/tools/:id/opened
+  Response: { success: true }
+
+GET /api/crm/extension/profile
+  Response: { user, token }
 ```
 
-### Building
-No build step required. The extension uses vanilla JS with ES modules.
+## Changelog
 
-### Testing
-1. Load as unpacked extension
-2. Use Chrome DevTools to debug:
-   - Right-click extension icon → "Inspect popup"
-   - Go to `chrome://extensions` → "service worker" link for background script
+### 1.1.0
+- Fixed cookie injection to happen BEFORE tab opens
+- Added tab reload after cookie injection for proper session initialization
+- Added cookie verification to confirm successful injection
+- Added detailed error messages for failed cookies
+- Added subdomain support with proper domain handling
+- Added localStorage/sessionStorage credential support
+- Added proper Secure and SameSite attribute handling
+- Improved error diagnostics
+
+### 1.0.0
+- Initial release
+- Basic cookie injection
+- Tool synchronization
+- Permission management
