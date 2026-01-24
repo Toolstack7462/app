@@ -4,23 +4,65 @@ from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import os
 import asyncio
+import re
 
 app = FastAPI(title="ToolStack API Gateway")
 
-# CORS configuration - must not use "*" with credentials=True
-ALLOWED_ORIGINS = [
-    "https://route-guardian-9.preview.emergentagent.com",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
+# ============================================================================
+# DYNAMIC CORS CONFIGURATION - SUPPORTS URL CHANGES
+# ============================================================================
+# Define allowed origin patterns
+ALLOWED_ORIGIN_PATTERNS = [
+    r"^https://.*\.preview\.emergentagent\.com$",  # All preview subdomains
+    r"^https://.*\.emergentagent\.com$",            # All emergentagent subdomains
+    r"^http://localhost:\d+$",                       # Local development
+    r"^http://127\.0\.0\.1:\d+$"                    # Local development
 ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+def is_origin_allowed(origin: str) -> bool:
+    """Check if origin matches allowed patterns"""
+    if not origin:
+        return True  # Allow requests with no origin
+    
+    for pattern in ALLOWED_ORIGIN_PATTERNS:
+        if re.match(pattern, origin):
+            print(f"✅ CORS: Allowed origin: {origin}")
+            return True
+    
+    print(f"⚠️  CORS: Blocked origin: {origin}")
+    return False
+
+# Dynamic CORS middleware
+@app.middleware("http")
+async def dynamic_cors_middleware(request: Request, call_next):
+    origin = request.headers.get("origin")
+    
+    response = await call_next(request)
+    
+    if origin and is_origin_allowed(origin):
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+    
+    return response
+
+# Handle preflight requests
+@app.options("/{path:path}")
+async def options_handler(request: Request, path: str):
+    origin = request.headers.get("origin")
+    
+    if origin and is_origin_allowed(origin):
+        return Response(
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "*",
+                "Access-Control-Allow-Headers": "*"
+            }
+        )
+    return Response(status_code=403)
 
 # CRM Backend URL
 CRM_BACKEND_URL = os.getenv("CRM_BACKEND_URL", "http://localhost:8002")
