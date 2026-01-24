@@ -14,7 +14,7 @@ import uuid
 class ToolStackCRMTester:
     def __init__(self):
         # Get backend URL from frontend .env
-        self.base_url = "https://crm-complete-4.preview.emergentagent.com"
+        self.base_url = "https://route-guardian-9.preview.emergentagent.com"
         self.api_base = f"{self.base_url}/api/crm"
         
         # Admin credentials

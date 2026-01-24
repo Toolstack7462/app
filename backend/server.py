@@ -9,7 +9,7 @@ app = FastAPI(title="ToolStack API Gateway")
 
 # CORS configuration - must not use "*" with credentials=True
 ALLOWED_ORIGINS = [
-    "https://crm-complete-4.preview.emergentagent.com",
+    "https://route-guardian-9.preview.emergentagent.com",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
