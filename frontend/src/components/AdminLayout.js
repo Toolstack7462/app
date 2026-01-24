@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, Users, Activity, LogOut } from 'lucide-react';
+import { LayoutDashboard, Package, Users, Activity, LogOut, FileText, Mail } from 'lucide-react';
 import { authService } from '../services/authService';
 import ToolStackLogo from './ToolStackLogo';
 
@@ -18,6 +18,8 @@ const AdminLayout = ({ children }) => {
     { path: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/admin/tools', icon: Package, label: 'Tools' },
     { path: '/admin/clients', icon: Users, label: 'Clients' },
+    { path: '/admin/blog', icon: FileText, label: 'Blog' },
+    { path: '/admin/contacts', icon: Mail, label: 'Contacts' },
     { path: '/admin/activity', icon: Activity, label: 'Activity' }
   ];
   
