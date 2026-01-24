@@ -25,6 +25,7 @@ const ClientDashboardEnhanced = () => {
   const [expiringTools, setExpiringTools] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showExpiryWarning, setShowExpiryWarning] = useState(false);
+  const [showExtensionBanner, setShowExtensionBanner] = useState(true);
   
   const user = authService.getCurrentUser();
 
