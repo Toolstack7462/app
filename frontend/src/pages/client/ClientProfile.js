@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import ClientLayout from '../../components/ClientLayout';
+import ClientLayoutEnhanced from '../../components/ClientLayoutEnhanced';
 import { User, Mail, Calendar, Shield, Smartphone, Clock } from 'lucide-react';
 import api from '../../services/api';
 import { authService } from '../../services/authService';
@@ -36,18 +36,18 @@ const ClientProfile = () => {
 
   if (loading) {
     return (
-      <ClientLayout>
+      <ClientLayoutEnhanced>
         <div className="flex items-center justify-center min-h-[80vh]">
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-toolstack-orange border-t-transparent"></div>
         </div>
-      </ClientLayout>
+      </ClientLayoutEnhanced>
     );
   }
 
   const userData = profile || user;
 
   return (
-    <ClientLayout>
+    <ClientLayoutEnhanced>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -195,7 +195,7 @@ const ClientProfile = () => {
           </div>
         </div>
       </div>
-    </ClientLayout>
+    </ClientLayoutEnhanced>
   );
 };
 
