@@ -204,29 +204,53 @@ class ToolStackCRMTester:
             self.log_result("admin_bootstrap", "Admin bootstrap verification", False, f"HTTP {response.status_code if response else 'No response'}")
 
     def test_input_normalization_auth(self):
-        """Test input normalization in authentication as per review request"""
-        print("\n🔧 Testing Input Normalization in Auth...")
+        """Test input normalization in authentication - CRITICAL FIX RE-TEST"""
+        print("\n🔧 Testing Input Normalization Fix - 5 Critical Test Cases...")
         
-        # Test scenarios from review request
+        # Test scenarios exactly as specified in review request
         test_scenarios = [
             {
-                "name": "Normal login",
+                "name": "1. Email with Leading/Trailing Spaces (CRITICAL FIX)",
+                "email": "  admin@toolstack.com  ",
+                "password": "Admin123!Secure",
+                "expected": "✅ Login successful (spaces trimmed before validation)"
+            },
+            {
+                "name": "2. Password with Leading/Trailing Spaces",
                 "email": "admin@toolstack.com",
-                "password": "Admin123!Secure"
+                "password": "  Admin123!Secure  ",
+                "expected": "✅ Login successful (spaces trimmed)"
             },
             {
-                "name": "Leading/trailing spaces",
-                "email": " admin@toolstack.com ",
-                "password": " Admin123!Secure "
+                "name": "3. Both with Spaces",
+                "email": "  admin@toolstack.com  ",
+                "password": "  Admin123!Secure  ",
+                "expected": "✅ Login successful"
             },
             {
-                "name": "Mixed case email",
-                "email": "ADMIN@toolstack.com",
-                "password": "Admin123!Secure"
+                "name": "4. Mixed Case Email (Re-verify still works)",
+                "email": "ADMIN@TOOLSTACK.COM",
+                "password": "Admin123!Secure",
+                "expected": "✅ Login successful (lowercased before validation)"
+            },
+            {
+                "name": "5. Normal Login (Baseline)",
+                "email": "admin@toolstack.com",
+                "password": "Admin123!Secure",
+                "expected": "✅ Login successful"
             }
         ]
         
-        for scenario in test_scenarios:
+        print(f"   Testing normalization middleware: authLimiter → normalizeAuthInputs → validate → handler")
+        print(f"   Expected: ALL 5 test cases must pass with successful login")
+        print(f"   Success Criteria: accessToken and user object in response")
+        
+        for i, scenario in enumerate(test_scenarios, 1):
+            print(f"\n   Test {i}/5: {scenario['name']}")
+            print(f"   Email: '{scenario['email']}'")
+            print(f"   Password: '{scenario['password']}'")
+            print(f"   Expected: {scenario['expected']}")
+            
             login_data = {
                 "email": scenario["email"],
                 "password": scenario["password"]
@@ -237,19 +261,34 @@ class ToolStackCRMTester:
             if response and response.status_code == 200:
                 try:
                     data = response.json()
-                    if data.get("success") and data.get("accessToken"):
-                        self.log_result("input_normalization", f"Input normalization - {scenario['name']}", True)
+                    if data.get("success") and data.get("accessToken") and data.get("user"):
+                        self.log_result("input_normalization", f"Test {i}: {scenario['name']}", True)
+                        print(f"   ✅ SUCCESS: Login successful, accessToken received")
+                        print(f"   User ID: {data.get('user', {}).get('_id', 'N/A')}")
                         
                         # Store token from first successful login for later tests
                         if not self.admin_token:
                             self.admin_token = data["accessToken"]
                     else:
-                        self.log_result("input_normalization", f"Input normalization - {scenario['name']}", False, "Missing success or accessToken")
-                except json.JSONDecodeError:
-                    self.log_result("input_normalization", f"Input normalization - {scenario['name']}", False, "Invalid JSON response")
+                        self.log_result("input_normalization", f"Test {i}: {scenario['name']}", False, "Missing success, accessToken, or user in response")
+                        print(f"   ❌ FAILED: Response missing required fields")
+                        print(f"   Response: {json.dumps(data, indent=2)}")
+                except json.JSONDecodeError as e:
+                    self.log_result("input_normalization", f"Test {i}: {scenario['name']}", False, f"Invalid JSON response: {e}")
+                    print(f"   ❌ FAILED: Invalid JSON response")
             else:
-                self.log_result("input_normalization", f"Input normalization - {scenario['name']}", False, f"HTTP {response.status_code if response else 'No response'}")
+                error_msg = f"HTTP {response.status_code if response else 'No response'}"
+                if response:
+                    try:
+                        error_data = response.json()
+                        error_msg += f" - {error_data.get('error', 'Unknown error')}"
+                    except:
+                        error_msg += f" - {response.text[:100]}"
+                
+                self.log_result("input_normalization", f"Test {i}: {scenario['name']}", False, error_msg)
+                print(f"   ❌ FAILED: {error_msg}")
         
+        print(f"\n   🔍 Testing error handling with invalid credentials...")
         # Test invalid credentials to ensure proper error handling
         invalid_login = {
             "email": "admin@toolstack.com",
@@ -263,12 +302,16 @@ class ToolStackCRMTester:
                 data = response.json()
                 if "error" in data:
                     self.log_result("input_normalization", "Invalid credentials error handling", True)
+                    print(f"   ✅ Error handling works: {data.get('error')}")
                 else:
                     self.log_result("input_normalization", "Invalid credentials error handling", False, "No error message in response")
+                    print(f"   ❌ No error message in 401 response")
             except json.JSONDecodeError:
                 self.log_result("input_normalization", "Invalid credentials error handling", False, "Invalid JSON response")
+                print(f"   ❌ Invalid JSON in error response")
         else:
             self.log_result("input_normalization", "Invalid credentials error handling", False, f"Expected 401, got {response.status_code if response else 'No response'}")
+            print(f"   ❌ Expected 401 for invalid credentials, got {response.status_code if response else 'No response'}")
 
     def test_admin_dashboard_access(self):
         """Test admin dashboard access after login"""
