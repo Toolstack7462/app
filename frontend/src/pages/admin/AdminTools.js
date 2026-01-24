@@ -98,13 +98,13 @@ const AdminTools = () => {
         <div className="bg-toolstack-card border border-toolstack-border rounded-xl p-4 mb-6">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-toolstack-muted" size={18} />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-toolstack-muted pointer-events-none" size={18} />
               <input
                 type="text"
                 placeholder="Search tools..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-11 pr-4 py-2.5 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors text-sm"
+                className="w-full pl-11 pr-4 py-2.5 bg-toolstack-bg border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all text-sm hover:border-toolstack-muted"
                 data-testid="search-tools-input"
               />
             </div>
@@ -113,23 +113,25 @@ const AdminTools = () => {
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="px-4 py-2.5 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors text-sm min-w-[140px]"
+                className="px-4 py-2.5 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all text-sm min-w-[140px] appearance-none cursor-pointer hover:border-toolstack-muted"
+                style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27 viewBox=%270 0 12 8%27%3E%3Cpath fill=%27%23999%27 d=%27M6 8L0 0h12z%27/%3E%3C/svg%3E')", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '0.65rem' }}
                 data-testid="filter-category"
               >
-                <option value="">All Categories</option>
+                <option value="" className="bg-toolstack-bg text-white">All Categories</option>
                 {CATEGORIES.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
+                  <option key={cat} value={cat} className="bg-toolstack-bg text-white">{cat}</option>
                 ))}
               </select>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-4 py-2.5 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors text-sm min-w-[120px]"
+                className="px-4 py-2.5 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all text-sm min-w-[120px] appearance-none cursor-pointer hover:border-toolstack-muted"
+                style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27 viewBox=%270 0 12 8%27%3E%3Cpath fill=%27%23999%27 d=%27M6 8L0 0h12z%27/%3E%3C/svg%3E')", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '0.65rem' }}
                 data-testid="filter-status"
               >
-                <option value="">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
+                <option value="" className="bg-toolstack-bg text-white">All Status</option>
+                <option value="active" className="bg-toolstack-bg text-white">Active</option>
+                <option value="inactive" className="bg-toolstack-bg text-white">Inactive</option>
               </select>
             </div>
           </div>
