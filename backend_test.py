@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-ToolStack CRM Backend API Testing Suite
-Tests all backend APIs including authentication, blog management, and contact management.
+ToolStack CRM Backend API Testing Suite - URL Change Resilience & Persistence Testing
+Tests critical fixes: Dynamic CORS, MongoDB persistence, Admin bootstrap, Input normalization, Cookie settings
 """
 
 import requests
@@ -13,11 +13,12 @@ import uuid
 
 class ToolStackCRMTester:
     def __init__(self):
-        # Get backend URL from frontend .env
-        self.base_url = "https://route-guardian-9.preview.emergentagent.com"
-        self.api_base = f"{self.base_url}/api/crm"
+        # Use localhost for testing as per review request
+        self.gateway_url = "http://localhost:8001"
+        self.crm_health_url = f"{self.gateway_url}/api/crm/health"
+        self.api_base = f"{self.gateway_url}/api/crm"
         
-        # Admin credentials
+        # Admin credentials from review request
         self.admin_email = "admin@toolstack.com"
         self.admin_password = "Admin123!Secure"
         
@@ -26,18 +27,21 @@ class ToolStackCRMTester:
         self.test_blog_id = None
         self.test_contact_id = None
         
-        # Results tracking
+        # Results tracking - Updated for new test categories
         self.results = {
-            "authentication": {"passed": 0, "failed": 0, "errors": []},
-            "blog_api": {"passed": 0, "failed": 0, "errors": []},
-            "contact_api": {"passed": 0, "failed": 0, "errors": []},
-            "public_api": {"passed": 0, "failed": 0, "errors": []}
+            "health_connectivity": {"passed": 0, "failed": 0, "errors": []},
+            "cors_validation": {"passed": 0, "failed": 0, "errors": []},
+            "admin_bootstrap": {"passed": 0, "failed": 0, "errors": []},
+            "input_normalization": {"passed": 0, "failed": 0, "errors": []},
+            "admin_dashboard": {"passed": 0, "failed": 0, "errors": []},
+            "mongodb_persistence": {"passed": 0, "failed": 0, "errors": []}
         }
         
-        print(f"🚀 ToolStack CRM API Tester")
-        print(f"📡 Backend URL: {self.base_url}")
+        print(f"🚀 ToolStack CRM API Tester - URL Change Resilience & Persistence")
+        print(f"📡 Gateway URL: {self.gateway_url}")
         print(f"🔗 API Base: {self.api_base}")
-        print("=" * 60)
+        print(f"👤 Admin: {self.admin_email}")
+        print("=" * 70)
 
     def log_result(self, category, test_name, success, error=None):
         """Log test result"""
