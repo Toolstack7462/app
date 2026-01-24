@@ -60,7 +60,7 @@ const blogSchema = new mongoose.Schema({
 });
 
 // Generate slug from title
-blogSchema.pre('save', function(next) {
+blogSchema.pre('save', async function() {
   if (this.isModified('title') && !this.slug) {
     this.slug = this.title
       .toLowerCase()
@@ -73,8 +73,6 @@ blogSchema.pre('save', function(next) {
   if (this.isModified('status') && this.status === 'published' && !this.publishedAt) {
     this.publishedAt = new Date();
   }
-  
-  next();
 });
 
 // Indexes
