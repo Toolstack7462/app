@@ -61,6 +61,11 @@ router.post('/auth', async (req, res) => {
       return res.status(403).json({ error: 'Account is disabled' });
     }
     
+    // Check if user has a password set
+    if (!user.password) {
+      return res.status(401).json({ error: 'Password not set. Please reset your password.' });
+    }
+    
     // Verify password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
