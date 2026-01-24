@@ -224,3 +224,5 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: "Implemented comprehensive fixes for URL change resilience and persistence. Key changes: 1) Dynamic CORS pattern matching (no hardcoded URLs), 2) MongoDB connection logging for persistence verification, 3) Auto-admin bootstrap on startup, 4) Input normalization (trim/lowercase), 5) Cookie sameSite='lax' for cross-subdomain, 6) SPA catch-all routing for 404s. CRM backend must be started separately: cd /app/backend && node server-crm.js (or use ./start-crm.sh). Please test: admin login, client login, URL change scenario, page refresh, routing."
+  - agent: "testing"
+    message: "✅ BACKEND TESTING COMPLETE: 4/5 critical fixes working perfectly. ❌ CRITICAL ISSUE FOUND: Input normalization has design flaw - validation rejects emails with spaces before normalization can trim them. All other fixes (CORS, MongoDB, admin bootstrap, cookies) working as intended. Admin dashboard fully accessible. Architecture: FastAPI Gateway (8001) → CRM Backend (8002) → MongoDB (toolstack_crm) all connected and operational."
