@@ -10,7 +10,9 @@ import {
   TrendingUp,
   Calendar,
   ExternalLink,
-  Lock
+  Lock,
+  Chrome,
+  Download
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/Toast';
