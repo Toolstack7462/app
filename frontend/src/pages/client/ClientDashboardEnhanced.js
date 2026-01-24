@@ -198,7 +198,7 @@ const ClientDashboardEnhanced = () => {
                 </div>
               </div>
               
-              <div className="hidden lg:flex flex-col gap-2 text-sm text-toolstack-muted">
+              <div className="hidden lg:flex flex-col gap-2 text-sm text-white/60">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 size={16} className="text-green-400" />
                   <span>Auto-sync credentials</span>
@@ -218,7 +218,7 @@ const ClientDashboardEnhanced = () => {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/10 border border-blue-500/30 rounded-2xl p-6">
+          <div className={`${CARD_VARIANTS.blue} rounded-2xl p-6`}>
             <div className="flex items-center justify-between mb-4">
               <div className="w-14 h-14 bg-blue-500/20 rounded-xl flex items-center justify-center">
                 <Package size={28} className="text-blue-400" />
@@ -228,7 +228,7 @@ const ClientDashboardEnhanced = () => {
             <div className="text-sm text-blue-400 font-medium">Assigned Tools</div>
           </div>
           
-          <div className="bg-gradient-to-br from-green-500/10 to-green-600/10 border border-green-500/30 rounded-2xl p-6">
+          <div className={`${CARD_VARIANTS.green} rounded-2xl p-6`}>
             <div className="flex items-center justify-between mb-4">
               <div className="w-14 h-14 bg-green-500/20 rounded-xl flex items-center justify-center">
                 <CheckCircle2 size={28} className="text-green-400" />
@@ -240,7 +240,7 @@ const ClientDashboardEnhanced = () => {
             <div className="text-sm text-green-400 font-medium">Active Now</div>
           </div>
           
-          <div className="bg-gradient-to-br from-yellow-500/10 to-yellow-600/10 border border-yellow-500/30 rounded-2xl p-6">
+          <div className={`${CARD_VARIANTS.yellow} rounded-2xl p-6`}>
             <div className="flex items-center justify-between mb-4">
               <div className={`w-14 h-14 ${expiringTools.length > 0 ? 'bg-yellow-500/20' : 'bg-gray-500/20'} rounded-xl flex items-center justify-center`}>
                 <Clock size={28} className={expiringTools.length > 0 ? 'text-yellow-400' : 'text-gray-400'} />
@@ -250,7 +250,7 @@ const ClientDashboardEnhanced = () => {
             <div className="text-sm text-yellow-400 font-medium">Expiring Soon</div>
           </div>
           
-          <div className="bg-gradient-to-br from-purple-500/10 to-purple-600/10 border border-purple-500/30 rounded-2xl p-6">
+          <div className={`${CARD_VARIANTS.purple} rounded-2xl p-6`}>
             <div className="flex items-center justify-between mb-4">
               <div className="w-14 h-14 bg-purple-500/20 rounded-xl flex items-center justify-center">
                 <TrendingUp size={28} className="text-purple-400" />
@@ -264,7 +264,7 @@ const ClientDashboardEnhanced = () => {
         </div>
 
         {/* Quick Access Tools */}
-        <div className="bg-toolstack-card border border-toolstack-border rounded-2xl p-6">
+        <div className={`${CARD_VARIANTS.elevated} rounded-2xl p-6`}>
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-white">Your Tools</h2>
             {tools.length > 6 && (
@@ -279,52 +279,55 @@ const ClientDashboardEnhanced = () => {
           
           {tools.length === 0 ? (
             <div className="text-center py-16">
-              <Lock size={64} className="mx-auto mb-6 text-toolstack-muted opacity-50" />
+              <Lock size={64} className="mx-auto mb-6 text-white/30" />
               <h3 className="text-xl font-semibold text-white mb-3">No Tools Assigned Yet</h3>
-              <p className="text-toolstack-muted max-w-md mx-auto">
-                Contact your administrator to get access to tools. Once assigned, they'll appear here.
+              <p className="text-white/60 max-w-md mx-auto">
+                Contact your administrator to get access to tools. Once assigned, they&apos;ll appear here.
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {tools.slice(0, 6).map((tool) => (
-                <button
-                  key={tool._id}
-                  onClick={() => navigate(`/client/tools/${tool._id}`)}
-                  className="group relative overflow-hidden p-6 bg-gradient-to-br from-white/5 to-white/10 border border-toolstack-border rounded-2xl text-left hover:border-toolstack-orange transition-all hover:-translate-y-1 hover:shadow-xl"
-                  data-testid={`quick-tool-${tool._id}`}
-                >
-                  <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${getCategoryColor(tool.category)} opacity-10 rounded-full blur-2xl`} />
-                  
-                  <div className="relative">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className={`w-12 h-12 bg-gradient-to-br ${getCategoryColor(tool.category)} rounded-xl flex items-center justify-center`}>
-                        <Package size={24} className="text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-white group-hover:text-toolstack-orange transition-colors truncate text-lg">
-                          {tool.name}
-                        </h3>
-                        <p className="text-xs text-toolstack-muted truncate">{tool.category}</p>
-                      </div>
-                    </div>
+              {tools.slice(0, 6).map((tool) => {
+                const theme = getCategoryTheme(tool.category);
+                return (
+                  <button
+                    key={tool._id}
+                    onClick={() => navigate(`/client/tools/${tool._id}`)}
+                    className="group relative overflow-hidden p-6 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 rounded-2xl text-left hover:border-toolstack-orange/50 transition-all hover:-translate-y-1 hover:shadow-xl"
+                    data-testid={`quick-tool-${tool._id}`}
+                  >
+                    <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${theme.gradient} opacity-0 group-hover:opacity-20 rounded-full blur-2xl transition-opacity duration-500`} />
                     
-                    <p className="text-sm text-toolstack-muted line-clamp-2 mb-4">
-                      {tool.description || 'No description available'}
-                    </p>
-                    
-                    <div className="flex items-center justify-between">
-                      {tool.endDate && (
-                        <div className="flex items-center gap-2 text-xs text-toolstack-muted">
-                          <Clock size={12} />
-                          <span>Expires {new Date(tool.endDate).toLocaleDateString()}</span>
+                    <div className="relative">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className={`w-12 h-12 bg-gradient-to-br ${theme.gradient} rounded-xl flex items-center justify-center shadow-lg`}>
+                          <Package size={24} className="text-white" />
                         </div>
-                      )}
-                      <ExternalLink size={16} className="text-toolstack-orange group-hover:translate-x-1 transition-transform" />
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-white group-hover:text-toolstack-orange transition-colors truncate text-lg">
+                            {tool.name}
+                          </h3>
+                          <p className="text-xs text-white/50 truncate">{tool.category}</p>
+                        </div>
+                      </div>
+                      
+                      <p className="text-sm text-white/60 line-clamp-2 mb-4">
+                        {tool.description || 'No description available'}
+                      </p>
+                      
+                      <div className="flex items-center justify-between">
+                        {tool.endDate && (
+                          <div className="flex items-center gap-2 text-xs text-white/50">
+                            <Clock size={12} />
+                            <span>Expires {new Date(tool.endDate).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                        <ExternalLink size={16} className="text-toolstack-orange group-hover:translate-x-1 transition-transform" />
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
