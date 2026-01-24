@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { useToast } from './Toast';
+import ToolStackLogo from './ToolStackLogo';
 
 const ClientLayoutEnhanced = ({ children }) => {
   const navigate = useNavigate();
@@ -65,13 +66,8 @@ const ClientLayoutEnhanced = ({ children }) => {
               </button>
               
               <Link to="/client/dashboard" className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-orange rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">TS</span>
-                </div>
-                <div className="hidden sm:block">
-                  <h1 className="text-white font-bold text-lg">ToolStack</h1>
-                  <p className="text-toolstack-muted text-xs">Client Portal</p>
-                </div>
+                <ToolStackLogo className="h-10" />
+                <span className="hidden sm:inline text-sm text-toolstack-muted">Client Portal</span>
               </Link>
             </div>
             
