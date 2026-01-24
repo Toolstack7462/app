@@ -98,7 +98,18 @@ const schemas = {
       'Career-Oriented', 'Miscellaneous', 'Other'
     ).default('Other'),
     status: Joi.string().valid('active', 'inactive').default('active'),
+    credentialType: Joi.string().valid('cookies', 'token', 'localStorage', 'none').default('cookies'),
     cookiesEncrypted: Joi.string().allow('', null),
+    tokenEncrypted: Joi.string().allow('', null),
+    tokenHeader: Joi.string().max(100).default('Authorization'),
+    tokenPrefix: Joi.string().max(50).default('Bearer '),
+    localStorageEncrypted: Joi.string().allow('', null),
+    extensionSettings: Joi.object({
+      requirePermission: Joi.boolean().default(true),
+      autoInject: Joi.boolean().default(true),
+      injectOnPageLoad: Joi.boolean().default(true),
+      clearExistingCookies: Joi.boolean().default(false)
+    }).default(),
     fileMeta: Joi.object({
       name: Joi.string(),
       size: Joi.number(),
@@ -116,7 +127,18 @@ const schemas = {
       'Career-Oriented', 'Miscellaneous', 'Other'
     ),
     status: Joi.string().valid('active', 'inactive'),
+    credentialType: Joi.string().valid('cookies', 'token', 'localStorage', 'none'),
     cookiesEncrypted: Joi.string().allow('', null),
+    tokenEncrypted: Joi.string().allow('', null),
+    tokenHeader: Joi.string().max(100),
+    tokenPrefix: Joi.string().max(50),
+    localStorageEncrypted: Joi.string().allow('', null),
+    extensionSettings: Joi.object({
+      requirePermission: Joi.boolean(),
+      autoInject: Joi.boolean(),
+      injectOnPageLoad: Joi.boolean(),
+      clearExistingCookies: Joi.boolean()
+    }),
     fileMeta: Joi.object({
       name: Joi.string(),
       size: Joi.number(),
