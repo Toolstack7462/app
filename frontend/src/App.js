@@ -66,6 +66,10 @@ function App() {
             <Route path="/admin/clients/:clientId/assign" element={<AdminRoute><AdminBulkAssign /></AdminRoute>} />
             <Route path="/admin/assign" element={<AdminRoute><AdminBulkAssign /></AdminRoute>} />
             <Route path="/admin/activity" element={<AdminRoute><AdminActivity /></AdminRoute>} />
+            <Route path="/admin/blog" element={<AdminRoute><AdminBlog /></AdminRoute>} />
+            <Route path="/admin/blog/new" element={<AdminRoute><AdminBlogForm /></AdminRoute>} />
+            <Route path="/admin/blog/:id/edit" element={<AdminRoute><AdminBlogForm /></AdminRoute>} />
+            <Route path="/admin/contacts" element={<AdminRoute><AdminContacts /></AdminRoute>} />
 
             {/* Client Routes */}
             <Route path="/client/login" element={<ClientLogin />} />
