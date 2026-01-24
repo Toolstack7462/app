@@ -170,12 +170,25 @@ app.use('/api/crm/client', clientProfileRoutes);
 
 // Health check
 app.get('/api/crm/health', (req, res) => {
+  const dbState = mongoose.connection.readyState;
+  const dbStateMap = {
+    0: 'disconnected',
+    1: 'connected',
+    2: 'connecting',
+    3: 'disconnecting'
+  };
+  
   res.json({ 
     status: 'ok', 
     service: 'ToolStack CRM',
     version: '2.0.0',
-    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    environment: process.env.NODE_ENV || 'development'
+    mongodb: {
+      state: dbStateMap[dbState] || 'unknown',
+      host: mongoose.connection.host || 'N/A',
+      database: mongoose.connection.db ? mongoose.connection.db.databaseName : 'N/A'
+    },
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
   });
 });
 
