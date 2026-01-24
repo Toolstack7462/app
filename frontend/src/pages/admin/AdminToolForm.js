@@ -17,7 +17,8 @@ const AdminToolForm = () => {
     name: '',
     description: '',
     targetUrl: '',
-    cookies: '',
+    category: 'Other',
+    cookiesEncrypted: '',
     status: 'active'
   });
 
