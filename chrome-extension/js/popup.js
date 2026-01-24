@@ -309,83 +309,487 @@ function getToolStatus(tool, hasPermission) {
   return { class: 'up-to-date', text: 'Ready' };
 }
 
-// Open tool
-async function openTool(toolId) {
-  const tool = tools.find(t => t.id === toolId);
-  if (!tool) return;
+// ============================================================================
+// ENHANCED COOKIE/CREDENTIAL INJECTION SYSTEM
+// ============================================================================
+
+/**
+ * Extract domain from URL supporting subdomains
+ */
+function extractDomain(url) {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.hostname;
+  } catch (e) {
+    return url;
+  }
+}
+
+/**
+ * Get the base domain (e.g., example.com from sub.example.com)
+ */
+function getBaseDomain(hostname) {
+  const parts = hostname.split('.');
+  if (parts.length <= 2) return hostname;
+  // Handle common TLDs like .co.uk, .com.au
+  const commonMultiPartTLDs = ['co.uk', 'com.au', 'co.nz', 'co.in', 'com.br'];
+  const lastTwo = parts.slice(-2).join('.');
+  if (commonMultiPartTLDs.includes(lastTwo)) {
+    return parts.slice(-3).join('.');
+  }
+  return parts.slice(-2).join('.');
+}
+
+/**
+ * Build the correct cookie URL based on domain and secure flag
+ */
+function buildCookieUrl(domain, secure = true) {
+  const protocol = secure ? 'https' : 'http';
+  // Remove leading dot for URL construction
+  const cleanDomain = domain.startsWith('.') ? domain.substring(1) : domain;
+  return `${protocol}://${cleanDomain}/`;
+}
+
+/**
+ * Apply cookies with proper domain handling and verification
+ * @returns {Object} Result with success status and details
+ */
+async function applyCookiesEnhanced(targetUrl, cookies) {
+  if (!Array.isArray(cookies) || cookies.length === 0) {
+    return { success: false, error: 'No cookies provided', set: 0, failed: 0, failures: [] };
+  }
+  
+  const targetDomain = extractDomain(targetUrl);
+  const baseDomain = getBaseDomain(targetDomain);
+  const isHttps = targetUrl.startsWith('https');
+  
+  console.log(`[CookieInjector] Target URL: ${targetUrl}`);
+  console.log(`[CookieInjector] Target domain: ${targetDomain}, Base domain: ${baseDomain}`);
+  console.log(`[CookieInjector] Cookies to set: ${cookies.length}`);
+  
+  let setCount = 0;
+  let failedCount = 0;
+  const failures = [];
+  
+  for (const cookie of cookies) {
+    try {
+      // Determine the cookie domain
+      let cookieDomain = cookie.domain || targetDomain;
+      
+      // Handle subdomain cookies - if cookie domain starts with dot, it's for all subdomains
+      if (cookieDomain.startsWith('.')) {
+        // Subdomain cookie - use as-is
+      } else if (!cookieDomain.includes(targetDomain) && !targetDomain.includes(cookieDomain)) {
+        // Domain mismatch - try to use a compatible domain
+        console.warn(`[CookieInjector] Domain mismatch: cookie=${cookieDomain}, target=${targetDomain}`);
+        cookieDomain = targetDomain;
+      }
+      
+      // Determine secure flag
+      const secure = cookie.secure === true || (cookie.secure !== false && isHttps);
+      
+      // Handle SameSite attribute
+      let sameSite = (cookie.sameSite || 'lax').toLowerCase();
+      // Normalize SameSite value
+      if (sameSite === 'no_restriction' || sameSite === 'none') {
+        sameSite = 'no_restriction';
+      } else if (sameSite === 'strict') {
+        sameSite = 'strict';
+      } else {
+        sameSite = 'lax';
+      }
+      
+      // If SameSite=None, cookie must be Secure
+      const finalSecure = sameSite === 'no_restriction' ? true : secure;
+      
+      // Build cookie URL
+      const cookieUrl = buildCookieUrl(cookieDomain, finalSecure);
+      
+      const cookieDetails = {
+        url: cookieUrl,
+        name: cookie.name,
+        value: cookie.value,
+        path: cookie.path || '/',
+        secure: finalSecure,
+        httpOnly: cookie.httpOnly === true,
+        sameSite: sameSite
+      };
+      
+      // Only set domain if it's a subdomain cookie (starts with dot)
+      if (cookieDomain.startsWith('.')) {
+        cookieDetails.domain = cookieDomain;
+      }
+      
+      // Handle expiration
+      if (cookie.expirationDate) {
+        cookieDetails.expirationDate = cookie.expirationDate;
+      } else if (cookie.expires) {
+        // Convert expires string to timestamp
+        const expiresDate = new Date(cookie.expires);
+        if (!isNaN(expiresDate.getTime())) {
+          cookieDetails.expirationDate = expiresDate.getTime() / 1000;
+        }
+      } else {
+        // Set expiration to 30 days from now if not specified
+        cookieDetails.expirationDate = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60);
+      }
+      
+      console.log(`[CookieInjector] Setting cookie: ${cookie.name}`, cookieDetails);
+      
+      const result = await chrome.cookies.set(cookieDetails);
+      
+      if (result) {
+        setCount++;
+        console.log(`[CookieInjector] ✓ Cookie set: ${cookie.name}`);
+      } else {
+        throw new Error('chrome.cookies.set returned null');
+      }
+    } catch (error) {
+      failedCount++;
+      const failureReason = diagnoseCookieFailure(cookie, targetUrl, error);
+      failures.push({ name: cookie.name, reason: failureReason, error: error.message });
+      console.error(`[CookieInjector] ✗ Failed to set cookie: ${cookie.name}`, failureReason);
+    }
+  }
+  
+  // Verify cookies were set
+  const verification = await verifyCookies(targetUrl, cookies);
+  
+  return {
+    success: setCount > 0 && failedCount === 0,
+    partial: setCount > 0 && failedCount > 0,
+    set: setCount,
+    failed: failedCount,
+    failures,
+    verification
+  };
+}
+
+/**
+ * Diagnose why a cookie failed to set
+ */
+function diagnoseCookieFailure(cookie, targetUrl, error) {
+  const isHttps = targetUrl.startsWith('https');
+  const targetDomain = extractDomain(targetUrl);
+  const cookieDomain = cookie.domain || targetDomain;
+  
+  // Check for Secure flag issues
+  if (cookie.secure && !isHttps) {
+    return 'SECURE_FLAG_REQUIRES_HTTPS: Cookie has Secure flag but target URL is HTTP';
+  }
+  
+  // Check for SameSite=None without Secure
+  if ((cookie.sameSite || '').toLowerCase() === 'none' && !cookie.secure) {
+    return 'SAMESITE_NONE_REQUIRES_SECURE: SameSite=None cookies must have Secure flag';
+  }
+  
+  // Check for domain mismatch
+  if (cookieDomain && !targetDomain.endsWith(cookieDomain.replace(/^\./, ''))) {
+    return `DOMAIN_MISMATCH: Cookie domain "${cookieDomain}" does not match target "${targetDomain}"`;
+  }
+  
+  // Check for invalid path
+  if (cookie.path && !cookie.path.startsWith('/')) {
+    return `INVALID_PATH: Cookie path must start with "/" (got "${cookie.path}")`;
+  }
+  
+  return `UNKNOWN_ERROR: ${error.message}`;
+}
+
+/**
+ * Verify that cookies were actually set by reading them back
+ */
+async function verifyCookies(targetUrl, expectedCookies) {
+  const targetDomain = extractDomain(targetUrl);
   
   try {
-    // Fetch credentials
+    // Get all cookies for this domain
+    const actualCookies = await chrome.cookies.getAll({ domain: targetDomain });
+    
+    // Also check with leading dot for subdomain cookies
+    const subdomainCookies = await chrome.cookies.getAll({ domain: `.${getBaseDomain(targetDomain)}` });
+    
+    const allCookies = [...actualCookies, ...subdomainCookies];
+    const actualNames = new Set(allCookies.map(c => c.name));
+    
+    const verified = [];
+    const missing = [];
+    
+    for (const expected of expectedCookies) {
+      if (actualNames.has(expected.name)) {
+        verified.push(expected.name);
+      } else {
+        missing.push(expected.name);
+      }
+    }
+    
+    return {
+      success: missing.length === 0,
+      verified,
+      missing,
+      totalFound: allCookies.length,
+      cookieNames: Array.from(actualNames)
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      verified: [],
+      missing: expectedCookies.map(c => c.name)
+    };
+  }
+}
+
+/**
+ * Apply localStorage/sessionStorage credentials via content script
+ */
+async function applyStorageCredentials(tabId, storageData, storageType = 'localStorage') {
+  return new Promise((resolve, reject) => {
+    chrome.scripting.executeScript({
+      target: { tabId },
+      func: (data, type) => {
+        const storage = type === 'sessionStorage' ? sessionStorage : localStorage;
+        let setCount = 0;
+        const errors = [];
+        
+        for (const [key, value] of Object.entries(data)) {
+          try {
+            const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
+            storage.setItem(key, valueStr);
+            setCount++;
+          } catch (e) {
+            errors.push({ key, error: e.message });
+          }
+        }
+        
+        return { success: setCount > 0, set: setCount, errors };
+      },
+      args: [storageData, storageType]
+    }).then(results => {
+      resolve(results[0]?.result || { success: false, error: 'No result from content script' });
+    }).catch(reject);
+  });
+}
+
+/**
+ * Open tool with proper credential injection workflow:
+ * 1. Apply credentials FIRST
+ * 2. Open tab
+ * 3. Wait for tab to load
+ * 4. Reload to apply cookies
+ * 5. Verify and report status
+ */
+async function openTool(toolId) {
+  const tool = tools.find(t => t.id === toolId);
+  if (!tool) {
+    alert('Tool not found');
+    return;
+  }
+  
+  // Show loading state
+  const openBtn = document.querySelector(`[data-tool-id="${toolId}"].open-btn`);
+  if (openBtn) {
+    openBtn.textContent = 'Loading...';
+    openBtn.disabled = true;
+  }
+  
+  try {
+    // Fetch credentials from API
     const result = await api.getCredentials(toolId);
     
-    if (result.credentials) {
-      // Apply credentials based on type
-      await applyCredentials(result.tool, result.credentials);
+    if (!result.credentials) {
+      // No credentials, just open the tool
+      chrome.tabs.create({ url: tool.targetUrl });
+      await api.logToolOpened(toolId);
+      return;
+    }
+    
+    const credentials = result.credentials;
+    const targetUrl = tool.targetUrl;
+    
+    console.log(`[ToolOpen] Opening tool: ${tool.name}, credential type: ${credentials.type}`);
+    
+    // Handle different credential types
+    if (credentials.type === 'cookies') {
+      // STEP 1: Apply cookies BEFORE opening tab
+      console.log('[ToolOpen] Step 1: Applying cookies before opening tab...');
+      const cookieResult = await applyCookiesEnhanced(targetUrl, credentials.data);
+      
+      console.log('[ToolOpen] Cookie injection result:', cookieResult);
+      
+      // STEP 2: Open the tab
+      console.log('[ToolOpen] Step 2: Opening tab...');
+      const tab = await chrome.tabs.create({ url: targetUrl, active: true });
+      
+      // STEP 3: Wait for tab to load, then reload to ensure cookies are applied
+      console.log('[ToolOpen] Step 3: Waiting for tab to load...');
+      await waitForTabLoad(tab.id);
+      
+      // STEP 4: Reload the tab to ensure cookies are sent with requests
+      console.log('[ToolOpen] Step 4: Reloading tab to apply cookies...');
+      await chrome.tabs.reload(tab.id);
+      await waitForTabLoad(tab.id);
+      
+      // STEP 5: Verify and show result
+      if (!cookieResult.success && !cookieResult.partial) {
+        showCredentialError('cookies', cookieResult);
+      } else if (cookieResult.partial) {
+        showCredentialWarning('cookies', cookieResult);
+      } else {
+        console.log('[ToolOpen] ✓ All cookies applied successfully');
+      }
+      
+    } else if (credentials.type === 'localStorage' || credentials.type === 'sessionStorage') {
+      // For storage credentials, we need to open the tab first, then inject
+      console.log(`[ToolOpen] Applying ${credentials.type} credentials...`);
+      
+      // STEP 1: Open the tab
+      const tab = await chrome.tabs.create({ url: targetUrl, active: true });
+      
+      // STEP 2: Wait for initial load
+      await waitForTabLoad(tab.id);
+      
+      // STEP 3: Inject storage credentials
+      const storageResult = await applyStorageCredentials(
+        tab.id, 
+        credentials.data, 
+        credentials.type
+      );
+      
+      console.log(`[ToolOpen] ${credentials.type} injection result:`, storageResult);
+      
+      // STEP 4: Reload to apply
+      await chrome.tabs.reload(tab.id);
+      
+      if (!storageResult.success) {
+        showStorageInstructions(credentials.type, credentials.data);
+      }
+      
+    } else if (credentials.type === 'token') {
+      // Token credentials - store for background script to inject in headers
+      const domain = extractDomain(targetUrl);
+      await Storage.set({
+        [`token_${domain}`]: credentials.data
+      });
+      
+      // Open the tool
+      chrome.tabs.create({ url: targetUrl });
+      
+    } else {
+      // Unknown credential type - just open the tool
+      console.warn('[ToolOpen] Unknown credential type:', credentials.type);
+      chrome.tabs.create({ url: targetUrl });
     }
     
     // Log tool opened
     await api.logToolOpened(toolId);
     
-    // Open tool in new tab
-    chrome.tabs.create({ url: tool.targetUrl });
   } catch (error) {
-    console.error('Failed to open tool:', error);
+    console.error('[ToolOpen] Failed to open tool:', error);
     alert('Failed to load credentials: ' + error.message);
-  }
-}
-
-// Apply credentials
-async function applyCredentials(tool, credentials) {
-  if (!credentials || !credentials.type) return;
-  
-  const domain = credentials.domain || tool.domain;
-  if (!domain) return;
-  
-  switch (credentials.type) {
-    case 'cookies':
-      await applyCookies(domain, credentials.data);
-      break;
-    case 'token':
-      // Token injection will be handled by background script
-      await Storage.set({
-        [`token_${domain}`]: credentials.data
-      });
-      break;
-    case 'localStorage':
-      // LocalStorage will be set via content script
-      await Storage.set({
-        [`localStorage_${domain}`]: credentials.data
-      });
-      break;
-  }
-}
-
-// Apply cookies using Chrome cookies API
-async function applyCookies(domain, cookies) {
-  if (!Array.isArray(cookies)) return;
-  
-  for (const cookie of cookies) {
-    try {
-      const cookieDetails = {
-        url: `https://${domain}`,
-        name: cookie.name,
-        value: cookie.value,
-        domain: cookie.domain || domain,
-        path: cookie.path || '/',
-        secure: cookie.secure !== false,
-        httpOnly: cookie.httpOnly || false,
-        sameSite: cookie.sameSite || 'lax'
-      };
-      
-      if (cookie.expirationDate) {
-        cookieDetails.expirationDate = cookie.expirationDate;
-      }
-      
-      await chrome.cookies.set(cookieDetails);
-    } catch (error) {
-      console.error('Failed to set cookie:', cookie.name, error);
+  } finally {
+    // Reset button state
+    if (openBtn) {
+      openBtn.textContent = 'Open';
+      openBtn.disabled = false;
     }
   }
+}
+
+/**
+ * Wait for a tab to finish loading
+ */
+function waitForTabLoad(tabId, timeout = 30000) {
+  return new Promise((resolve, reject) => {
+    const startTime = Date.now();
+    
+    const checkTab = () => {
+      chrome.tabs.get(tabId, (tab) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        
+        if (tab.status === 'complete') {
+          resolve(tab);
+        } else if (Date.now() - startTime > timeout) {
+          resolve(tab); // Resolve anyway after timeout
+        } else {
+          setTimeout(checkTab, 100);
+        }
+      });
+    };
+    
+    checkTab();
+  });
+}
+
+/**
+ * Show error details for failed cookie injection
+ */
+function showCredentialError(type, result) {
+  let message = `Failed to apply ${type}.\n\n`;
+  
+  if (result.failures && result.failures.length > 0) {
+    message += 'Failure reasons:\n';
+    result.failures.forEach(f => {
+      message += `• ${f.name}: ${f.reason}\n`;
+    });
+  }
+  
+  if (result.verification && result.verification.missing.length > 0) {
+    message += `\nMissing cookies: ${result.verification.missing.join(', ')}`;
+  }
+  
+  message += '\n\nPlease check that the cookies are valid and try again.';
+  
+  alert(message);
+}
+
+/**
+ * Show warning for partially successful cookie injection
+ */
+function showCredentialWarning(type, result) {
+  let message = `Partially applied ${type}: ${result.set} set, ${result.failed} failed.\n\n`;
+  
+  if (result.failures && result.failures.length > 0) {
+    message += 'Failed items:\n';
+    result.failures.slice(0, 5).forEach(f => {
+      message += `• ${f.name}: ${f.reason}\n`;
+    });
+    if (result.failures.length > 5) {
+      message += `... and ${result.failures.length - 5} more\n`;
+    }
+  }
+  
+  message += '\nSome functionality may not work correctly.';
+  
+  alert(message);
+}
+
+/**
+ * Show instructions for manual storage credential setup
+ */
+function showStorageInstructions(storageType, data) {
+  const keys = Object.keys(data);
+  let message = `Could not automatically set ${storageType}.\n\n`;
+  message += 'Please manually add these values using browser DevTools:\n\n';
+  message += `1. Open DevTools (F12)\n`;
+  message += `2. Go to Application tab\n`;
+  message += `3. Find "${storageType}" in the sidebar\n`;
+  message += `4. Add these key-value pairs:\n\n`;
+  
+  keys.slice(0, 5).forEach(key => {
+    const value = typeof data[key] === 'string' ? data[key] : JSON.stringify(data[key]);
+    const displayValue = value.length > 50 ? value.substring(0, 50) + '...' : value;
+    message += `   ${key}: ${displayValue}\n`;
+  });
+  
+  if (keys.length > 5) {
+    message += `   ... and ${keys.length - 5} more keys`;
+  }
+  
+  alert(message);
 }
 
 // Permission handling
