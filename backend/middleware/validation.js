@@ -102,7 +102,7 @@ const schemas = {
     cookiesEncrypted: Joi.string().allow('', null),
     tokenEncrypted: Joi.string().allow('', null),
     tokenHeader: Joi.string().max(100).default('Authorization'),
-    tokenPrefix: Joi.string().max(50).default('Bearer '),
+    tokenPrefix: Joi.string().max(50).allow('').default('Bearer '),
     localStorageEncrypted: Joi.string().allow('', null),
     extensionSettings: Joi.object({
       requirePermission: Joi.boolean().default(true),
@@ -131,7 +131,7 @@ const schemas = {
     cookiesEncrypted: Joi.string().allow('', null),
     tokenEncrypted: Joi.string().allow('', null),
     tokenHeader: Joi.string().max(100),
-    tokenPrefix: Joi.string().max(50),
+    tokenPrefix: Joi.string().max(50).allow(''),
     localStorageEncrypted: Joi.string().allow('', null),
     extensionSettings: Joi.object({
       requirePermission: Joi.boolean(),
