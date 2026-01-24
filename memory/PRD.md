@@ -1,84 +1,94 @@
 # ToolStack CRM - Product Requirements Document
 
-## Original Problem Statement
-Build a production-grade CRM system for ToolStack, a SaaS platform offering digital tools subscriptions. The system requires:
-1. Full system overview and bug analysis
-2. Production-grade security (DB-driven admin, RBAC, JWT refresh tokens)
-3. Device binding & anti multi-login feature
-4. Website & deployment improvements
-5. UI/styling matching original project
+## Project Overview
+Full-stack CRM application for managing tools, clients, and assignments with role-based access control.
+
+## Tech Stack
+- **Frontend:** React, Tailwind CSS, React Router, Axios
+- **Backend:** FastAPI (Python gateway) + Node.js/Express (CRM service)
+- **Database:** MongoDB
+- **Authentication:** JWT with Access/Refresh tokens
 
 ## Architecture
-
-### Tech Stack
-- **Frontend:** React, Tailwind CSS, React Router
-- **Backend:** FastAPI (Python) gateway + Node.js/Express CRM service
-- **Database:** MongoDB
-- **Authentication:** JWT with Access/Refresh Tokens + Device Binding
-
-### Service Configuration
-- FastAPI Gateway: Port 8001 (via supervisor)
-- Node.js CRM Backend: Port 8002 (manual start: `node server-crm.js &`)
-- Frontend: Port 3000 (via supervisor)
-
-### Key Files
 ```
-/app
-├── backend/
-│   ├── server.py (FastAPI Gateway)
-│   ├── server-crm.js (Node.js CRM)
-│   ├── routes/
-│   │   ├── auth.js, authEnhanced.js
-│   │   ├── admin/ (tools, clients, assignments, activity)
-│   │   └── client/ (tools, assignments, notifications)
-│   └── middleware/
-│       ├── auth.js, authEnhanced.js
-│       └── rateLimiter.js
-├── frontend/
-│   └── src/
-│       ├── pages/admin/, pages/client/
-│       ├── services/api.js, authService.js
-│       └── components/AdminRoute.js, ClientRoute.js
+Frontend (React) :3000
+    ↓
+FastAPI Gateway :8001 → /api/crm/*
+    ↓
+Node.js CRM Service :8002
+    ↓
+MongoDB
 ```
 
-## What's Been Implemented
-
-### ✅ Completed (Jan 24, 2026)
-- [x] Database-driven admin accounts (seeded via script)
-- [x] JWT refresh token mechanism
-- [x] Device binding security (restricts clients to max devices)
-- [x] Admin login redirect fix (accepts SUPER_ADMIN, ADMIN, SUPPORT roles)
-- [x] Client login fix (correct `getOrCreateDeviceId()` method)
-- [x] Prefilled email fix (autoComplete="off")
-- [x] Admin dashboard 403 fix (activity/assignments routes accept all admin roles)
-- [x] API rate limiter removed (was blocking dashboard)
-- [x] Homepage links cleanup (no Admin Portal/Client Login links)
-
-### Database Schema
-- **User:** `{ email, password, role, forceLogoutVersion, devicePolicy, deviceBindings }`
-- **Client:** Same as User with `role: 'CLIENT'`
-- **RefreshToken:** `{ token, user, expiryDate }`
-- **DeviceBinding:** `{ userId, deviceId, createdAt }`
-
-## Test Credentials
+## Credentials
 - **Admin:** `admin@toolstack.com` / `Admin123!Secure`
 - **Client:** `client@test.com` / `Client123!`
 
-## Prioritized Backlog
+---
 
-### P0 (Critical) - COMPLETED
-- ~~Admin/Client login redirect~~
-- ~~Admin dashboard loading~~
+## ✅ Completed Features (Jan 2026)
 
-### P1 (High)
-- Test Client Panel advanced features (date display, expiry warnings)
+### Authentication System
+- [x] Admin login with SUPER_ADMIN/ADMIN/SUPPORT role support
+- [x] Client login with device binding security
+- [x] JWT access + refresh token flow
+- [x] Protected routes (AdminRoute, ClientRoute)
+- [x] Logout functionality
 
-### P2 (Medium)
-- Code cleanup: Remove unused `*Enhanced.js` files
-- Docker/Nginx single-domain deployment
-- Dynamic blog with admin CRUD
-- Contact form backend
+### Admin Dashboard
+- [x] Stats display (tools, clients, assignments)
+- [x] Recent activity feed
+- [x] Quick actions (Create Tool, Add Client, Bulk Assign)
+- [x] Navigation menu (Dashboard, Tools, Clients, Activity)
 
-### P3 (Low/Future)
-- Full VPS deployment guide with SSL
-- Additional RBAC roles implementation
+### Client Management
+- [x] Device binding feature (restricts login to specific devices)
+- [x] Client dashboard access
+
+### Security
+- [x] Database-driven admin accounts (seed script)
+- [x] Device fingerprinting for clients
+- [x] Role-based access control
+
+---
+
+## 🔴 Critical Bugs Fixed (This Session)
+
+| Bug | Root Cause | Fix |
+|-----|-----------|-----|
+| Admin login stuck | AdminRoute checked `role === 'ADMIN'` but backend returns `SUPER_ADMIN` | Accept `['SUPER_ADMIN', 'ADMIN', 'SUPPORT']` |
+| Client login stuck | Called non-existent `getDeviceId()` | Changed to `getOrCreateDeviceId()` |
+| Prefilled email | Browser autofill | Added `autoComplete="off"`, unique name |
+| Dashboard 403 | API rate limiting + role mismatch | Removed apiLimiter, fixed role checks |
+
+---
+
+## 🟡 Backlog (P2)
+
+1. **Code Cleanup**
+   - Remove unused `*Enhanced.js` files
+   - Consolidate duplicate code
+
+2. **Docker/Nginx Deployment**
+   - Test docker-compose.yml
+   - Configure nginx.conf for single-domain
+   - SSL setup guide
+
+3. **Dynamic Blog**
+   - MongoDB-backed blog posts
+   - Admin CRUD for blog management
+
+4. **Contact Form**
+   - Backend endpoint for contact submissions
+   - Email notifications
+
+---
+
+## Key Files
+- `/app/frontend/src/pages/admin/AdminLogin.js`
+- `/app/frontend/src/pages/client/ClientLogin.js`
+- `/app/frontend/src/components/AdminRoute.js`
+- `/app/frontend/src/components/ClientRoute.js`
+- `/app/frontend/src/services/authService.js`
+- `/app/backend/server-crm.js`
+- `/app/backend/routes/auth.js`
