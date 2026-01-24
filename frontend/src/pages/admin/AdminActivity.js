@@ -220,7 +220,7 @@ const AdminActivity = () => {
               </select>
             </div>
             <div>
-              <label className="text-sm text-toolstack-muted mb-1 block flex items-center gap-1">
+              <label className="text-sm text-toolstack-muted mb-1.5 block flex items-center gap-1">
                 <Calendar size={12} /> From Date
               </label>
               <input
@@ -230,12 +230,12 @@ const AdminActivity = () => {
                   setFilters(prev => ({ ...prev, startDate: e.target.value }));
                   setPagination(prev => ({ ...prev, page: 1 }));
                 }}
-                className="w-full px-4 py-2 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors text-sm"
+                className="w-full px-3 py-2.5 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all text-sm cursor-pointer hover:border-toolstack-muted"
                 data-testid="filter-start-date"
               />
             </div>
             <div>
-              <label className="text-sm text-toolstack-muted mb-1 block flex items-center gap-1">
+              <label className="text-sm text-toolstack-muted mb-1.5 block flex items-center gap-1">
                 <Calendar size={12} /> To Date
               </label>
               <input
@@ -246,20 +246,20 @@ const AdminActivity = () => {
                   setFilters(prev => ({ ...prev, endDate: e.target.value }));
                   setPagination(prev => ({ ...prev, page: 1 }));
                 }}
-                className="w-full px-4 py-2 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors text-sm"
+                className="w-full px-3 py-2.5 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all text-sm cursor-pointer hover:border-toolstack-muted"
                 data-testid="filter-end-date"
               />
             </div>
             <div>
-              <label className="text-sm text-toolstack-muted mb-1 block">Search</label>
+              <label className="text-sm text-toolstack-muted mb-1.5 block">Search</label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-toolstack-muted" size={14} />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-toolstack-muted pointer-events-none" size={16} />
                 <input
                   type="text"
                   placeholder="Search metadata..."
                   value={filters.search}
                   onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                  className="w-full pl-9 pr-4 py-2 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors text-sm"
+                  className="w-full pl-10 pr-3 py-2.5 bg-toolstack-bg border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all text-sm hover:border-toolstack-muted"
                   data-testid="filter-search"
                 />
               </div>
