@@ -157,73 +157,92 @@ const AdminTools = () => {
             )}
           </div>
         ) : (
-          <div className="grid gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
             {filteredTools.map((tool) => (
               <div
                 key={tool._id}
-                className="bg-toolstack-card border border-toolstack-border rounded-xl p-5 hover:border-toolstack-orange/50 transition-all duration-300"
+                className="group bg-toolstack-card border border-toolstack-border rounded-xl p-5 hover:border-toolstack-orange/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-toolstack-orange/5"
                 data-testid={`tool-card-${tool._id}`}
               >
-                <div className="flex flex-col sm:flex-row justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-white">{tool.name}</h3>
-                      <span className={`px-2 py-0.5 text-xs rounded-full ${
+                {/* Header */}
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="text-lg font-semibold text-white truncate group-hover:text-toolstack-orange transition-colors">{tool.name}</h3>
+                      <span className={`flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded-full ${
                         tool.status === 'active'
                           ? 'bg-green-500/20 text-green-400'
                           : 'bg-red-500/20 text-red-400'
                       }`}>
                         {tool.status}
                       </span>
-                      {tool.category && (
-                        <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-400">
-                          {tool.category}
-                        </span>
-                      )}
                     </div>
-                    <p className="text-toolstack-muted text-sm mb-3 line-clamp-2">{tool.description}</p>
-                    {tool.targetUrl && (
-                      <a
-                        href={tool.targetUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm text-toolstack-orange hover:underline"
-                      >
-                        <ExternalLink size={14} />
-                        {tool.targetUrl}
-                      </a>
+                    {tool.category && (
+                      <span className="inline-flex px-2.5 py-1 text-xs font-medium rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                        {tool.category}
+                      </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 sm:flex-col sm:items-end">
-                    <button
-                      onClick={() => toggleStatus(tool)}
-                      className="p-2 text-toolstack-muted hover:text-white transition-colors"
-                      title={tool.status === 'active' ? 'Deactivate' : 'Activate'}
-                      data-testid={`toggle-status-${tool._id}`}
-                    >
-                      {tool.status === 'active' ? (
-                        <ToggleRight size={24} className="text-green-400" />
-                      ) : (
-                        <ToggleLeft size={24} />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => navigate(`/admin/tools/${tool._id}/edit`)}
-                      className="p-2 text-toolstack-muted hover:text-toolstack-orange transition-colors"
-                      title="Edit"
-                      data-testid={`edit-tool-${tool._id}`}
-                    >
-                      <Edit2 size={20} />
-                    </button>
-                    <button
-                      onClick={() => setDeleteModal({ open: true, tool })}
-                      className="p-2 text-toolstack-muted hover:text-red-400 transition-colors"
-                      title="Delete"
-                      data-testid={`delete-tool-${tool._id}`}
-                    >
-                      <Trash2 size={20} />
-                    </button>
+                  <button
+                    onClick={() => toggleStatus(tool)}
+                    className="flex-shrink-0 p-2 rounded-lg hover:bg-white/5 transition-colors"
+                    title={tool.status === 'active' ? 'Deactivate' : 'Activate'}
+                    data-testid={`toggle-status-${tool._id}`}
+                  >
+                    {tool.status === 'active' ? (
+                      <ToggleRight size={22} className="text-green-400" />
+                    ) : (
+                      <ToggleLeft size={22} className="text-toolstack-muted" />
+                    )}
+                  </button>
+                </div>
+
+                {/* Description */}
+                <p className="text-toolstack-muted text-sm mb-4 line-clamp-2 min-h-[40px]">
+                  {tool.description || 'No description available'}
+                </p>
+
+                {/* URL */}
+                {tool.targetUrl && (
+                  <a
+                    href={tool.targetUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-sm text-toolstack-orange hover:underline mb-4 truncate"
+                  >
+                    <ExternalLink size={14} className="flex-shrink-0" />
+                    <span className="truncate">{tool.targetUrl}</span>
+                  </a>
+                )}
+
+                {/* Stats */}
+                {tool.assignmentCount !== undefined && (
+                  <div className="flex items-center gap-2 text-xs text-toolstack-muted mb-4 px-3 py-2 bg-white/5 rounded-lg">
+                    <Package size={14} />
+                    <span>{tool.assignmentCount} active assignment{tool.assignmentCount !== 1 ? 's' : ''}</span>
                   </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 pt-4 border-t border-toolstack-border">
+                  <button
+                    onClick={() => navigate(`/admin/tools/${tool._id}/edit`)}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500/20 transition-colors text-sm font-medium"
+                    title="Edit"
+                    data-testid={`edit-tool-${tool._id}`}
+                  >
+                    <Edit2 size={16} />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => setDeleteModal({ open: true, tool })}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors text-sm font-medium"
+                    title="Delete"
+                    data-testid={`delete-tool-${tool._id}`}
+                  >
+                    <Trash2 size={16} />
+                    Delete
+                  </button>
                 </div>
               </div>
             ))}
