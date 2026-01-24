@@ -75,7 +75,7 @@ function App() {
 
             {/* Client Routes */}
             <Route path="/client/login" element={<ClientLogin />} />
-            <Route path="/client/dashboard" element={<ClientRoute><ClientDashboard /></ClientRoute>} />
+            <Route path="/client/dashboard" element={<ClientRoute><ClientDashboardEnhanced /></ClientRoute>} />
             <Route path="/client/tools" element={<ClientRoute><ClientTools /></ClientRoute>} />
             <Route path="/client/tools/:id" element={<ClientRoute><ClientToolDetail /></ClientRoute>} />
             <Route path="/client/profile" element={<ClientRoute><ClientProfile /></ClientRoute>} />
