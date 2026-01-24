@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/AdminLayout';
-import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Package, ExternalLink } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Package, ExternalLink, Filter } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/Toast';
 import ConfirmModal from '../../components/ConfirmModal';
@@ -12,7 +12,11 @@ const AdminTools = () => {
   const [tools, setTools] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [deleteModal, setDeleteModal] = useState({ open: false, tool: null });
+
+  const CATEGORIES = ['AI', 'Academic', 'SEO', 'Productivity', 'Graphics & SEO', 'Text Humanizers', 'Career-Oriented', 'Miscellaneous', 'Other'];
 
   useEffect(() => {
     loadTools();
