@@ -12,7 +12,7 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'https://login-bug-repair-2.preview.emergentagent.com',
+  origin: process.env.FRONTEND_URL || 'https://crm-continue.preview.emergentagent.com',
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
