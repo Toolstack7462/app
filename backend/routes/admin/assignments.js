@@ -16,80 +16,10 @@ router.use((req, res, next) => {
   next();
 });
 
-// GET /:clientId - Get client assignments
-router.get('/:clientId', async (req, res) => {
-  try {
-    const assignments = await ToolAssignment.find({ clientId: req.params.clientId })
-      .populate('toolId', 'name category status targetUrl')
-      .sort({ createdAt: -1 });
-    
-    res.json({ assignments });
-  } catch (error) {
-    console.error('Get assignments error:', error);
-    res.status(500).json({ error: 'Failed to fetch assignments' });
-  }
-});
-
-// POST /:clientId - Assign tool to client
-router.post('/:clientId', async (req, res) => {
-  try {
-    const { toolId, startDate, endDate, durationDays, notes } = req.body;
-    const { clientId } = req.params;
-    
-    if (!toolId) {
-      return res.status(400).json({ error: 'Tool ID is required' });
-    }
-    
-    // Verify tool exists
-    const tool = await Tool.findById(toolId);
-    if (!tool) {
-      return res.status(404).json({ error: 'Tool not found' });
-    }
-    
-    // Verify client exists
-    const client = await User.findOne({ _id: clientId, role: 'CLIENT' });
-    if (!client) {
-      return res.status(404).json({ error: 'Client not found' });
-    }
-    
-    // Calculate end date from duration if provided
-    let calculatedEndDate = endDate;
-    if (durationDays && !endDate) {
-      const start = startDate ? new Date(startDate) : new Date();
-      calculatedEndDate = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);
-    }
-    
-    // Upsert assignment
-    const assignment = await ToolAssignment.findOneAndUpdate(
-      { clientId, toolId },
-      {
-        $set: {
-          startDate: startDate || null,
-          endDate: calculatedEndDate || null,
-          durationDays: durationDays || null,
-          notes: notes || null,
-          status: 'active',
-          createdBy: req.userId
-        },
-        $setOnInsert: {
-          assignedAt: new Date()
-        }
-      },
-      { upsert: true, new: true }
-    ).populate('toolId', 'name category status');
-    
-    await ActivityLog.log('ADMIN', req.userId, 'TOOL_ASSIGNED', {
-      clientId,
-      toolId,
-      toolName: tool.name
-    });
-    
-    res.json({ success: true, assignment });
-  } catch (error) {
-    console.error('Assign tool error:', error);
-    res.status(500).json({ error: 'Failed to assign tool' });
-  }
-});
+// ============================================================================
+// IMPORTANT: /bulk route MUST come BEFORE /:clientId routes
+// Otherwise Express will match "bulk" as a clientId parameter
+// ============================================================================
 
 // POST /api/admin/assignments/bulk - Bulk assign tool to multiple clients
 router.post('/bulk', async (req, res) => {
@@ -175,6 +105,81 @@ router.post('/bulk', async (req, res) => {
   } catch (error) {
     console.error('Bulk assign error:', error);
     res.status(500).json({ error: 'Failed to bulk assign tool' });
+  }
+});
+
+// GET /:clientId - Get client assignments
+router.get('/:clientId', async (req, res) => {
+  try {
+    const assignments = await ToolAssignment.find({ clientId: req.params.clientId })
+      .populate('toolId', 'name category status targetUrl')
+      .sort({ createdAt: -1 });
+    
+    res.json({ assignments });
+  } catch (error) {
+    console.error('Get assignments error:', error);
+    res.status(500).json({ error: 'Failed to fetch assignments' });
+  }
+});
+
+// POST /:clientId - Assign tool to client
+router.post('/:clientId', async (req, res) => {
+  try {
+    const { toolId, startDate, endDate, durationDays, notes } = req.body;
+    const { clientId } = req.params;
+    
+    if (!toolId) {
+      return res.status(400).json({ error: 'Tool ID is required' });
+    }
+    
+    // Verify tool exists
+    const tool = await Tool.findById(toolId);
+    if (!tool) {
+      return res.status(404).json({ error: 'Tool not found' });
+    }
+    
+    // Verify client exists
+    const client = await User.findOne({ _id: clientId, role: 'CLIENT' });
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+    
+    // Calculate end date from duration if provided
+    let calculatedEndDate = endDate;
+    if (durationDays && !endDate) {
+      const start = startDate ? new Date(startDate) : new Date();
+      calculatedEndDate = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    }
+    
+    // Upsert assignment
+    const assignment = await ToolAssignment.findOneAndUpdate(
+      { clientId, toolId },
+      {
+        $set: {
+          startDate: startDate || null,
+          endDate: calculatedEndDate || null,
+          durationDays: durationDays || null,
+          notes: notes || null,
+          status: 'active',
+          createdBy: req.userId
+        },
+        $setOnInsert: {
+          assignedAt: new Date()
+        }
+      },
+      { upsert: true, new: true }
+    ).populate('toolId', 'name category status');
+    
+    await ActivityLog.log('ADMIN', req.userId, 'TOOL_ASSIGNED', {
+      clientId,
+      toolId,
+      toolName: tool.name
+    });
+    
+    res.json({ success: true, assignment });
+  } catch (error) {
+    console.error('Assign tool error:', error);
+    res.status(500).json({ error: 'Failed to assign tool' });
   }
 });
 
