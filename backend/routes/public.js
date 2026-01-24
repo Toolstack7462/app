@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const Blog = require('../models/Blog');
 const Contact = require('../models/Contact');
+const User = require('../models/User');
+const { normalizeAuthInputs } = require('../middleware/normalize');
 
 // GET /api/crm/public/blog - Get published blog posts
 router.get('/blog', async (req, res) => {
