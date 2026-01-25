@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AdminLayoutEnhanced from '../../components/AdminLayoutEnhanced';
+import AdminLayoutEnhanced, { ADMIN_CARD_VARIANTS } from '../../components/AdminLayoutEnhanced';
 import { 
   Package, 
   Users, 
@@ -12,7 +12,8 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowRight,
-  Calendar
+  Calendar,
+  Sparkles
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/Toast';
@@ -81,36 +82,36 @@ const AdminDashboardEnhanced = () => {
       label: 'Total Tools', 
       value: stats.totalTools,
       sublabel: `${stats.activeTools} active`,
-      color: 'from-blue-500 to-blue-600',
-      bgColor: 'bg-blue-500/10',
-      textColor: 'text-blue-400'
+      variant: 'blue',
+      textColor: 'text-blue-400',
+      bgColor: 'bg-blue-500/20'
     },
     { 
       icon: Users, 
       label: 'Total Clients', 
       value: stats.totalClients,
       sublabel: `${stats.activeClients} active`,
-      color: 'from-green-500 to-green-600',
-      bgColor: 'bg-green-500/10',
-      textColor: 'text-green-400'
+      variant: 'green',
+      textColor: 'text-green-400',
+      bgColor: 'bg-green-500/20'
     },
     { 
       icon: TrendingUp, 
       label: 'Assignments', 
       value: stats.totalAssignments,
       sublabel: 'Active assignments',
-      color: 'from-purple-500 to-purple-600',
-      bgColor: 'bg-purple-500/10',
-      textColor: 'text-purple-400'
+      variant: 'purple',
+      textColor: 'text-purple-400',
+      bgColor: 'bg-purple-500/20'
     },
     { 
       icon: ActivityIcon, 
       label: 'Device Bindings', 
       value: stats.deviceBindings,
       sublabel: 'Secured clients',
-      color: 'from-orange-500 to-orange-600',
-      bgColor: 'bg-orange-500/10',
-      textColor: 'text-orange-400'
+      variant: 'orange',
+      textColor: 'text-toolstack-orange',
+      bgColor: 'bg-orange-500/20'
     }
   ];
   
@@ -120,21 +121,24 @@ const AdminDashboardEnhanced = () => {
       title: 'Create Tool',
       description: 'Add a new tool to the platform',
       action: () => navigate('/admin/tools/new'),
-      color: 'blue'
+      variant: 'blue',
+      gradient: 'from-blue-500 to-blue-600'
     },
     {
       icon: UserPlus,
       title: 'Add Client',
       description: 'Create a new client account',
       action: () => navigate('/admin/clients/new'),
-      color: 'green'
+      variant: 'green',
+      gradient: 'from-green-500 to-green-600'
     },
     {
       icon: TrendingUp,
       title: 'Bulk Assign',
       description: 'Assign tools to multiple clients',
       action: () => navigate('/admin/assign'),
-      color: 'purple'
+      variant: 'purple',
+      gradient: 'from-purple-500 to-purple-600'
     }
   ];
   
@@ -163,7 +167,7 @@ const AdminDashboardEnhanced = () => {
         <div className="flex items-center justify-center min-h-[80vh]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-16 w-16 border-4 border-toolstack-orange border-t-transparent mx-auto mb-4"></div>
-            <p className="text-toolstack-muted">Loading dashboard...</p>
+            <p className="text-white/60">Loading dashboard...</p>
           </div>
         </div>
       </AdminLayoutEnhanced>
@@ -176,10 +180,13 @@ const AdminDashboardEnhanced = () => {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Dashboard</h1>
-            <p className="text-toolstack-muted flex items-center gap-2">
+            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 flex items-center gap-3">
+              <Sparkles className="text-toolstack-orange" size={32} />
+              Dashboard
+            </h1>
+            <p className="text-white/60 flex items-center gap-2">
               <Calendar size={16} />
-              Welcome back! Here's what's happening today
+              Welcome back! Here&apos;s what&apos;s happening today
             </p>
           </div>
         </div>
@@ -191,19 +198,24 @@ const AdminDashboardEnhanced = () => {
             return (
               <div
                 key={index}
-                className="group bg-toolstack-card border border-toolstack-border rounded-2xl p-6 hover:border-toolstack-orange transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-toolstack-orange/10"
+                className={`group relative overflow-hidden rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl ${ADMIN_CARD_VARIANTS[stat.variant]}`}
                 data-testid={`stat-card-${index}`}
               >
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`w-14 h-14 ${stat.bgColor} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                    <Icon size={28} className={stat.textColor} />
+                {/* Glow effect */}
+                <div className={`absolute top-0 right-0 w-32 h-32 ${stat.bgColor} opacity-0 group-hover:opacity-50 rounded-full blur-3xl transition-opacity duration-500`} />
+                
+                <div className="relative p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className={`w-14 h-14 ${stat.bgColor} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                      <Icon size={28} className={stat.textColor} />
+                    </div>
                   </div>
-                </div>
-                <div className="text-4xl font-bold text-white mb-2">{stat.value}</div>
-                <div className="text-sm text-toolstack-muted font-medium mb-1">{stat.label}</div>
-                <div className={`text-xs ${stat.textColor} flex items-center gap-1`}>
-                  <TrendingUp size={12} />
-                  {stat.sublabel}
+                  <div className="text-4xl font-bold text-white mb-2">{stat.value}</div>
+                  <div className="text-sm text-white/60 font-medium mb-1">{stat.label}</div>
+                  <div className={`text-xs ${stat.textColor} flex items-center gap-1`}>
+                    <TrendingUp size={12} />
+                    {stat.sublabel}
+                  </div>
                 </div>
               </div>
             );
@@ -216,34 +228,31 @@ const AdminDashboardEnhanced = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {quickActions.map((action, index) => {
               const Icon = action.icon;
-              const colorMap = {
-                blue: 'from-blue-500/10 to-blue-600/10 border-blue-500/30 hover:border-blue-500',
-                green: 'from-green-500/10 to-green-600/10 border-green-500/30 hover:border-green-500',
-                purple: 'from-purple-500/10 to-purple-600/10 border-purple-500/30 hover:border-purple-500'
-              };
               
               return (
                 <button
                   key={index}
                   onClick={action.action}
-                  className={`
-                    group relative overflow-hidden
-                    bg-gradient-to-br ${colorMap[action.color]}
-                    border rounded-2xl p-6 text-left
-                    transition-all duration-300 hover:-translate-y-1 hover:shadow-xl
-                  `}
+                  className={`group relative overflow-hidden rounded-2xl p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl ${ADMIN_CARD_VARIANTS[action.variant]}`}
                   data-testid={`quick-action-${index}`}
                 >
-                  <Icon size={36} className="text-toolstack-orange mb-4 group-hover:scale-110 transition-transform" />
-                  <h3 className="text-lg font-semibold text-white mb-2 group-hover:text-toolstack-orange transition-colors">
-                    {action.title}
-                  </h3>
-                  <p className="text-sm text-toolstack-muted mb-4">
-                    {action.description}
-                  </p>
-                  <div className="flex items-center gap-2 text-toolstack-orange text-sm font-medium">
-                    <span>Get Started</span>
-                    <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                  {/* Glow effect */}
+                  <div className={`absolute top-0 right-0 w-40 h-40 bg-gradient-to-br ${action.gradient} opacity-0 group-hover:opacity-20 rounded-full blur-3xl transition-opacity duration-500`} />
+                  
+                  <div className="relative">
+                    <div className={`w-14 h-14 bg-gradient-to-br ${action.gradient} rounded-xl flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform`}>
+                      <Icon size={28} className="text-white" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-white mb-2 group-hover:text-toolstack-orange transition-colors">
+                      {action.title}
+                    </h3>
+                    <p className="text-sm text-white/60 mb-4">
+                      {action.description}
+                    </p>
+                    <div className="flex items-center gap-2 text-toolstack-orange text-sm font-medium">
+                      <span>Get Started</span>
+                      <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                    </div>
                   </div>
                 </button>
               );
@@ -253,7 +262,7 @@ const AdminDashboardEnhanced = () => {
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Recent Clients */}
-          <div className="bg-toolstack-card border border-toolstack-border rounded-2xl p-6">
+          <div className={`${ADMIN_CARD_VARIANTS.elevated} rounded-2xl p-6`}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-white">Recent Clients</h2>
               <button 
@@ -266,25 +275,27 @@ const AdminDashboardEnhanced = () => {
             
             {recentClients.length === 0 ? (
               <div className="text-center py-12">
-                <Users size={48} className="mx-auto mb-4 text-toolstack-muted opacity-50" />
-                <p className="text-toolstack-muted">No clients yet</p>
+                <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-green-500/20 to-cyan-500/20 rounded-2xl flex items-center justify-center">
+                  <Users size={32} className="text-white/40" />
+                </div>
+                <p className="text-white/60">No clients yet</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {recentClients.map((client) => (
                   <div
                     key={client._id}
-                    className="flex items-center gap-4 p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+                    className="flex items-center gap-4 p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 hover:border-toolstack-orange/30 transition-all cursor-pointer"
                     onClick={() => navigate(`/admin/clients/${client._id}/edit`)}
                   >
-                    <div className="w-12 h-12 bg-gradient-orange rounded-lg flex items-center justify-center flex-shrink-0">
+                    <div className="w-12 h-12 bg-gradient-to-br from-toolstack-orange to-orange-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
                       <span className="text-white font-bold text-lg">
                         {client.fullName?.charAt(0) || '?'}
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-white truncate">{client.fullName}</h3>
-                      <p className="text-sm text-toolstack-muted truncate">{client.email}</p>
+                      <p className="text-sm text-white/50 truncate">{client.email}</p>
                     </div>
                     <div className={`px-3 py-1 rounded-full text-xs font-medium ${
                       client.status === 'active' 
@@ -300,7 +311,7 @@ const AdminDashboardEnhanced = () => {
           </div>
           
           {/* Recent Activity */}
-          <div className="bg-toolstack-card border border-toolstack-border rounded-2xl p-6">
+          <div className={`${ADMIN_CARD_VARIANTS.elevated} rounded-2xl p-6`}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-white">Recent Activity</h2>
               <button 
@@ -313,15 +324,17 @@ const AdminDashboardEnhanced = () => {
             
             {recentActivity.length === 0 ? (
               <div className="text-center py-12">
-                <ActivityIcon size={48} className="mx-auto mb-4 text-toolstack-muted opacity-50" />
-                <p className="text-toolstack-muted">No recent activity</p>
+                <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-2xl flex items-center justify-center">
+                  <ActivityIcon size={32} className="text-white/40" />
+                </div>
+                <p className="text-white/60">No recent activity</p>
               </div>
             ) : (
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {recentActivity.map((activity) => (
                   <div
                     key={activity._id}
-                    className="flex items-start gap-3 p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
+                    className="flex items-start gap-3 p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors"
                   >
                     <div className="mt-0.5">
                       {getActionIcon(activity.action)}
@@ -330,11 +343,11 @@ const AdminDashboardEnhanced = () => {
                       <p className="text-white text-sm">
                         <span className="font-semibold">{activity.actorRole}</span>
                         {' '}
-                        <span className="text-toolstack-muted">
+                        <span className="text-white/60">
                           {activity.action.replace(/_/g, ' ').toLowerCase()}
                         </span>
                       </p>
-                      <p className="text-xs text-toolstack-muted mt-1">
+                      <p className="text-xs text-white/50 mt-1">
                         {formatDate(activity.createdAt)}
                       </p>
                     </div>
