@@ -138,17 +138,20 @@ const AdminActivity = () => {
   ];
 
   return (
-    <AdminLayout>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <AdminLayoutEnhanced>
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Activity Log</h1>
-            <p className="text-toolstack-muted">Monitor all system activities and events</p>
+            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 flex items-center gap-3">
+              <History className="text-toolstack-orange" size={32} />
+              Activity Log
+            </h1>
+            <p className="text-white/60">Monitor all system activities and events</p>
           </div>
           <button
             onClick={loadActivities}
-            className="flex items-center gap-2 px-4 py-2 bg-toolstack-card border border-toolstack-border rounded-xl text-white hover:border-toolstack-orange transition-colors"
+            className={`flex items-center gap-2 px-4 py-2.5 ${ADMIN_CARD_VARIANTS.default} rounded-xl text-white hover:border-toolstack-orange/50 transition-colors`}
             data-testid="refresh-activity-btn"
           >
             <RefreshCw size={18} />
@@ -157,7 +160,7 @@ const AdminActivity = () => {
         </div>
 
         {/* Filters */}
-        <div className="bg-toolstack-card border border-toolstack-border rounded-xl p-4 mb-6">
+        <div className={`${ADMIN_CARD_VARIANTS.default} rounded-2xl p-6 mb-6`}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-white">
               <Filter size={18} />
@@ -175,7 +178,7 @@ const AdminActivity = () => {
               <button
                 onClick={exportToCSV}
                 disabled={activities.length === 0}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-toolstack-border rounded-lg text-sm text-white hover:border-toolstack-orange transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white hover:border-toolstack-orange/50 transition-colors disabled:opacity-50"
               >
                 <Download size={14} />
                 Export CSV
@@ -184,43 +187,43 @@ const AdminActivity = () => {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
-              <label className="text-sm text-toolstack-muted mb-1.5 block">Role</label>
+              <label className="text-sm text-white/50 mb-1.5 block">Role</label>
               <select
                 value={filters.role}
                 onChange={(e) => {
                   setFilters(prev => ({ ...prev, role: e.target.value }));
                   setPagination(prev => ({ ...prev, page: 1 }));
                 }}
-                className="w-full px-3 py-2.5 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all text-sm appearance-none cursor-pointer hover:border-toolstack-muted"
+                className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-toolstack-orange/50 focus:ring-2 focus:ring-toolstack-orange/20 transition-all text-sm appearance-none cursor-pointer"
                 style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27 viewBox=%270 0 12 8%27%3E%3Cpath fill=%27%23999%27 d=%27M6 8L0 0h12z%27/%3E%3C/svg%3E')", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '0.75rem' }}
                 data-testid="filter-role"
               >
-                <option value="" className="bg-toolstack-bg text-white">All Roles</option>
-                <option value="ADMIN" className="bg-toolstack-bg text-white">Admin</option>
-                <option value="CLIENT" className="bg-toolstack-bg text-white">Client</option>
-                <option value="SYSTEM" className="bg-toolstack-bg text-white">System</option>
+                <option value="" className="bg-[#1a1a22] text-white">All Roles</option>
+                <option value="ADMIN" className="bg-[#1a1a22] text-white">Admin</option>
+                <option value="CLIENT" className="bg-[#1a1a22] text-white">Client</option>
+                <option value="SYSTEM" className="bg-[#1a1a22] text-white">System</option>
               </select>
             </div>
             <div>
-              <label className="text-sm text-toolstack-muted mb-1.5 block">Action</label>
+              <label className="text-sm text-white/50 mb-1.5 block">Action</label>
               <select
                 value={filters.action}
                 onChange={(e) => {
                   setFilters(prev => ({ ...prev, action: e.target.value }));
                   setPagination(prev => ({ ...prev, page: 1 }));
                 }}
-                className="w-full px-3 py-2.5 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all text-sm appearance-none cursor-pointer hover:border-toolstack-muted"
+                className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-toolstack-orange/50 focus:ring-2 focus:ring-toolstack-orange/20 transition-all text-sm appearance-none cursor-pointer"
                 style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27 viewBox=%270 0 12 8%27%3E%3Cpath fill=%27%23999%27 d=%27M6 8L0 0h12z%27/%3E%3C/svg%3E')", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '0.75rem' }}
                 data-testid="filter-action"
               >
-                <option value="" className="bg-toolstack-bg text-white">All Actions</option>
+                <option value="" className="bg-[#1a1a22] text-white">All Actions</option>
                 {actionTypes.map(action => (
-                  <option key={action} value={action} className="bg-toolstack-bg text-white">{action.replace(/_/g, ' ')}</option>
+                  <option key={action} value={action} className="bg-[#1a1a22] text-white">{action.replace(/_/g, ' ')}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="text-sm text-toolstack-muted mb-1.5 block flex items-center gap-1">
+              <label className="text-sm text-white/50 mb-1.5 block flex items-center gap-1">
                 <Calendar size={12} /> From Date
               </label>
               <input
@@ -230,12 +233,12 @@ const AdminActivity = () => {
                   setFilters(prev => ({ ...prev, startDate: e.target.value }));
                   setPagination(prev => ({ ...prev, page: 1 }));
                 }}
-                className="w-full px-3 py-2.5 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all text-sm cursor-pointer hover:border-toolstack-muted"
+                className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-toolstack-orange/50 focus:ring-2 focus:ring-toolstack-orange/20 transition-all text-sm cursor-pointer"
                 data-testid="filter-start-date"
               />
             </div>
             <div>
-              <label className="text-sm text-toolstack-muted mb-1.5 block flex items-center gap-1">
+              <label className="text-sm text-white/50 mb-1.5 block flex items-center gap-1">
                 <Calendar size={12} /> To Date
               </label>
               <input
@@ -246,20 +249,20 @@ const AdminActivity = () => {
                   setFilters(prev => ({ ...prev, endDate: e.target.value }));
                   setPagination(prev => ({ ...prev, page: 1 }));
                 }}
-                className="w-full px-3 py-2.5 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all text-sm cursor-pointer hover:border-toolstack-muted"
+                className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-toolstack-orange/50 focus:ring-2 focus:ring-toolstack-orange/20 transition-all text-sm cursor-pointer"
                 data-testid="filter-end-date"
               />
             </div>
             <div>
-              <label className="text-sm text-toolstack-muted mb-1.5 block">Search</label>
+              <label className="text-sm text-white/50 mb-1.5 block">Search</label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-toolstack-muted pointer-events-none" size={16} />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" size={16} />
                 <input
                   type="text"
                   placeholder="Search metadata..."
                   value={filters.search}
                   onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                  className="w-full pl-10 pr-3 py-2.5 bg-toolstack-bg border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all text-sm hover:border-toolstack-muted"
+                  className="w-full pl-10 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-toolstack-orange/50 focus:ring-2 focus:ring-toolstack-orange/20 transition-all text-sm"
                   data-testid="filter-search"
                 />
               </div>
@@ -270,13 +273,18 @@ const AdminActivity = () => {
         {/* Activity List */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-toolstack-orange border-t-transparent"></div>
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-16 w-16 border-4 border-toolstack-orange border-t-transparent mx-auto mb-4"></div>
+              <p className="text-white/60">Loading activities...</p>
+            </div>
           </div>
         ) : activities.length === 0 ? (
-          <div className="bg-toolstack-card border border-toolstack-border rounded-xl p-12 text-center">
-            <Activity size={48} className="mx-auto mb-4 text-toolstack-muted opacity-50" />
+          <div className={`${ADMIN_CARD_VARIANTS.elevated} rounded-2xl p-12 text-center`}>
+            <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-2xl flex items-center justify-center">
+              <Activity size={40} className="text-white/40" />
+            </div>
             <h3 className="text-lg font-medium text-white mb-2">No activity found</h3>
-            <p className="text-toolstack-muted">Try adjusting your filters</p>
+            <p className="text-white/60">Try adjusting your filters</p>
           </div>
         ) : (
           <div className="bg-toolstack-card border border-toolstack-border rounded-xl overflow-hidden">
