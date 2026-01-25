@@ -287,27 +287,27 @@ const AdminActivity = () => {
             <p className="text-white/60">Try adjusting your filters</p>
           </div>
         ) : (
-          <div className="bg-toolstack-card border border-toolstack-border rounded-xl overflow-hidden">
+          <div className={`${ADMIN_CARD_VARIANTS.elevated} rounded-2xl overflow-hidden`}>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-toolstack-border">
-                    <th className="text-left px-6 py-4 text-sm font-medium text-toolstack-muted">Time</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-toolstack-muted">Role</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-toolstack-muted">Action</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-toolstack-muted">Details</th>
+                  <tr className="border-b border-white/10">
+                    <th className="text-left px-6 py-4 text-sm font-medium text-white/50">Time</th>
+                    <th className="text-left px-6 py-4 text-sm font-medium text-white/50">Role</th>
+                    <th className="text-left px-6 py-4 text-sm font-medium text-white/50">Action</th>
+                    <th className="text-left px-6 py-4 text-sm font-medium text-white/50">Details</th>
                   </tr>
                 </thead>
                 <tbody>
                   {activities
                     .filter(a => !filters.search || JSON.stringify(a.meta || {}).toLowerCase().includes(filters.search.toLowerCase()))
                     .map((activity) => (
-                    <tr key={activity._id} className="border-b border-toolstack-border/50 hover:bg-white/5 transition-colors">
-                      <td className="px-6 py-4 text-sm text-toolstack-muted whitespace-nowrap">
+                    <tr key={activity._id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                      <td className="px-6 py-4 text-sm text-white/60 whitespace-nowrap">
                         {formatDate(activity.createdAt)}
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-1 text-xs rounded-full ${
+                        <span className={`px-2.5 py-1 text-xs rounded-full ${
                           activity.actorRole === 'ADMIN' ? 'bg-purple-400/10 text-purple-400' :
                           activity.actorRole === 'CLIENT' ? 'bg-blue-400/10 text-blue-400' :
                           'bg-gray-400/10 text-gray-400'
@@ -316,7 +316,7 @@ const AdminActivity = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-1 text-xs rounded-full ${getActionColor(activity.action)}`}>
+                        <span className={`px-2.5 py-1 text-xs rounded-full ${getActionColor(activity.action)}`}>
                           {activity.action.replace(/_/g, ' ')}
                         </span>
                       </td>
@@ -331,22 +331,22 @@ const AdminActivity = () => {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t border-toolstack-border">
-                <span className="text-sm text-toolstack-muted">
+              <div className="flex items-center justify-between px-6 py-4 border-t border-white/10">
+                <span className="text-sm text-white/50">
                   Page {pagination.page} of {totalPages} ({pagination.total} total)
                 </span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
                     disabled={pagination.page === 1}
-                    className="p-2 text-toolstack-muted hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="p-2 text-white/50 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <ChevronLeft size={20} />
                   </button>
                   <button
                     onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
                     disabled={pagination.page >= totalPages}
-                    className="p-2 text-toolstack-muted hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="p-2 text-white/50 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <ChevronRight size={20} />
                   </button>
@@ -356,7 +356,7 @@ const AdminActivity = () => {
           </div>
         )}
       </div>
-    </AdminLayout>
+    </AdminLayoutEnhanced>
   );
 };
 
