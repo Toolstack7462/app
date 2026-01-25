@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AdminLayoutEnhanced from '../../components/AdminLayoutEnhanced';
+import AdminLayoutEnhanced, { getAdminCategoryTheme, ADMIN_CARD_VARIANTS } from '../../components/AdminLayoutEnhanced';
 import { 
   Package, 
   Plus, 
   Search, 
-  Filter, 
   Edit2, 
   Trash2, 
   ExternalLink,
-  TrendingUp
+  TrendingUp,
+  Sparkles
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/Toast';
@@ -70,33 +70,21 @@ const AdminToolsEnhanced = () => {
     }
   };
   
-  const getCategoryColor = (category) => {
-    const colors = {
-      'AI': 'bg-purple-500/20 text-purple-400',
-      'Academic': 'bg-blue-500/20 text-blue-400',
-      'SEO': 'bg-green-500/20 text-green-400',
-      'Productivity': 'bg-yellow-500/20 text-yellow-400',
-      'Graphics & SEO': 'bg-pink-500/20 text-pink-400',
-      'Text Humanizers': 'bg-indigo-500/20 text-indigo-400',
-      'Career-Oriented': 'bg-orange-500/20 text-orange-400',
-      'Miscellaneous': 'bg-gray-500/20 text-gray-400',
-      'Other': 'bg-gray-500/20 text-gray-400'
-    };
-    return colors[category] || colors['Other'];
-  };
-  
   return (
     <AdminLayoutEnhanced>
       <div className="max-w-7xl mx-auto space-y-6" data-testid="admin-tools-page">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Tools Management</h1>
-            <p className="text-toolstack-muted">Manage your tool library</p>
+            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 flex items-center gap-3">
+              <Sparkles className="text-toolstack-orange" size={32} />
+              Tools Management
+            </h1>
+            <p className="text-white/60">Manage your tool library</p>
           </div>
           <button
             onClick={() => navigate('/admin/tools/new')}
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-orange text-white rounded-lg hover:opacity-90 transition-all hover:scale-105 shadow-lg"
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-toolstack-orange to-orange-600 text-white rounded-xl hover:shadow-lg hover:shadow-toolstack-orange/25 transition-all hover:scale-105"
             data-testid="create-tool-btn"
           >
             <Plus size={20} />
@@ -105,19 +93,19 @@ const AdminToolsEnhanced = () => {
         </div>
         
         {/* Filters */}
-        <div className="bg-toolstack-card border border-toolstack-border rounded-2xl p-6 space-y-4">
+        <div className={`${ADMIN_CARD_VARIANTS.default} rounded-2xl p-6 space-y-4`}>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Search */}
             <div className="md:col-span-2">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-toolstack-muted" size={18} />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40" size={18} />
                 <input
                   type="text"
                   placeholder="Search tools by name or description..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                  className="w-full pl-10 pr-4 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors"
+                  className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-toolstack-orange/50 focus:ring-2 focus:ring-toolstack-orange/20 transition-all"
                   data-testid="search-input"
                 />
               </div>
@@ -127,13 +115,13 @@ const AdminToolsEnhanced = () => {
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-4 py-2 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all appearance-none cursor-pointer hover:border-toolstack-muted min-w-[150px]"
-              style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27 viewBox=%270 0 12 8%27%3E%3Cpath fill=%27%23999%27 d=%27M6 8L0 0h12z%27/%3E%3C/svg%3E')", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '0.65rem' }}
+              className="px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-toolstack-orange/50 focus:ring-2 focus:ring-toolstack-orange/20 transition-all appearance-none cursor-pointer"
+              style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27 viewBox=%270 0 12 8%27%3E%3Cpath fill=%27%23999%27 d=%27M6 8L0 0h12z%27/%3E%3C/svg%3E')", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '0.65rem' }}
               data-testid="category-filter"
             >
-              <option value="" className="bg-toolstack-bg text-white">All Categories</option>
+              <option value="" className="bg-[#1a1a22] text-white">All Categories</option>
               {categories.map(cat => (
-                <option key={cat} value={cat} className="bg-toolstack-bg text-white">{cat}</option>
+                <option key={cat} value={cat} className="bg-[#1a1a22] text-white">{cat}</option>
               ))}
             </select>
             
@@ -141,19 +129,19 @@ const AdminToolsEnhanced = () => {
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="px-4 py-2 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-toolstack-orange/50 focus:border-toolstack-orange transition-all appearance-none cursor-pointer hover:border-toolstack-muted min-w-[120px]"
-              style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27 viewBox=%270 0 12 8%27%3E%3Cpath fill=%27%23999%27 d=%27M6 8L0 0h12z%27/%3E%3C/svg%3E')", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '0.65rem' }}
+              className="px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-toolstack-orange/50 focus:ring-2 focus:ring-toolstack-orange/20 transition-all appearance-none cursor-pointer"
+              style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27 viewBox=%270 0 12 8%27%3E%3Cpath fill=%27%23999%27 d=%27M6 8L0 0h12z%27/%3E%3C/svg%3E')", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '0.65rem' }}
               data-testid="status-filter"
             >
-              <option value="" className="bg-toolstack-bg text-white">All Status</option>
-              <option value="active" className="bg-toolstack-bg text-white">Active</option>
-              <option value="inactive" className="bg-toolstack-bg text-white">Inactive</option>
+              <option value="" className="bg-[#1a1a22] text-white">All Status</option>
+              <option value="active" className="bg-[#1a1a22] text-white">Active</option>
+              <option value="inactive" className="bg-[#1a1a22] text-white">Inactive</option>
             </select>
           </div>
           
           <button
             onClick={handleSearch}
-            className="w-full md:w-auto px-6 py-2 bg-gradient-orange text-white rounded-lg hover:opacity-90 transition-opacity"
+            className="w-full md:w-auto px-6 py-3 bg-gradient-to-r from-toolstack-orange to-orange-600 text-white rounded-xl hover:shadow-lg hover:shadow-toolstack-orange/25 transition-all font-medium"
           >
             Apply Filters
           </button>
@@ -162,16 +150,21 @@ const AdminToolsEnhanced = () => {
         {/* Tools Grid */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-toolstack-orange border-t-transparent"></div>
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-16 w-16 border-4 border-toolstack-orange border-t-transparent mx-auto mb-4"></div>
+              <p className="text-white/60">Loading tools...</p>
+            </div>
           </div>
         ) : tools.length === 0 ? (
-          <div className="bg-toolstack-card border border-toolstack-border rounded-2xl p-12 text-center">
-            <Package size={64} className="mx-auto mb-4 text-toolstack-muted opacity-50" />
+          <div className={`${ADMIN_CARD_VARIANTS.elevated} rounded-2xl p-12 text-center`}>
+            <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-2xl flex items-center justify-center">
+              <Package size={40} className="text-white/40" />
+            </div>
             <h3 className="text-xl font-semibold text-white mb-2">No tools found</h3>
-            <p className="text-toolstack-muted mb-6">Get started by creating your first tool</p>
+            <p className="text-white/60 mb-6">Get started by creating your first tool</p>
             <button
               onClick={() => navigate('/admin/tools/new')}
-              className="px-6 py-3 bg-gradient-orange text-white rounded-lg hover:opacity-90 transition-opacity"
+              className="px-6 py-3 bg-gradient-to-r from-toolstack-orange to-orange-600 text-white rounded-xl hover:shadow-lg hover:shadow-toolstack-orange/25 transition-all"
             >
               Create Tool
             </button>
@@ -179,94 +172,105 @@ const AdminToolsEnhanced = () => {
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {tools.map(tool => (
-                <div
-                  key={tool._id}
-                  className="group bg-toolstack-card border border-toolstack-border rounded-2xl p-6 hover:border-toolstack-orange transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
-                  data-testid={`tool-card-${tool._id}`}
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-white mb-1 group-hover:text-toolstack-orange transition-colors">
+              {tools.map(tool => {
+                const theme = getAdminCategoryTheme(tool.category);
+                return (
+                  <div
+                    key={tool._id}
+                    className={`group relative overflow-hidden rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl bg-gradient-to-br ${theme.bg} border ${theme.border}`}
+                    data-testid={`tool-card-${tool._id}`}
+                  >
+                    {/* Glow effect on hover */}
+                    <div className={`absolute top-0 right-0 w-40 h-40 bg-gradient-to-br ${theme.gradient} opacity-0 group-hover:opacity-20 rounded-full blur-3xl transition-opacity duration-500`} />
+                    
+                    <div className="relative p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className={`w-12 h-12 bg-gradient-to-br ${theme.gradient} rounded-xl flex items-center justify-center shadow-lg`}>
+                          <Package size={24} className="text-white" />
+                        </div>
+                        <div className="flex gap-2">
+                          <span className={`px-3 py-1 ${theme.bg} ${theme.text} rounded-full text-xs font-medium`}>
+                            {tool.category}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <h3 className="text-lg font-bold text-white mb-2 group-hover:text-toolstack-orange transition-colors">
                         {tool.name}
                       </h3>
-                      <p className="text-sm text-toolstack-muted line-clamp-2">
+                      <p className="text-sm text-white/60 line-clamp-2 mb-4 min-h-[40px]">
                         {tool.description || 'No description'}
                       </p>
+                      
+                      <div className="flex items-center gap-3 mb-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          tool.status === 'active' 
+                            ? 'bg-green-500/20 text-green-400' 
+                            : 'bg-gray-500/20 text-gray-400'
+                        }`}>
+                          {tool.status}
+                        </span>
+                        {tool.assignmentCount !== undefined && (
+                          <div className="flex items-center gap-1 text-xs text-white/50">
+                            <TrendingUp size={12} />
+                            <span>{tool.assignmentCount} assignments</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {tool.targetUrl && (
+                        <a
+                          href={tool.targetUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-sm text-toolstack-orange hover:underline mb-4"
+                        >
+                          <ExternalLink size={14} />
+                          <span className="truncate">View Tool</span>
+                        </a>
+                      )}
+                      
+                      <div className="flex items-center gap-2 pt-4 border-t border-white/10">
+                        <button
+                          onClick={() => navigate(`/admin/tools/${tool._id}/edit`)}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-500/20 text-blue-400 rounded-xl hover:bg-blue-500/30 transition-colors"
+                          data-testid={`edit-tool-${tool._id}`}
+                        >
+                          <Edit2 size={16} />
+                          <span className="text-sm font-medium">Edit</span>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(tool._id, tool.name)}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500/20 text-red-400 rounded-xl hover:bg-red-500/30 transition-colors"
+                          data-testid={`delete-tool-${tool._id}`}
+                        >
+                          <Trash2 size={16} />
+                          <span className="text-sm font-medium">Delete</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getCategoryColor(tool.category)}`}>
-                      {tool.category}
-                    </span>
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      tool.status === 'active' 
-                        ? 'bg-green-500/20 text-green-400' 
-                        : 'bg-gray-500/20 text-gray-400'
-                    }`}>
-                      {tool.status}
-                    </span>
-                  </div>
-                  
-                  {tool.targetUrl && (
-                    <a
-                      href={tool.targetUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm text-toolstack-orange hover:underline mb-4"
-                    >
-                      <ExternalLink size={14} />
-                      <span className="truncate">View Tool</span>
-                    </a>
-                  )}
-                  
-                  {tool.assignmentCount !== undefined && (
-                    <div className="flex items-center gap-2 text-sm text-toolstack-muted mb-4">
-                      <TrendingUp size={14} />
-                      <span>{tool.assignmentCount} active assignment{tool.assignmentCount !== 1 ? 's' : ''}</span>
-                    </div>
-                  )}
-                  
-                  <div className="flex items-center gap-2 pt-4 border-t border-toolstack-border">
-                    <button
-                      onClick={() => navigate(`/admin/tools/${tool._id}/edit`)}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors"
-                      data-testid={`edit-tool-${tool._id}`}
-                    >
-                      <Edit2 size={16} />
-                      <span className="text-sm font-medium">Edit</span>
-                    </button>
-                    <button
-                      onClick={() => handleDelete(tool._id, tool.name)}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
-                      data-testid={`delete-tool-${tool._id}`}
-                    >
-                      <Trash2 size={16} />
-                      <span className="text-sm font-medium">Delete</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             
             {/* Pagination */}
             {pagination.totalPages > 1 && (
-              <div className="flex items-center justify-center gap-2 mt-8">
+              <div className="flex items-center justify-center gap-4 mt-8">
                 <button
                   onClick={() => setPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
                   disabled={pagination.page === 1}
-                  className="px-4 py-2 bg-toolstack-card border border-toolstack-border rounded-lg text-white disabled:opacity-50 disabled:cursor-not-allowed hover:border-toolstack-orange transition-colors"
+                  className={`px-6 py-2.5 ${ADMIN_CARD_VARIANTS.default} rounded-xl text-white disabled:opacity-50 disabled:cursor-not-allowed hover:border-toolstack-orange/50 transition-colors`}
                 >
                   Previous
                 </button>
-                <span className="text-white">
+                <span className="text-white/60">
                   Page {pagination.page} of {pagination.totalPages}
                 </span>
                 <button
                   onClick={() => setPagination(prev => ({ ...prev, page: Math.min(prev.totalPages, prev.page + 1) }))}
                   disabled={pagination.page >= pagination.totalPages}
-                  className="px-4 py-2 bg-toolstack-card border border-toolstack-border rounded-lg text-white disabled:opacity-50 disabled:cursor-not-allowed hover:border-toolstack-orange transition-colors"
+                  className={`px-6 py-2.5 ${ADMIN_CARD_VARIANTS.default} rounded-xl text-white disabled:opacity-50 disabled:cursor-not-allowed hover:border-toolstack-orange/50 transition-colors`}
                 >
                   Next
                 </button>
