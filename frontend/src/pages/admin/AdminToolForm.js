@@ -1023,6 +1023,34 @@ const AdminToolForm = () => {
               <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
                 <input
                   type="checkbox"
+                  name="extensionSettings.reloadAfterLogin"
+                  checked={formData.extensionSettings.reloadAfterLogin}
+                  onChange={handleChange}
+                  className="w-5 h-5 rounded border-toolstack-border text-toolstack-orange focus:ring-toolstack-orange"
+                />
+                <div>
+                  <div className="font-medium text-white">Reload after login</div>
+                  <div className="text-xs text-toolstack-muted">Reload the page after credentials are injected</div>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
+                <input
+                  type="checkbox"
+                  name="extensionSettings.spaMode"
+                  checked={formData.extensionSettings.spaMode}
+                  onChange={handleChange}
+                  className="w-5 h-5 rounded border-toolstack-border text-toolstack-orange focus:ring-toolstack-orange"
+                />
+                <div>
+                  <div className="font-medium text-white">SPA Mode</div>
+                  <div className="text-xs text-toolstack-muted">Enable for React/Vue/Angular apps with client-side routing</div>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
+                <input
+                  type="checkbox"
                   name="extensionSettings.clearExistingCookies"
                   checked={formData.extensionSettings.clearExistingCookies}
                   onChange={handleChange}
@@ -1033,6 +1061,51 @@ const AdminToolForm = () => {
                   <div className="text-xs text-toolstack-muted">Remove existing cookies before injecting new ones</div>
                 </div>
               </label>
+              
+              {/* Retry Settings */}
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-toolstack-border mt-4">
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    Retry Attempts
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="5"
+                    name="extensionSettings.retryAttempts"
+                    value={formData.extensionSettings.retryAttempts}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      extensionSettings: {
+                        ...prev.extensionSettings,
+                        retryAttempts: parseInt(e.target.value) || 2
+                      }
+                    }))}
+                    className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    Retry Delay (ms)
+                  </label>
+                  <input
+                    type="number"
+                    min="500"
+                    max="10000"
+                    step="500"
+                    name="extensionSettings.retryDelayMs"
+                    value={formData.extensionSettings.retryDelayMs}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      extensionSettings: {
+                        ...prev.extensionSettings,
+                        retryDelayMs: parseInt(e.target.value) || 1000
+                      }
+                    }))}
+                    className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
