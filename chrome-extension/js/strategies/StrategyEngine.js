@@ -1,0 +1,320 @@
+/**
+ * Strategy Engine
+ * Orchestrates login strategies with intelligent fallback
+ */
+import { CookieStrategy } from './CookieStrategy.js';
+import { TokenStrategy } from './TokenStrategy.js';
+import { FormStrategy } from './FormStrategy.js';
+import { OAuthStrategy } from './OAuthStrategy.js';
+import { DEFAULT_STRATEGY_ORDER, TIMEOUTS } from '../config/toolConfigs.js';
+
+export class StrategyEngine {
+  constructor() {
+    // Initialize all strategies
+    this.strategies = {
+      cookie: new CookieStrategy(),
+      token: new TokenStrategy(),
+      form: new FormStrategy(),
+      oauth: new OAuthStrategy()
+    };
+    
+    // Track execution results
+    this.executionHistory = new Map();
+  }
+  
+  /**
+   * Execute login strategies in order with fallback
+   * @param {Object} config - Tool configuration
+   * @param {Object} context - Execution context (tabId, url, etc.)
+   * @returns {Promise<Object>} Combined result
+   */
+  async execute(config, context) {
+    const strategyOrder = config.strategies || DEFAULT_STRATEGY_ORDER;
+    const results = [];
+    let finalResult = null;
+    
+    this.log(`Starting strategy execution for ${config.domain}`, { 
+      strategies: strategyOrder,
+      context 
+    });
+    
+    for (const strategyName of strategyOrder) {
+      const strategy = this.strategies[strategyName];
+      
+      if (!strategy) {
+        this.log(`Strategy not found: ${strategyName}`);
+        continue;
+      }
+      
+      // Check if strategy can handle this config
+      if (!strategy.canHandle(config)) {
+        this.log(`Strategy ${strategyName} cannot handle config, skipping`);
+        results.push({
+          strategy: strategyName,
+          skipped: true,
+          reason: 'Cannot handle config'
+        });
+        continue;
+      }
+      
+      this.log(`Executing strategy: ${strategyName}`);
+      
+      try {
+        // Execute strategy with timeout
+        const result = await this.executeWithTimeout(
+          strategy.execute(config, context),
+          TIMEOUTS.strategyExecution
+        );
+        
+        results.push({
+          strategy: strategyName,
+          ...result
+        });
+        
+        // If successful, we're done (unless we need to continue for completeness)
+        if (result.success) {
+          this.log(`Strategy ${strategyName} succeeded`);
+          finalResult = result;
+          
+          // Some strategies may indicate we should continue (e.g., cookie + token)
+          if (!result.continueStrategies) {
+            break;
+          }
+        } else if (result.partial) {
+          // Partial success - continue but remember this result
+          this.log(`Strategy ${strategyName} partially succeeded`);
+          if (!finalResult) {
+            finalResult = result;
+          }
+        } else {
+          this.log(`Strategy ${strategyName} failed: ${result.error || 'Unknown error'}`);
+        }
+      } catch (error) {
+        this.log(`Strategy ${strategyName} threw error: ${error.message}`);
+        results.push({
+          strategy: strategyName,
+          success: false,
+          error: error.message
+        });
+      }
+    }
+    
+    // Store execution history
+    this.executionHistory.set(config.domain, {
+      timestamp: Date.now(),
+      results,
+      finalResult
+    });
+    
+    // Build combined result
+    const combinedResult = {
+      success: finalResult?.success || false,
+      partial: finalResult?.partial || false,
+      strategies: results,
+      executedCount: results.filter(r => !r.skipped).length,
+      successfulStrategy: finalResult?.strategy || null,
+      needsReload: finalResult?.needsReload || false,
+      needsTab: results.some(r => r.needsTab)
+    };
+    
+    this.log('Strategy execution complete', combinedResult);
+    
+    return combinedResult;
+  }
+  
+  /**
+   * Execute with timeout
+   */
+  async executeWithTimeout(promise, timeout) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Strategy timeout')), timeout)
+      )
+    ]);
+  }
+  
+  /**
+   * Pre-execute strategies that don't need a tab (cookies)
+   * @param {Object} config - Tool configuration
+   * @returns {Promise<Object>} Pre-execution result
+   */
+  async preExecute(config) {
+    const results = [];
+    
+    // Only cookie strategy can run before tab is opened
+    if (this.strategies.cookie.canHandle(config)) {
+      this.log('Pre-executing cookie strategy');
+      
+      const result = await this.strategies.cookie.execute(config, {});
+      results.push({ strategy: 'cookie', ...result });
+      
+      if (result.success) {
+        return {
+          success: true,
+          preExecuted: ['cookie'],
+          results,
+          needsReload: true
+        };
+      }
+    }
+    
+    return {
+      success: false,
+      preExecuted: [],
+      results
+    };
+  }
+  
+  /**
+   * Post-execute strategies that need a tab (token, form, oauth)
+   * @param {Object} config - Tool configuration
+   * @param {Object} context - Execution context with tabId
+   * @param {Array} skipStrategies - Strategies to skip (already executed)
+   * @returns {Promise<Object>} Post-execution result
+   */
+  async postExecute(config, context, skipStrategies = []) {
+    const strategyOrder = (config.strategies || DEFAULT_STRATEGY_ORDER)
+      .filter(s => !skipStrategies.includes(s));
+    
+    return this.execute({ ...config, strategies: strategyOrder }, context);
+  }
+  
+  /**
+   * Verify login status
+   * @param {Object} config - Tool configuration
+   * @param {Object} context - Execution context
+   * @returns {Promise<Object>} Verification result
+   */
+  async verify(config, context) {
+    const lastExecution = this.executionHistory.get(config.domain);
+    
+    if (!lastExecution || !lastExecution.finalResult) {
+      return { verified: false, reason: 'No execution history' };
+    }
+    
+    const strategyName = lastExecution.finalResult.strategy;
+    const strategy = this.strategies[strategyName];
+    
+    if (!strategy) {
+      return { verified: false, reason: 'Strategy not found' };
+    }
+    
+    try {
+      const verified = await strategy.verify(config, context);
+      return { verified, strategy: strategyName };
+    } catch (error) {
+      return { verified: false, error: error.message };
+    }
+  }
+  
+  /**
+   * Get best strategy for a tool based on config and history
+   * @param {Object} config - Tool configuration
+   * @returns {string} Best strategy name
+   */
+  getBestStrategy(config) {
+    // Check execution history for successful strategies
+    const history = this.executionHistory.get(config.domain);
+    if (history?.finalResult?.success) {
+      return history.finalResult.strategy;
+    }
+    
+    // Check config for strategies that can handle
+    const strategyOrder = config.strategies || DEFAULT_STRATEGY_ORDER;
+    
+    for (const strategyName of strategyOrder) {
+      const strategy = this.strategies[strategyName];
+      if (strategy?.canHandle(config)) {
+        return strategyName;
+      }
+    }
+    
+    return strategyOrder[0] || 'cookie';
+  }
+  
+  /**
+   * Detect login state on current page
+   * @param {number} tabId - Tab ID to check
+   * @returns {Promise<Object>} Login state
+   */
+  async detectLoginState(tabId) {
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => {
+          // Check URL for login indicators
+          const url = window.location.href.toLowerCase();
+          const isLoginPage = /\/(login|signin|sign-in|auth|authenticate)/.test(url);
+          
+          // Check for password field
+          const hasPasswordField = !!document.querySelector('input[type="password"]');
+          
+          // Check for logged-in indicators
+          const loggedInSelectors = [
+            '[class*="logout"]', '[class*="signout"]', 'a[href*="logout"]',
+            '[class*="user-menu"]', '[class*="user-avatar"]', '[class*="profile-menu"]'
+          ];
+          const hasLoggedInIndicator = loggedInSelectors.some(s => document.querySelector(s));
+          
+          // Check localStorage for common auth tokens
+          const authKeys = ['token', 'auth_token', 'access_token', 'jwt', 'user', 'session'];
+          const hasStoredAuth = authKeys.some(k => localStorage.getItem(k));
+          
+          return {
+            url,
+            isLoginPage,
+            hasPasswordField,
+            hasLoggedInIndicator,
+            hasStoredAuth,
+            isLoggedIn: hasLoggedInIndicator || (hasStoredAuth && !isLoginPage),
+            needsLogin: isLoginPage || (hasPasswordField && !hasLoggedInIndicator)
+          };
+        }
+      });
+      
+      return results[0]?.result || { isLoggedIn: false, needsLogin: true };
+    } catch (error) {
+      this.log(`Login state detection error: ${error.message}`);
+      return { isLoggedIn: false, needsLogin: true, error: error.message };
+    }
+  }
+  
+  /**
+   * Get form strategy for login page detection
+   */
+  getFormStrategy() {
+    return this.strategies.form;
+  }
+  
+  /**
+   * Get OAuth strategy for provider detection
+   */
+  getOAuthStrategy() {
+    return this.strategies.oauth;
+  }
+  
+  /**
+   * Log message
+   */
+  log(message, data = null) {
+    const logMsg = `[StrategyEngine] ${message}`;
+    if (data) {
+      console.log(logMsg, data);
+    } else {
+      console.log(logMsg);
+    }
+  }
+}
+
+// Singleton instance
+let engineInstance = null;
+
+export function getStrategyEngine() {
+  if (!engineInstance) {
+    engineInstance = new StrategyEngine();
+  }
+  return engineInstance;
+}
+
+export default StrategyEngine;
