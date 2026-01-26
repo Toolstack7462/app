@@ -169,7 +169,8 @@ async function checkForUpdates() {
 
 /**
  * Handle login required notification from content script
- * For FORM credentials: Execute login invisibly in hidden tab, then redirect
+ * IMPORTANT: When user navigates to a tool URL and gets redirected to login,
+ * we should do the login invisibly and redirect them to the dashboard.
  */
 async function handleLoginRequired(data, sender) {
   const { hostname, url } = data;
@@ -207,51 +208,40 @@ async function handleLoginRequired(data, sender) {
     const config = createToolConfig(tool, credentials);
     const postLoginUrl = tool.targetUrl;
     
-    // For FORM credentials: Handle invisibly
-    if (credentials.type === 'form' && config.formData) {
-      console.log('[Background] Form login - executing invisibly');
-      
-      // Execute form fill in the CURRENT tab (which is the login page)
-      // This is okay because user is already ON the login page
-      const formStrategy = strategyEngine.strategies.form;
-      const fillResult = await formStrategy.executeFormFill(tabId, {
-        username: config.formData.username,
-        password: config.formData.password,
-        selectors: formStrategy.mergeSelectors(config.selectors),
-        autoSubmit: config.options?.autoSubmit !== false,
-        rememberMe: config.options?.rememberMe !== false
-      });
-      
-      console.log('[Background] Form fill result:', fillResult);
-      
-      if (fillResult.success) {
-        // Form submitted - the page will navigate automatically
-        // Just log and wait for navigation
-        try {
-          await apiRequest(`/tools/${tool.id}/opened`, { method: 'POST' });
-        } catch (e) {
-          console.warn('[Background] Failed to log tool opened:', e);
-        }
-      }
+    // For COOKIE credentials: Inject cookies and reload
+    if (credentials.type === 'cookies' && config.cookies?.length > 0) {
+      console.log('[Background] Injecting cookies into current tab');
+      await injectCookies(postLoginUrl, config.cookies);
+      await chrome.tabs.update(tabId, { url: postLoginUrl });
       return;
     }
     
-    // For non-form credentials: Execute strategies in current tab
-    const context = { tabId, url };
-    const result = await strategyEngine.execute(config, context);
-    
-    console.log('[Background] Strategy execution result:', result);
-    
-    // If successful and needs reload, reload the tab
-    if (result.success && result.needsReload) {
-      await chrome.tabs.reload(tabId);
+    // For FORM credentials: Fill and submit in current tab
+    // (User is already on login page, so just fill it quickly)
+    if (credentials.type === 'form' || config.formData?.username) {
+      console.log('[Background] Auto-filling login form');
+      
+      // Fill the form that's already visible
+      const fillResult = await fillAndSubmitForm(tabId, config);
+      console.log('[Background] Form auto-fill result:', fillResult);
+      
+      // Form will submit and navigate automatically
+      return;
     }
     
-    // Log tool opened
-    try {
-      await apiRequest(`/tools/${tool.id}/opened`, { method: 'POST' });
-    } catch (e) {
-      console.warn('[Background] Failed to log tool opened:', e);
+    // For TOKEN/STORAGE credentials: Inject and reload
+    if (credentials.type === 'token' || credentials.type === 'localStorage' || credentials.type === 'sessionStorage') {
+      const storageData = config.storage?.data || {};
+      if (config.tokenValue) {
+        storageData.token = config.tokenValue;
+        storageData.access_token = config.tokenValue;
+      }
+      
+      if (Object.keys(storageData).length > 0) {
+        await injectStorage(tabId, credentials.type === 'sessionStorage' ? 'sessionStorage' : 'localStorage', storageData);
+        await chrome.tabs.reload(tabId);
+      }
+      return;
     }
     
   } catch (error) {
