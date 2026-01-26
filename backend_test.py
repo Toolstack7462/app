@@ -33,10 +33,7 @@ class ToolStackCRMTester:
             "cors_validation": {"passed": 0, "failed": 0, "errors": []},
             "admin_bootstrap": {"passed": 0, "failed": 0, "errors": []},
             "input_normalization": {"passed": 0, "failed": 0, "errors": []},
-<<<<<<< HEAD
-=======
             "tool_creation": {"passed": 0, "failed": 0, "errors": []},
->>>>>>> 50524b5 (Squashed after rollback: b35d0b22-fd0c-49a4-9da4-89095b06d1d6)
             "admin_dashboard": {"passed": 0, "failed": 0, "errors": []},
             "mongodb_persistence": {"passed": 0, "failed": 0, "errors": []}
         }
