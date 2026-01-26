@@ -156,12 +156,16 @@ const AdminToolForm = () => {
     try {
       const res = await api.get(`/admin/tools/${id}`);
       const tool = res.data.tool;
+      
+      // Load form data
       setFormData({
         name: tool.name || '',
         description: tool.description || '',
         targetUrl: tool.targetUrl || '',
+        loginUrl: tool.loginUrl || '',
         category: tool.category || 'Other',
-        credentialType: tool.credentialType || 'cookies',
+        credentialType: tool.credentials?.type || tool.credentialType || 'cookies',
+        credentials: tool.credentials || { type: 'cookies', payload: {}, selectors: {}, successCheck: {} },
         cookiesEncrypted: '', // Don't show encrypted data
         tokenEncrypted: '',
         tokenHeader: tool.tokenHeader || 'Authorization',
@@ -172,9 +176,34 @@ const AdminToolForm = () => {
           requirePermission: tool.extensionSettings?.requirePermission ?? true,
           autoInject: tool.extensionSettings?.autoInject ?? true,
           injectOnPageLoad: tool.extensionSettings?.injectOnPageLoad ?? true,
-          clearExistingCookies: tool.extensionSettings?.clearExistingCookies ?? false
+          clearExistingCookies: tool.extensionSettings?.clearExistingCookies ?? false,
+          reloadAfterLogin: tool.extensionSettings?.reloadAfterLogin ?? true,
+          waitForNavigation: tool.extensionSettings?.waitForNavigation ?? true,
+          spaMode: tool.extensionSettings?.spaMode ?? false,
+          retryAttempts: tool.extensionSettings?.retryAttempts ?? 2,
+          retryDelayMs: tool.extensionSettings?.retryDelayMs ?? 1000
         }
       });
+      
+      // Load selectors if present
+      if (tool.credentials?.selectors) {
+        setFormSelectors(prev => ({
+          ...prev,
+          ...tool.credentials.selectors
+        }));
+      }
+      
+      // Load success check if present
+      if (tool.credentials?.successCheck) {
+        setSuccessCheck(prev => ({
+          ...prev,
+          urlIncludes: tool.credentials.successCheck.urlIncludes || '',
+          urlExcludes: tool.credentials.successCheck.urlExcludes || '',
+          elementExists: tool.credentials.successCheck.elementExists || '',
+          elementNotExists: tool.credentials.successCheck.elementNotExists || '',
+          cookieNames: (tool.credentials.successCheck.cookieNames || []).join(', ')
+        }));
+      }
     } catch (error) {
       showError('Failed to load tool');
       navigate('/admin/tools');
