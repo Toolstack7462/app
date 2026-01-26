@@ -232,25 +232,111 @@ const AdminToolForm = () => {
         name: formData.name.trim(),
         description: formData.description.trim(),
         targetUrl: formData.targetUrl.trim(),
+        loginUrl: formData.loginUrl.trim() || formData.targetUrl.trim(),
         category: formData.category,
         credentialType: formData.credentialType,
         status: formData.status,
         extensionSettings: formData.extensionSettings
       };
       
-      // Include credential data based on type
-      if (formData.credentialType === 'cookies' && formData.cookiesEncrypted.trim()) {
-        payload.cookiesEncrypted = formData.cookiesEncrypted.trim();
-      }
-      if (formData.credentialType === 'token') {
-        payload.tokenHeader = formData.tokenHeader;
-        payload.tokenPrefix = formData.tokenPrefix;
-        if (formData.tokenEncrypted.trim()) {
-          payload.tokenEncrypted = formData.tokenEncrypted.trim();
+      // Build unified credentials object
+      const credentials = {
+        type: formData.credentialType,
+        payload: {},
+        selectors: {},
+        successCheck: {}
+      };
+      
+      // Build selectors
+      const cleanedSelectors = {};
+      Object.entries(formSelectors).forEach(([key, value]) => {
+        if (value && value.trim()) {
+          cleanedSelectors[key] = value.trim();
         }
+      });
+      if (Object.keys(cleanedSelectors).length > 0) {
+        credentials.selectors = cleanedSelectors;
       }
-      if (formData.credentialType === 'localStorage' && formData.localStorageEncrypted.trim()) {
-        payload.localStorageEncrypted = formData.localStorageEncrypted.trim();
+      
+      // Build success check
+      const cleanedSuccessCheck = {};
+      if (successCheck.urlIncludes?.trim()) {
+        cleanedSuccessCheck.urlIncludes = successCheck.urlIncludes.trim();
+      }
+      if (successCheck.urlExcludes?.trim()) {
+        cleanedSuccessCheck.urlExcludes = successCheck.urlExcludes.trim();
+      }
+      if (successCheck.elementExists?.trim()) {
+        cleanedSuccessCheck.elementExists = successCheck.elementExists.trim();
+      }
+      if (successCheck.elementNotExists?.trim()) {
+        cleanedSuccessCheck.elementNotExists = successCheck.elementNotExists.trim();
+      }
+      if (successCheck.cookieNames?.trim()) {
+        cleanedSuccessCheck.cookieNames = successCheck.cookieNames.split(',').map(s => s.trim()).filter(Boolean);
+      }
+      if (Object.keys(cleanedSuccessCheck).length > 0) {
+        credentials.successCheck = cleanedSuccessCheck;
+      }
+      
+      // Handle credential type specific data
+      switch (formData.credentialType) {
+        case 'form':
+          if (formLoginData.username || formLoginData.password) {
+            credentials.payload = {
+              username: formLoginData.username,
+              password: formLoginData.password,
+              loginUrl: formLoginData.loginUrl || formData.loginUrl
+            };
+          }
+          break;
+          
+        case 'sso':
+          if (ssoData.authStartUrl) {
+            credentials.payload = {
+              authStartUrl: ssoData.authStartUrl,
+              postLoginUrl: ssoData.postLoginUrl || formData.targetUrl,
+              provider: ssoData.provider,
+              buttonSelector: ssoData.buttonSelector,
+              autoClick: ssoData.autoClick
+            };
+          }
+          break;
+          
+        case 'headers':
+          const validHeaders = headersData.filter(h => h.name && h.value);
+          if (validHeaders.length > 0) {
+            credentials.payload = { headers: validHeaders };
+          }
+          break;
+          
+        case 'cookies':
+          if (formData.cookiesEncrypted.trim()) {
+            payload.cookiesEncrypted = formData.cookiesEncrypted.trim();
+          }
+          break;
+          
+        case 'token':
+          payload.tokenHeader = formData.tokenHeader;
+          payload.tokenPrefix = formData.tokenPrefix;
+          if (formData.tokenEncrypted.trim()) {
+            payload.tokenEncrypted = formData.tokenEncrypted.trim();
+          }
+          break;
+          
+        case 'localStorage':
+        case 'sessionStorage':
+          if (formData.localStorageEncrypted.trim()) {
+            payload.localStorageEncrypted = formData.localStorageEncrypted.trim();
+          }
+          break;
+      }
+      
+      // Add credentials to payload if it has meaningful data
+      if (credentials.payload && Object.keys(credentials.payload).length > 0 ||
+          credentials.selectors && Object.keys(credentials.selectors).length > 0 ||
+          credentials.successCheck && Object.keys(credentials.successCheck).length > 0) {
+        payload.credentials = credentials;
       }
 
       if (isEdit) {
