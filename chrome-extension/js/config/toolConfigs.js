@@ -1,25 +1,53 @@
 /**
  * Tool Configurations for Auto-Login System
  * 
- * Each tool configuration defines:
- * - domain: The tool's domain(s) for matching
- * - loginUrl: Where to redirect for login
- * - strategies: Ordered list of login strategies to try
- * - selectors: CSS selectors for form elements (if using FormStrategy)
- * - storage: Keys to inject for token-based auth
- * - cookies: Cookie configurations
- * - spa: SPA-specific settings
+ * UNIFIED CREDENTIAL SCHEMA (v2.0):
+ * {
+ *   type: "form" | "sso" | "headers" | "cookies" | "token" | "localStorage" | "sessionStorage" | "none",
+ *   payload: { ... type-specific data ... },
+ *   selectors: { ... CSS selectors for form elements ... },
+ *   successCheck: { ... validation after login ... }
+ * }
+ * 
+ * TYPE-SPECIFIC PAYLOADS:
+ * - form: { username, password, loginUrl?, rememberMe? }
+ * - sso: { authStartUrl, postLoginUrl, provider?, autoClick? }
+ * - headers: { headers: [{name, value, prefix?}] }
+ * - cookies: Array of cookie objects [{name, value, domain?, path?, ...}]
+ * - token: { value, storageKey?, injectToStorage?, header?, prefix? }
+ * - localStorage/sessionStorage: { key: value, ... }
  */
 
 // Default strategy order for tools without specific config
-export const DEFAULT_STRATEGY_ORDER = ['cookie', 'token', 'form', 'oauth'];
+export const DEFAULT_STRATEGY_ORDER = ['cookie', 'token', 'form', 'sso', 'headers'];
+
+// Strategy mapping from unified types to strategy names
+export const TYPE_TO_STRATEGY_MAP = {
+  'form': ['form'],
+  'sso': ['sso', 'oauth'],
+  'headers': ['headers', 'token'],
+  'cookies': ['cookie'],
+  'token': ['token'],
+  'localStorage': ['token'],
+  'sessionStorage': ['token'],
+  'none': []
+};
 
 // Default timeouts
 export const TIMEOUTS = {
   pageLoad: 10000,
   formFill: 5000,
   strategyExecution: 15000,
-  spaRouteChange: 2000
+  spaRouteChange: 2000,
+  ssoCallback: 30000,
+  retryDelay: 1000
+};
+
+// Retry configuration
+export const RETRY_CONFIG = {
+  maxAttempts: 3,
+  backoffMultiplier: 1.5,
+  maxDelay: 5000
 };
 
 // Login detection patterns
