@@ -624,8 +624,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// Tab update listener - detect navigation to tool domains
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+// Tab update listener - detect navigation to tool domains and inject content script
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url) {
     try {
       const hostname = new URL(tab.url).hostname;
@@ -633,13 +633,66 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       
       if (tool) {
         console.log(`[Background] Tab navigated to tool domain: ${hostname}`);
-        // The content script will handle login detection
+        
+        // Inject content script dynamically
+        await injectContentScript(tabId, tab.url);
       }
     } catch (e) {
-      // Invalid URL
+      // Invalid URL or injection failed
+      console.log('[Background] Tab update handler error:', e.message);
     }
   }
 });
+
+/**
+ * Inject content script into a tab
+ */
+async function injectContentScript(tabId, url) {
+  try {
+    // Check if we have permission for this URL
+    const hasPermission = await chrome.permissions.contains({
+      origins: [url]
+    });
+    
+    if (!hasPermission) {
+      console.log(`[Background] No permission to inject content script into: ${url}`);
+      return false;
+    }
+    
+    // Check if content script is already injected
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => window.__TOOLSTACK_CONTENT_INJECTED__
+      });
+      
+      if (results[0]?.result === true) {
+        console.log('[Background] Content script already injected');
+        return true;
+      }
+    } catch (e) {
+      // Script not injected yet
+    }
+    
+    // Inject the content script
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['js/content.js']
+    });
+    
+    // Mark as injected
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => { window.__TOOLSTACK_CONTENT_INJECTED__ = true; }
+    });
+    
+    console.log(`[Background] Content script injected into tab ${tabId}`);
+    return true;
+  } catch (error) {
+    console.error('[Background] Content script injection failed:', error);
+    return false;
+  }
+}
 
 // Initialize on script load
 initialize();
