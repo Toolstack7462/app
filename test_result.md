@@ -307,6 +307,18 @@ frontend:
         agent: "testing"
         comment: "✅ 404 ERROR PAGE WORKING PERFECTLY: Custom 404 page displays correctly for invalid routes (/invalid-route-xyz123). All elements functional: (1) 'Go to Home' button ✅, (2) 'Go Back' button ✅, (3) Quick navigation links ✅ - Admin Login, Client Login, Tools, Contact all present and clickable. Page has proper styling with clear messaging 'Page Not Found' and helpful user guidance. Screenshot captured showing professional appearance."
 
+  - task: "Admin Tool Form - Unified Credential Types"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/admin/AdminToolForm.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Enhanced AdminToolForm with unified credential system UI. Added support for all credential types: Form Login (username/password/selectors), SSO/OAuth (authStartUrl, provider, autoClick), Custom Headers (multiple headers), Cookies, Token, LocalStorage, SessionStorage, None. Added Success Validation section (urlIncludes/urlExcludes/elementExists/cookieNames). Added Login URL field and enhanced Extension Settings (reloadAfterLogin, spaMode, retryAttempts, retryDelayMs)."
+
   - task: "Registration Endpoint Fix and Route Verification"
     implemented: true
     working: true
