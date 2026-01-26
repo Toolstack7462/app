@@ -1,5 +1,79 @@
 const mongoose = require('mongoose');
 
+/**
+ * Unified Credential Schema
+ * Supports: form, sso, headers, cookies, token, localStorage, sessionStorage, none
+ * 
+ * Structure:
+ * {
+ *   type: "form" | "sso" | "headers" | "cookies" | "token" | "localStorage" | "sessionStorage" | "none",
+ *   payload: { ... type-specific data ... },
+ *   selectors: { ... CSS selectors for form elements ... },
+ *   successCheck: { ... validation after login ... }
+ * }
+ */
+const credentialSchema = new mongoose.Schema({
+  // Credential type
+  type: {
+    type: String,
+    enum: ['form', 'sso', 'headers', 'cookies', 'token', 'localStorage', 'sessionStorage', 'none'],
+    required: true
+  },
+  
+  // Type-specific payload (encrypted JSON string)
+  // Form: { username, password, loginUrl? }
+  // SSO: { authStartUrl, postLoginUrl, provider? }
+  // Headers: { headers: [{name, value, prefix?}] }
+  // Cookies: Array of cookie objects
+  // Token: { value, storageKey?, injectToStorage? }
+  // localStorage/sessionStorage: { key: value }
+  payloadEncrypted: {
+    type: String
+  },
+  
+  // CSS selectors for form-based login
+  selectors: {
+    username: String,      // CSS selector for username/email field
+    password: String,      // CSS selector for password field
+    submit: String,        // CSS selector for submit button
+    rememberMe: String,    // CSS selector for "remember me" checkbox
+    twoFactor: String,     // CSS selector for 2FA input
+    errorMessage: String   // CSS selector to detect login errors
+  },
+  
+  // Success validation after login attempt
+  successCheck: {
+    // URL-based checks
+    urlIncludes: String,         // URL should include this string after login
+    urlExcludes: String,         // URL should NOT include this (e.g., /login)
+    urlPattern: String,          // Regex pattern for URL
+    
+    // Cookie-based checks
+    cookieNames: [String],       // These cookies should exist after login
+    cookieValues: mongoose.Schema.Types.Mixed, // { cookieName: expectedValue }
+    
+    // DOM-based checks
+    elementExists: String,       // CSS selector that should exist when logged in
+    elementNotExists: String,    // CSS selector that should NOT exist (e.g., login form)
+    
+    // Storage-based checks
+    storageKeys: [String],       // localStorage keys that should exist
+    
+    // Custom validation (JSON string of rules)
+    customRules: String
+  },
+  
+  // Legacy support for header-based auth
+  tokenHeader: {
+    type: String,
+    default: 'Authorization'
+  },
+  tokenPrefix: {
+    type: String,
+    default: 'Bearer '
+  }
+}, { _id: false });
+
 const toolSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -13,6 +87,10 @@ const toolSchema = new mongoose.Schema({
   targetUrl: {
     type: String,
     required: true
+  },
+  // Login URL (if different from targetUrl)
+  loginUrl: {
+    type: String
   },
   // Domain extracted from targetUrl for extension permissions
   domain: {
@@ -34,13 +112,19 @@ const toolSchema = new mongoose.Schema({
     size: Number,
     type: String
   },
-  // Credential type: cookies, token, localStorage
+  
+  // ========== UNIFIED CREDENTIAL SYSTEM ==========
+  // New unified credentials field
+  credentials: credentialSchema,
+  
+  // ========== LEGACY FIELDS (for backward compatibility) ==========
+  // Will be migrated to unified format
   credentialType: {
     type: String,
-    enum: ['cookies', 'token', 'localStorage', 'none'],
+    enum: ['form', 'sso', 'headers', 'cookies', 'token', 'localStorage', 'sessionStorage', 'none'],
     default: 'cookies'
   },
-  // Encrypted credentials storage
+  // Encrypted credentials storage (legacy)
   cookiesEncrypted: {
     type: String // AES-256-GCM encrypted JSON for cookies
   },
@@ -58,6 +142,8 @@ const toolSchema = new mongoose.Schema({
   localStorageEncrypted: {
     type: String // AES-256-GCM encrypted localStorage data
   },
+  // ========== END LEGACY FIELDS ==========
+  
   // Credential versioning for extension sync
   credentialVersion: {
     type: Number,
@@ -73,6 +159,11 @@ const toolSchema = new mongoose.Schema({
     autoInject: { type: Boolean, default: true },
     injectOnPageLoad: { type: Boolean, default: true },
     clearExistingCookies: { type: Boolean, default: false },
+    reloadAfterLogin: { type: Boolean, default: true },
+    waitForNavigation: { type: Boolean, default: true },
+    spaMode: { type: Boolean, default: false },
+    retryAttempts: { type: Number, default: 2 },
+    retryDelayMs: { type: Number, default: 1000 },
     notes: String
   },
   createdBy: {
