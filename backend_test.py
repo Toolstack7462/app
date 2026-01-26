@@ -13,8 +13,8 @@ import uuid
 
 class ToolStackCRMTester:
     def __init__(self):
-        # Use localhost for testing as per review request
-        self.gateway_url = "http://localhost:8001"
+        # Use preview URL for testing environment-agnostic configuration
+        self.gateway_url = "https://passportal-9.preview.emergentagent.com"
         self.crm_health_url = f"{self.gateway_url}/api/crm/health"
         self.api_base = f"{self.gateway_url}/api/crm"
         
