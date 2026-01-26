@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const activityLogSchema = new mongoose.Schema({
   actorRole: {
     type: String,
-    enum: ['ADMIN', 'CLIENT', 'SYSTEM'],
+    enum: ['ADMIN', 'SUPER_ADMIN', 'CLIENT', 'SYSTEM'],
     required: true
   },
   actorId: {
