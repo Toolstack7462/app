@@ -517,7 +517,277 @@ const AdminToolForm = () => {
               ))}
             </div>
 
-            {/* Credential Input based on type */}
+            {/* Form Login Fields */}
+            {formData.credentialType === 'form' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <LogIn size={18} className="text-toolstack-orange" />
+                  <span className="font-medium text-white">Form Login Configuration</span>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Username / Email
+                    </label>
+                    <input
+                      type="text"
+                      value={formLoginData.username}
+                      onChange={(e) => setFormLoginData(prev => ({ ...prev, username: e.target.value }))}
+                      className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors"
+                      placeholder="user@example.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={formLoginData.password}
+                      onChange={(e) => setFormLoginData(prev => ({ ...prev, password: e.target.value }))}
+                      className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    Login URL (optional)
+                  </label>
+                  <input
+                    type="url"
+                    value={formLoginData.loginUrl}
+                    onChange={(e) => setFormLoginData(prev => ({ ...prev, loginUrl: e.target.value }))}
+                    className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors"
+                    placeholder="https://example.com/login (defaults to Target URL)"
+                  />
+                </div>
+                
+                {/* Custom Selectors */}
+                <div className="border-t border-toolstack-border pt-4 mt-4">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Info size={16} className="text-blue-400" />
+                    <span className="text-sm text-toolstack-muted">Custom Selectors (optional - uses smart detection by default)</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs text-toolstack-muted mb-1">Username Field Selector</label>
+                      <input
+                        type="text"
+                        value={formSelectors.username}
+                        onChange={(e) => setFormSelectors(prev => ({ ...prev, username: e.target.value }))}
+                        className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white text-sm placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange"
+                        placeholder='input[name="email"]'
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-toolstack-muted mb-1">Password Field Selector</label>
+                      <input
+                        type="text"
+                        value={formSelectors.password}
+                        onChange={(e) => setFormSelectors(prev => ({ ...prev, password: e.target.value }))}
+                        className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white text-sm placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange"
+                        placeholder='input[type="password"]'
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-toolstack-muted mb-1">Submit Button Selector</label>
+                      <input
+                        type="text"
+                        value={formSelectors.submit}
+                        onChange={(e) => setFormSelectors(prev => ({ ...prev, submit: e.target.value }))}
+                        className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white text-sm placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange"
+                        placeholder='button[type="submit"]'
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-toolstack-muted mb-1">Error Message Selector</label>
+                      <input
+                        type="text"
+                        value={formSelectors.errorMessage}
+                        onChange={(e) => setFormSelectors(prev => ({ ...prev, errorMessage: e.target.value }))}
+                        className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white text-sm placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange"
+                        placeholder='.error-message, .alert-danger'
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SSO / OAuth Fields */}
+            {formData.credentialType === 'sso' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <Globe size={18} className="text-toolstack-orange" />
+                  <span className="font-medium text-white">SSO / OAuth Configuration</span>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Auth Start URL *
+                    </label>
+                    <input
+                      type="url"
+                      value={ssoData.authStartUrl}
+                      onChange={(e) => setSsoData(prev => ({ ...prev, authStartUrl: e.target.value }))}
+                      className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors"
+                      placeholder="https://example.com/auth/sso"
+                    />
+                    <p className="mt-1 text-xs text-toolstack-muted">URL to start the SSO flow</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Post-Login URL
+                    </label>
+                    <input
+                      type="url"
+                      value={ssoData.postLoginUrl}
+                      onChange={(e) => setSsoData(prev => ({ ...prev, postLoginUrl: e.target.value }))}
+                      className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors"
+                      placeholder="https://example.com/dashboard"
+                    />
+                    <p className="mt-1 text-xs text-toolstack-muted">Expected URL after successful login</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      SSO Provider
+                    </label>
+                    <select
+                      value={ssoData.provider}
+                      onChange={(e) => setSsoData(prev => ({ ...prev, provider: e.target.value }))}
+                      className="w-full px-4 py-3 bg-toolstack-bg border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange"
+                    >
+                      <option value="">Auto-detect</option>
+                      <option value="google">Google</option>
+                      <option value="microsoft">Microsoft / Azure AD</option>
+                      <option value="github">GitHub</option>
+                      <option value="okta">Okta</option>
+                      <option value="auth0">Auth0</option>
+                      <option value="saml">SAML / Enterprise SSO</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Provider Button Selector
+                    </label>
+                    <input
+                      type="text"
+                      value={ssoData.buttonSelector}
+                      onChange={(e) => setSsoData(prev => ({ ...prev, buttonSelector: e.target.value }))}
+                      className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors"
+                      placeholder='button[data-provider="google"]'
+                    />
+                  </div>
+                </div>
+                
+                <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={ssoData.autoClick}
+                    onChange={(e) => setSsoData(prev => ({ ...prev, autoClick: e.target.checked }))}
+                    className="w-5 h-5 rounded border-toolstack-border text-toolstack-orange focus:ring-toolstack-orange"
+                  />
+                  <div>
+                    <div className="font-medium text-white">Auto-click provider button</div>
+                    <div className="text-xs text-toolstack-muted">Automatically click the SSO provider button on the login page</div>
+                  </div>
+                </label>
+              </div>
+            )}
+
+            {/* Custom Headers Fields */}
+            {formData.credentialType === 'headers' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Database size={18} className="text-toolstack-orange" />
+                    <span className="font-medium text-white">Custom Headers</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setHeadersData(prev => [...prev, { name: '', value: '', prefix: '' }])}
+                    className="text-sm text-toolstack-orange hover:underline"
+                  >
+                    + Add Header
+                  </button>
+                </div>
+                
+                <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg mb-4">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle size={16} className="text-yellow-500 mt-0.5" />
+                    <div className="text-sm text-yellow-200">
+                      <strong>MV3 Limitation:</strong> Chrome Extension MV3 cannot modify request headers directly. 
+                      For best results, configure server-side session bootstrap to set cookies instead.
+                    </div>
+                  </div>
+                </div>
+                
+                {headersData.map((header, index) => (
+                  <div key={index} className="grid grid-cols-12 gap-3 items-center">
+                    <div className="col-span-4">
+                      <input
+                        type="text"
+                        value={header.name}
+                        onChange={(e) => {
+                          const newHeaders = [...headersData];
+                          newHeaders[index].name = e.target.value;
+                          setHeadersData(newHeaders);
+                        }}
+                        className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white text-sm placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange"
+                        placeholder="Header Name"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <input
+                        type="text"
+                        value={header.prefix}
+                        onChange={(e) => {
+                          const newHeaders = [...headersData];
+                          newHeaders[index].prefix = e.target.value;
+                          setHeadersData(newHeaders);
+                        }}
+                        className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white text-sm placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange"
+                        placeholder="Prefix"
+                      />
+                    </div>
+                    <div className="col-span-5">
+                      <input
+                        type="password"
+                        value={header.value}
+                        onChange={(e) => {
+                          const newHeaders = [...headersData];
+                          newHeaders[index].value = e.target.value;
+                          setHeadersData(newHeaders);
+                        }}
+                        className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white text-sm placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange"
+                        placeholder="Header Value"
+                      />
+                    </div>
+                    <div className="col-span-1">
+                      {headersData.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setHeadersData(prev => prev.filter((_, i) => i !== index))}
+                          className="text-red-400 hover:text-red-300"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Cookies Input */}
             {formData.credentialType === 'cookies' && (
               <div>
                 <label htmlFor="cookiesEncrypted" className="block text-sm font-medium text-white mb-2">
@@ -543,6 +813,7 @@ const AdminToolForm = () => {
               </div>
             )}
 
+            {/* Token Input */}
             {formData.credentialType === 'token' && (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -592,16 +863,17 @@ const AdminToolForm = () => {
                     data-testid="tool-token-value"
                   />
                   <p className="mt-2 text-xs text-toolstack-muted">
-                    Token will be injected as: {formData.tokenHeader}: {formData.tokenPrefix}[token]
+                    Token will be stored in localStorage as: access_token, token, auth_token
                   </p>
                 </div>
               </div>
             )}
 
-            {formData.credentialType === 'localStorage' && (
+            {/* LocalStorage / SessionStorage Input */}
+            {(formData.credentialType === 'localStorage' || formData.credentialType === 'sessionStorage') && (
               <div>
                 <label htmlFor="localStorageEncrypted" className="block text-sm font-medium text-white mb-2">
-                  LocalStorage Data {isEdit && '(leave empty to keep existing)'}
+                  {formData.credentialType === 'sessionStorage' ? 'Session' : 'Local'}Storage Data {isEdit && '(leave empty to keep existing)'}
                 </label>
                 <textarea
                   id="localStorageEncrypted"
@@ -616,7 +888,7 @@ const AdminToolForm = () => {
                   data-testid="tool-localstorage-input"
                 />
                 <p className="mt-2 text-xs text-toolstack-muted">
-                  Paste localStorage data as JSON object. Keys will be set in browser localStorage.
+                  Paste {formData.credentialType} data as JSON object. Keys will be set in browser storage.
                 </p>
               </div>
             )}
@@ -627,6 +899,70 @@ const AdminToolForm = () => {
               </div>
             )}
           </div>
+
+          {/* Success Check Card (shown for form, sso, headers) */}
+          {['form', 'sso', 'headers'].includes(formData.credentialType) && (
+            <div className="bg-toolstack-card border border-toolstack-border rounded-xl p-6">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-white mb-6">
+                <CheckCircle size={20} className="text-green-500" />
+                Success Validation (Optional)
+              </h2>
+              <p className="text-sm text-toolstack-muted mb-4">
+                Define how the extension should verify that login was successful.
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    URL Should Include
+                  </label>
+                  <input
+                    type="text"
+                    value={successCheck.urlIncludes}
+                    onChange={(e) => setSuccessCheck(prev => ({ ...prev, urlIncludes: e.target.value }))}
+                    className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors"
+                    placeholder="/dashboard"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    URL Should NOT Include
+                  </label>
+                  <input
+                    type="text"
+                    value={successCheck.urlExcludes}
+                    onChange={(e) => setSuccessCheck(prev => ({ ...prev, urlExcludes: e.target.value }))}
+                    className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors"
+                    placeholder="/login"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    Element Should Exist (CSS Selector)
+                  </label>
+                  <input
+                    type="text"
+                    value={successCheck.elementExists}
+                    onChange={(e) => setSuccessCheck(prev => ({ ...prev, elementExists: e.target.value }))}
+                    className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors"
+                    placeholder=".user-avatar, [data-testid='user-menu']"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    Cookie Names (comma-separated)
+                  </label>
+                  <input
+                    type="text"
+                    value={successCheck.cookieNames}
+                    onChange={(e) => setSuccessCheck(prev => ({ ...prev, cookieNames: e.target.value }))}
+                    className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors"
+                    placeholder="session, auth_token"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Extension Settings Card */}
           <div className="bg-toolstack-card border border-toolstack-border rounded-xl p-6">
