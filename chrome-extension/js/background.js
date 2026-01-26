@@ -169,6 +169,7 @@ async function checkForUpdates() {
 
 /**
  * Handle login required notification from content script
+ * For FORM credentials: Execute login invisibly in hidden tab, then redirect
  */
 async function handleLoginRequired(data, sender) {
   const { hostname, url } = data;
@@ -204,8 +205,38 @@ async function handleLoginRequired(data, sender) {
     
     // Create tool config
     const config = createToolConfig(tool, credentials);
+    const postLoginUrl = tool.targetUrl;
     
-    // Execute login strategies
+    // For FORM credentials: Handle invisibly
+    if (credentials.type === 'form' && config.formData) {
+      console.log('[Background] Form login - executing invisibly');
+      
+      // Execute form fill in the CURRENT tab (which is the login page)
+      // This is okay because user is already ON the login page
+      const formStrategy = strategyEngine.strategies.form;
+      const fillResult = await formStrategy.executeFormFill(tabId, {
+        username: config.formData.username,
+        password: config.formData.password,
+        selectors: formStrategy.mergeSelectors(config.selectors),
+        autoSubmit: config.options?.autoSubmit !== false,
+        rememberMe: config.options?.rememberMe !== false
+      });
+      
+      console.log('[Background] Form fill result:', fillResult);
+      
+      if (fillResult.success) {
+        // Form submitted - the page will navigate automatically
+        // Just log and wait for navigation
+        try {
+          await apiRequest(`/tools/${tool.id}/opened`, { method: 'POST' });
+        } catch (e) {
+          console.warn('[Background] Failed to log tool opened:', e);
+        }
+      }
+      return;
+    }
+    
+    // For non-form credentials: Execute strategies in current tab
     const context = { tabId, url };
     const result = await strategyEngine.execute(config, context);
     
