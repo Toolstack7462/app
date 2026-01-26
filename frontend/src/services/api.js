@@ -131,6 +131,7 @@ api.interceptors.response.use(
 
 /**
  * Handle session invalidation - clear tokens and redirect to appropriate login
+ * IMPORTANT: Client routes should NEVER redirect to admin login
  */
 function handleSessionInvalidation(reason) {
   localStorage.removeItem('crm_token');
@@ -138,10 +139,16 @@ function handleSessionInvalidation(reason) {
   const user = JSON.parse(localStorage.getItem('crm_user') || '{}');
   localStorage.removeItem('crm_user');
   
-  // Redirect based on role
-  if (user.role === 'CLIENT') {
+  // Determine correct login page based on current path AND user role
+  const currentPath = window.location.pathname;
+  const isClientPath = currentPath.startsWith('/client');
+  
+  // RULE: If on client path OR user is CLIENT, always go to client login
+  // This ensures clients NEVER see admin login
+  if (isClientPath || user.role === 'CLIENT') {
     window.location.href = `/client/login?message=${reason}`;
   } else {
+    // Only admins on admin paths go to admin login
     window.location.href = `/admin/login?message=${reason}`;
   }
 }
