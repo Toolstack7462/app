@@ -6,7 +6,9 @@ import { CookieStrategy } from './CookieStrategy.js';
 import { TokenStrategy } from './TokenStrategy.js';
 import { FormStrategy } from './FormStrategy.js';
 import { OAuthStrategy } from './OAuthStrategy.js';
-import { DEFAULT_STRATEGY_ORDER, TIMEOUTS } from '../config/toolConfigs.js';
+import { SSOStrategy } from './SSOStrategy.js';
+import { HeadersStrategy } from './HeadersStrategy.js';
+import { DEFAULT_STRATEGY_ORDER, TIMEOUTS, RETRY_CONFIG } from '../config/toolConfigs.js';
 
 export class StrategyEngine {
   constructor() {
@@ -15,11 +17,17 @@ export class StrategyEngine {
       cookie: new CookieStrategy(),
       token: new TokenStrategy(),
       form: new FormStrategy(),
-      oauth: new OAuthStrategy()
+      oauth: new OAuthStrategy(),
+      sso: new SSOStrategy(),
+      headers: new HeadersStrategy()
     };
     
     // Track execution results
     this.executionHistory = new Map();
+    
+    // Track success rates per domain for intelligent ordering
+    this.successRates = new Map();
+  }
   }
   
   /**
