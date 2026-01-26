@@ -178,8 +178,7 @@ const ClientDashboardEnhanced = () => {
                 </p>
                 <div className="flex flex-wrap gap-3 justify-center md:justify-start">
                   <a 
-                    href="/chrome-extension.zip" 
-                    download
+                    href="/api/extension/download" 
                     className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-toolstack-orange to-orange-600 text-white rounded-full font-medium hover:opacity-90 transition-all hover:scale-105 shadow-lg shadow-toolstack-orange/20"
                     data-testid="download-extension-btn"
                   >
