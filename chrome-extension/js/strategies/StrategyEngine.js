@@ -385,6 +385,45 @@ export class StrategyEngine {
   }
   
   /**
+   * Get SSO strategy for one-click flows
+   */
+  getSSOStrategy() {
+    return this.strategies.sso;
+  }
+  
+  /**
+   * Get Headers strategy
+   */
+  getHeadersStrategy() {
+    return this.strategies.headers;
+  }
+  
+  /**
+   * Get all available strategies
+   */
+  getAvailableStrategies() {
+    return Object.keys(this.strategies);
+  }
+  
+  /**
+   * Get success rates for a domain
+   */
+  getDomainSuccessRates(domain) {
+    return this.successRates.get(domain) || {};
+  }
+  
+  /**
+   * Clear success rate history
+   */
+  clearSuccessRates(domain = null) {
+    if (domain) {
+      this.successRates.delete(domain);
+    } else {
+      this.successRates.clear();
+    }
+  }
+  
+  /**
    * Log message
    */
   log(message, data = null) {
