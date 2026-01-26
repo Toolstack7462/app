@@ -216,6 +216,66 @@ backend:
         agent: "testing"
         comment: "✅ ENVIRONMENT-AGNOSTIC API CONFIGURATION VERIFIED - ALL TESTS PASSED: Conducted comprehensive testing of environment-agnostic configuration as per review request. PERFECT RESULTS: (1) Health Check Endpoints ✅ - Both /api/health and /api/crm/health responding correctly, gateway status 'running', CRM status 'ok', MongoDB state 'connected' to toolstack_crm database, (2) CORS Headers ✅ - ALL 4 test origins working perfectly (passportal-9.preview.emergentagent.com, another-app.preview.emergentagent.com, main.emergentagent.com, localhost:3000), Access-Control-Allow-Origin and Access-Control-Allow-Credentials headers properly set, (3) API Gateway Proxy ✅ - /api/crm/* routes properly proxied to CRM backend, CRM-specific data returned correctly. Architecture verified: Frontend (preview URL) → FastAPI Gateway (8001) → CRM Backend (8002) → MongoDB. Fixed missing Node.js dependencies issue that was preventing CRM server startup. Environment-agnostic configuration working as intended - frontend can connect to backend using relative URLs and CORS supports URL changes."
 
+  - task: "Unified Credential Schema"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/models/Tool.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented unified credential schema with type (form/sso/headers/cookies/token/localStorage/sessionStorage/none), payload, selectors, and successCheck fields. Supports form login, SSO/OAuth one-click, custom headers (MV3 aware), and all legacy types. Added loginUrl field, retry settings, and SPA mode to extension settings."
+
+  - task: "Extension Credentials API Enhancement"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/routes/extension/index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Updated extension API to return credentials in unified format including type, payload, selectors, successCheck, loginUrl, and enhanced extension settings (reloadAfterLogin, waitForNavigation, spaMode, retryAttempts, retryDelayMs)."
+
+  - task: "Chrome Extension SSO Strategy"
+    implemented: true
+    working: "NA"
+    file: "/app/chrome-extension/js/strategies/SSOStrategy.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Created new SSOStrategy for one-click OAuth authentication flows. Supports Google, Microsoft, GitHub, Okta, Auth0, and SAML providers. Features: auto-click provider buttons, auth flow monitoring, success detection, session bootstrap injection, and token injection."
+
+  - task: "Chrome Extension Headers Strategy"
+    implemented: true
+    working: "NA"
+    file: "/app/chrome-extension/js/strategies/HeadersStrategy.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Created MV3-aware HeadersStrategy for custom header authentication. Handles MV3 limitation (cannot modify headers) by preferring cookie/storage injection. Supports multiple headers with server-side session bootstrap fallback."
+
+  - task: "Strategy Engine Retry Logic"
+    implemented: true
+    working: "NA"
+    file: "/app/chrome-extension/js/strategies/StrategyEngine.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Enhanced StrategyEngine with retry logic (exponential backoff), success rate tracking per domain, and optimal strategy ordering based on historical success rates."
+
 frontend:
   - task: "SPA 404 Catch-All Route"
     implemented: true
