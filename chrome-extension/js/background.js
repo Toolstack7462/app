@@ -266,6 +266,7 @@ async function getToolCredentials(toolId) {
 
 /**
  * Execute one-click login for a tool
+ * INVISIBLE LOGIN: Form login happens in hidden tab, user lands on targetUrl
  */
 async function executeOneClickLogin(toolId, tool) {
   console.log(`[Background] One-click login for tool: ${tool.name}`);
@@ -280,13 +281,59 @@ async function executeOneClickLogin(toolId, tool) {
   // Create tool config
   const config = createToolConfig(tool, credentials);
   
+  // Determine the URL to open (post-login URL)
+  const postLoginUrl = tool.targetUrl;
+  const loginUrl = credentials.loginUrl || tool.loginUrl || tool.targetUrl;
+  
+  // For FORM credentials: Do invisible login FIRST, then open target
+  if (credentials.type === 'form' && config.formData) {
+    console.log('[Background] Form login detected - executing invisible login');
+    
+    // Execute form strategy invisibly (in hidden tab)
+    const formStrategy = strategyEngine.strategies.form;
+    const formResult = await formStrategy.execute(config, {});
+    
+    console.log('[Background] Invisible form login result:', formResult);
+    
+    if (formResult.success) {
+      // Login succeeded - open the target URL directly
+      const tab = await chrome.tabs.create({ url: postLoginUrl, active: true });
+      
+      // Log tool opened
+      try {
+        await apiRequest(`/tools/${toolId}/opened`, { method: 'POST' });
+      } catch (e) {
+        console.warn('[Background] Failed to log tool opened:', e);
+      }
+      
+      return {
+        success: true,
+        invisible: true,
+        tabId: tab.id
+      };
+    } else if (formResult.alreadyLoggedIn) {
+      // Already logged in - just open target
+      const tab = await chrome.tabs.create({ url: postLoginUrl, active: true });
+      return {
+        success: true,
+        alreadyLoggedIn: true,
+        tabId: tab.id
+      };
+    } else {
+      // Form login failed - fall through to normal flow
+      console.log('[Background] Invisible login failed, trying normal flow');
+    }
+  }
+  
+  // For NON-FORM credentials (cookies, tokens, SSO): Pre-execute then open tab
+  
   // Pre-execute strategies that don't need a tab (cookies)
   const preResult = await strategyEngine.preExecute(config);
   
   console.log('[Background] Pre-execute result:', preResult);
   
-  // Open the tab
-  const tab = await chrome.tabs.create({ url: tool.targetUrl, active: true });
+  // Open the tab to target URL
+  const tab = await chrome.tabs.create({ url: postLoginUrl, active: true });
   
   // Wait for tab to load
   await waitForTabLoad(tab.id);
@@ -297,8 +344,8 @@ async function executeOneClickLogin(toolId, tool) {
     await waitForTabLoad(tab.id);
   }
   
-  // Execute remaining strategies that need a tab
-  const context = { tabId: tab.id, url: tool.targetUrl };
+  // Execute remaining strategies that need a tab (tokens, storage)
+  const context = { tabId: tab.id, url: postLoginUrl };
   const skipStrategies = preResult.preExecuted || [];
   
   const postResult = await strategyEngine.postExecute(config, context, skipStrategies);
