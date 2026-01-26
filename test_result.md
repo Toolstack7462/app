@@ -360,9 +360,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Unified Credential System Enhancement"
-    - "Chrome Extension Strategy Updates"
-    - "Admin Tool Form Credential Type Support"
+    - "All unified credential system tasks completed and tested"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
