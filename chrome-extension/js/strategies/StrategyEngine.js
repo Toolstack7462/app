@@ -28,7 +28,6 @@ export class StrategyEngine {
     // Track success rates per domain for intelligent ordering
     this.successRates = new Map();
   }
-  }
   
   /**
    * Execute login strategies in order with fallback and retry
