@@ -1,23 +1,73 @@
 import axios from 'axios';
 
-// Use the main backend URL with /api/crm prefix for CRM routes
-const API_BASE_URL = `${process.env.REACT_APP_BACKEND_URL}/api/crm`;
+// ============================================================================
+// UNIVERSAL API CONFIGURATION - ENVIRONMENT AGNOSTIC
+// ============================================================================
+// This configuration works regardless of how Emergent changes subdomains/ports
+// Priority order for API base URL:
+// 1. Use same-origin relative path (most reliable for proxied setups)
+// 2. Fall back to REACT_APP_BACKEND_URL env variable if explicitly set
+// 3. Fall back to window.location.origin (current domain)
+// ============================================================================
 
+/**
+ * Determines the API base URL dynamically
+ * For Emergent deployments, always uses relative paths which work with any subdomain
+ */
+function getApiBaseUrl() {
+  // Check if we have an explicitly configured backend URL that's different from current origin
+  const envBackendUrl = process.env.REACT_APP_BACKEND_URL;
+  
+  // If env variable is set and it's a different origin, use it (useful for local dev)
+  if (envBackendUrl) {
+    try {
+      const envOrigin = new URL(envBackendUrl).origin;
+      const currentOrigin = window.location.origin;
+      
+      // If they're different (e.g., local dev pointing to remote), use the env URL
+      if (envOrigin !== currentOrigin && !envBackendUrl.includes('localhost')) {
+        console.log('[API] Using configured backend URL:', envBackendUrl);
+        return `${envBackendUrl}/api/crm`;
+      }
+    } catch (e) {
+      // Invalid URL in env, ignore and use relative
+    }
+  }
+  
+  // Default: Use relative URL (same-origin) - works with any Emergent preview URL
+  // This is the most reliable approach for dynamic deployments
+  console.log('[API] Using same-origin relative path: /api/crm');
+  return '/api/crm';
+}
+
+// Get the base URL
+const API_BASE_URL = getApiBaseUrl();
+
+// Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json'
   },
-  withCredentials: true // Important for cookies
+  withCredentials: true // Important for cookies/sessions
 });
 
-// Request interceptor to add auth token
+// ============================================================================
+// REQUEST INTERCEPTOR
+// ============================================================================
 api.interceptors.request.use(
   (config) => {
+    // Add auth token if available
     const token = localStorage.getItem('crm_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Log request in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[API] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+    }
+    
     return config;
   },
   (error) => {
@@ -25,7 +75,9 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor for error handling and token refresh
+// ============================================================================
+// RESPONSE INTERCEPTOR - Auto token refresh & error handling
+// ============================================================================
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -35,17 +87,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       // Check for TOKEN_VERSION_MISMATCH - force logout
       if (error.response?.data?.code === 'TOKEN_VERSION_MISMATCH') {
-        localStorage.removeItem('crm_token');
-        localStorage.removeItem('crm_refresh_token');
-        const user = JSON.parse(localStorage.getItem('crm_user') || '{}');
-        localStorage.removeItem('crm_user');
-        
-        // Redirect based on role stored before clearing
-        if (user.role === 'CLIENT') {
-          window.location.href = '/client/login?message=session_invalidated';
-        } else {
-          window.location.href = '/admin/login?message=session_invalidated';
-        }
+        handleSessionInvalidation('session_invalidated');
         return Promise.reject(error);
       }
       
@@ -58,6 +100,7 @@ api.interceptors.response.use(
           throw new Error('No refresh token');
         }
         
+        // Use the same base URL for refresh
         const response = await axios.post(
           `${API_BASE_URL}/auth/refresh`,
           { refreshToken },
@@ -77,18 +120,7 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         // Refresh failed - clear tokens and redirect to login
-        localStorage.removeItem('crm_token');
-        localStorage.removeItem('crm_refresh_token');
-        const user = JSON.parse(localStorage.getItem('crm_user') || '{}');
-        localStorage.removeItem('crm_user');
-        
-        // Redirect based on role
-        if (user.role === 'CLIENT') {
-          window.location.href = '/client/login?message=session_expired';
-        } else {
-          window.location.href = '/admin/login?message=session_expired';
-        }
-        
+        handleSessionInvalidation('session_expired');
         return Promise.reject(refreshError);
       }
     }
@@ -96,5 +128,45 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+/**
+ * Handle session invalidation - clear tokens and redirect to appropriate login
+ */
+function handleSessionInvalidation(reason) {
+  localStorage.removeItem('crm_token');
+  localStorage.removeItem('crm_refresh_token');
+  const user = JSON.parse(localStorage.getItem('crm_user') || '{}');
+  localStorage.removeItem('crm_user');
+  
+  // Redirect based on role
+  if (user.role === 'CLIENT') {
+    window.location.href = `/client/login?message=${reason}`;
+  } else {
+    window.location.href = `/admin/login?message=${reason}`;
+  }
+}
+
+// ============================================================================
+// UTILITY EXPORTS
+// ============================================================================
+
+/**
+ * Get the current API base URL (useful for debugging)
+ */
+export function getBaseUrl() {
+  return API_BASE_URL;
+}
+
+/**
+ * Check API health
+ */
+export async function checkApiHealth() {
+  try {
+    const response = await api.get('/health');
+    return { ok: true, data: response.data };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+}
 
 export default api;
