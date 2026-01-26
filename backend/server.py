@@ -170,6 +170,64 @@ async def api_health():
         "backend": backend_status
     }
 
+# ============================================================================
+# CHROME EXTENSION ZIP DOWNLOAD - IN-MEMORY GENERATION
+# ============================================================================
+def create_extension_zip():
+    """Generate Chrome Extension ZIP file in-memory"""
+    extension_dir = "/app/chrome-extension"
+    
+    # Create in-memory ZIP
+    zip_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        for root, dirs, files in os.walk(extension_dir):
+            # Skip hidden directories and __pycache__
+            dirs[:] = [d for d in dirs if not d.startswith('.') and d != '__pycache__']
+            
+            for file in files:
+                # Skip hidden files and temp files
+                if file.startswith('.') or file.endswith('.pyc'):
+                    continue
+                    
+                file_path = os.path.join(root, file)
+                # Calculate archive path relative to extension_dir
+                arcname = os.path.relpath(file_path, extension_dir)
+                zip_file.write(file_path, arcname)
+    
+    zip_buffer.seek(0)
+    return zip_buffer.getvalue()
+
+@app.get("/api/extension/download")
+async def download_extension():
+    """Download Chrome Extension as ZIP file - in-memory generation"""
+    try:
+        zip_content = create_extension_zip()
+        
+        return Response(
+            content=zip_content,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": 'attachment; filename="ToolStack-Access.zip"',
+                "Content-Type": "application/zip",
+                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                "Pragma": "no-cache",
+                "Content-Length": str(len(zip_content))
+            }
+        )
+    except Exception as e:
+        print(f"❌ Extension ZIP generation error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to generate extension ZIP: {str(e)}"}
+        )
+
+# Also serve on the old path for backward compatibility
+@app.get("/chrome-extension.zip")
+async def download_extension_legacy():
+    """Legacy path for extension download"""
+    return await download_extension()
+
 @app.api_route("/api/crm/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_to_crm(path: str, request: Request):
     """Proxy all /api/crm/* requests to Node CRM backend"""
