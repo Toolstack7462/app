@@ -274,19 +274,17 @@ metadata:
   run_ui: true
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Unified Credential System Enhancement"
+    - "Chrome Extension Strategy Updates"
+    - "Admin Tool Form Credential Type Support"
   stuck_tasks: []
-  test_all: true
+  test_all: false
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
-    message: "Implemented comprehensive fixes for URL change resilience and persistence. Key changes: 1) Dynamic CORS pattern matching (no hardcoded URLs), 2) MongoDB connection logging for persistence verification, 3) Auto-admin bootstrap on startup, 4) Input normalization (trim/lowercase), 5) Cookie sameSite='lax' for cross-subdomain, 6) SPA catch-all routing for 404s. CRM backend must be started separately: cd /app/backend && node server-crm.js (or use ./start-crm.sh). Please test: admin login, client login, URL change scenario, page refresh, routing."
-<<<<<<< HEAD
-=======
-  - agent: "main"
-    message: "LATEST UPDATE: Fixed tool creation validation error by adding normalizeStringInputs middleware to tool routes. CRM backend restarted successfully with all fixes applied. Please test: (1) Admin login with spaces/mixed case, (2) Tool creation with proper validation, (3) Client login and navigation, (4) Page refresh on all routes. System is ready for comprehensive testing."
->>>>>>> 50524b5 (Squashed after rollback: b35d0b22-fd0c-49a4-9da4-89095b06d1d6)
+    message: "MAJOR UPDATE - Unified Credential System Enhancement: Implemented future-proof credential system with unified schema { type, payload, selectors, successCheck }. Changes: (1) Backend Tool Model - Added unified credentials schema supporting form/sso/headers/cookies/token/localStorage/sessionStorage/none types with selectors and success checks, (2) Extension API - Updated to return credentials in unified format for extension consumption, (3) Chrome Extension - Added new SSOStrategy for one-click OAuth flows and HeadersStrategy for custom header auth (MV3 aware), enhanced StrategyEngine with retry logic and success rate tracking, (4) Admin Tool Form - Added comprehensive UI for all credential types including form login, SSO config, custom headers, success validation, and extension settings. Please test admin tool form with different credential types."
   - agent: "testing"
     message: "✅ BACKEND TESTING COMPLETE: 4/5 critical fixes working perfectly. ❌ CRITICAL ISSUE FOUND: Input normalization has design flaw - validation rejects emails with spaces before normalization can trim them. All other fixes (CORS, MongoDB, admin bootstrap, cookies) working as intended. Admin dashboard fully accessible. Architecture: FastAPI Gateway (8001) → CRM Backend (8002) → MongoDB (toolstack_crm) all connected and operational."
   - agent: "testing"
