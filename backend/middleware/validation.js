@@ -92,23 +92,59 @@ const schemas = {
     targetUrl: Joi.string().uri().required().messages({
       'string.uri': 'Please provide a valid URL'
     }),
+    loginUrl: Joi.string().uri().allow('', null),
     category: Joi.string().valid(
       'AI', 'Academic', 'SEO', 'Productivity', 
       'Graphics & SEO', 'Text Humanizers', 
       'Career-Oriented', 'Miscellaneous', 'Other'
     ).default('Other'),
     status: Joi.string().valid('active', 'inactive').default('active'),
-    credentialType: Joi.string().valid('cookies', 'token', 'localStorage', 'none').default('cookies'),
+    // Updated to support unified credential types
+    credentialType: Joi.string().valid('form', 'sso', 'headers', 'cookies', 'token', 'localStorage', 'sessionStorage', 'none').default('cookies'),
+    // Legacy credential fields
     cookiesEncrypted: Joi.string().allow('', null),
     tokenEncrypted: Joi.string().allow('', null),
     tokenHeader: Joi.string().max(100).default('Authorization'),
     tokenPrefix: Joi.string().max(50).allow('').default('Bearer '),
     localStorageEncrypted: Joi.string().allow('', null),
+    // New unified credentials field
+    credentials: Joi.object({
+      type: Joi.string().valid('form', 'sso', 'headers', 'cookies', 'token', 'localStorage', 'sessionStorage', 'none').required(),
+      payload: Joi.object().allow(null),
+      selectors: Joi.object({
+        username: Joi.string().allow(''),
+        password: Joi.string().allow(''),
+        submit: Joi.string().allow(''),
+        rememberMe: Joi.string().allow(''),
+        twoFactor: Joi.string().allow(''),
+        errorMessage: Joi.string().allow('')
+      }).allow(null),
+      successCheck: Joi.object({
+        urlIncludes: Joi.string().allow(''),
+        urlExcludes: Joi.string().allow(''),
+        urlPattern: Joi.string().allow(''),
+        cookieNames: Joi.array().items(Joi.string()),
+        cookieValues: Joi.object(),
+        elementExists: Joi.string().allow(''),
+        elementNotExists: Joi.string().allow(''),
+        storageKeys: Joi.array().items(Joi.string()),
+        customRules: Joi.string().allow('')
+      }).allow(null),
+      tokenHeader: Joi.string().allow(''),
+      tokenPrefix: Joi.string().allow('')
+    }).allow(null),
+    // Enhanced extension settings
     extensionSettings: Joi.object({
       requirePermission: Joi.boolean().default(true),
       autoInject: Joi.boolean().default(true),
       injectOnPageLoad: Joi.boolean().default(true),
-      clearExistingCookies: Joi.boolean().default(false)
+      clearExistingCookies: Joi.boolean().default(false),
+      reloadAfterLogin: Joi.boolean().default(true),
+      waitForNavigation: Joi.boolean().default(true),
+      spaMode: Joi.boolean().default(false),
+      retryAttempts: Joi.number().min(0).max(10).default(2),
+      retryDelayMs: Joi.number().min(100).max(10000).default(1000),
+      notes: Joi.string().allow('', null)
     }).default(),
     fileMeta: Joi.object({
       name: Joi.string(),
