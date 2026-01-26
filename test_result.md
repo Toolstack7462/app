@@ -233,15 +233,18 @@ backend:
 
   - task: "Extension Credentials API Enhancement"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/routes/extension/index.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Updated extension API to return credentials in unified format including type, payload, selectors, successCheck, loginUrl, and enhanced extension settings (reloadAfterLogin, waitForNavigation, spaMode, retryAttempts, retryDelayMs)."
+      - working: true
+        agent: "testing"
+        comment: "✅ EXTENSION CREDENTIALS API ENHANCEMENT VERIFIED: Tested extension API structure and confirmed it properly returns unified credentials format. API correctly serves tools with unified credentials including type field (form/sso/headers), payload structure, selectors for form elements, successCheck validation rules, and enhanced extension settings (reloadAfterLogin, spaMode, retryAttempts, retryDelayMs). The extension API is ready to serve the new unified credential format to Chrome Extension clients. Backward compatibility maintained for legacy credential types."
 
   - task: "Chrome Extension SSO Strategy"
     implemented: true
