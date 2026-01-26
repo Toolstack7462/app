@@ -1,10 +1,25 @@
-// Background service worker for ToolStack Extension
-// Handles auto-sync, credential updates, and request interception
+/**
+ * Background Service Worker for ToolStack Extension
+ * Central controller for auto-login, strategy execution, and credential management
+ */
 
+import { getStrategyEngine } from './strategies/StrategyEngine.js';
+import { createToolConfig, TIMEOUTS } from './config/toolConfigs.js';
+
+// Constants
 const SYNC_INTERVAL_MINUTES = 15;
 const ALARM_NAME = 'toolstack-sync';
 
-// Storage utilities
+// State
+let strategyEngine = null;
+let activeLogins = new Map(); // Track active login processes
+let toolCredentialsCache = new Map(); // Cache credentials
+let domainToolMap = new Map(); // Map domains to tools
+
+// ============================================================================
+// STORAGE UTILITIES
+// ============================================================================
+
 async function getStorage(keys) {
   return new Promise(resolve => chrome.storage.local.get(keys, resolve));
 }
@@ -13,7 +28,14 @@ async function setStorage(data) {
   return new Promise(resolve => chrome.storage.local.set(data, resolve));
 }
 
-// API request helper
+async function removeStorage(keys) {
+  return new Promise(resolve => chrome.storage.local.remove(keys, resolve));
+}
+
+// ============================================================================
+// API UTILITIES
+// ============================================================================
+
 async function apiRequest(endpoint, options = {}) {
   const data = await getStorage(['apiUrl', 'extensionToken']);
   
@@ -39,13 +61,69 @@ async function apiRequest(endpoint, options = {}) {
   return result;
 }
 
-// Check for tool version updates
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
+
+async function initialize() {
+  console.log('[Background] Initializing ToolStack Extension');
+  
+  // Initialize strategy engine
+  strategyEngine = getStrategyEngine();
+  
+  // Load cached data
+  await loadCachedData();
+  
+  // Setup sync alarm
+  await setupSyncAlarm();
+  
+  // Load token configs
+  await loadTokenConfigs();
+  
+  console.log('[Background] Initialization complete');
+}
+
+async function loadCachedData() {
+  const data = await getStorage(['tools', 'domainToolMap']);
+  
+  if (data.tools) {
+    // Build domain to tool map
+    for (const tool of data.tools) {
+      if (tool.domain) {
+        domainToolMap.set(tool.domain, tool);
+      }
+      // Also map by targetUrl hostname
+      try {
+        const hostname = new URL(tool.targetUrl).hostname;
+        domainToolMap.set(hostname, tool);
+      } catch (e) {
+        // Invalid URL
+      }
+    }
+  }
+}
+
+// ============================================================================
+// SYNC & UPDATES
+// ============================================================================
+
+async function setupSyncAlarm() {
+  await chrome.alarms.clear(ALARM_NAME);
+  
+  chrome.alarms.create(ALARM_NAME, {
+    delayInMinutes: 1,
+    periodInMinutes: SYNC_INTERVAL_MINUTES
+  });
+  
+  console.log(`[Background] Sync alarm set for every ${SYNC_INTERVAL_MINUTES} minutes`);
+}
+
 async function checkForUpdates() {
   try {
     const stored = await getStorage(['toolVersions', 'extensionToken']);
     
     if (!stored.extensionToken) {
-      console.log('Not authenticated, skipping sync');
+      console.log('[Background] Not authenticated, skipping sync');
       return;
     }
     
@@ -59,30 +137,25 @@ async function checkForUpdates() {
       const oldVersion = oldVersions[toolId]?.version || oldVersions[toolId] || 0;
       if (info.version > oldVersion) {
         updates.push(toolId);
+        // Clear cached credentials for updated tools
+        toolCredentialsCache.delete(toolId);
       }
     }
     
     if (updates.length > 0) {
-      console.log('Updates available for tools:', updates);
-      
-      // Notify user via badge
+      console.log('[Background] Updates available for tools:', updates);
       chrome.action.setBadgeText({ text: String(updates.length) });
       chrome.action.setBadgeBackgroundColor({ color: '#f97316' });
-      
-      // Store new versions
       await setStorage({ toolVersions: newVersions });
     } else {
-      // Clear badge
       chrome.action.setBadgeText({ text: '' });
     }
     
-    // Update last sync time
     await setStorage({ lastSync: new Date().toISOString() });
     
   } catch (error) {
-    console.error('Sync check failed:', error);
+    console.error('[Background] Sync check failed:', error);
     
-    // If token expired, clear badge
     if (error.message.includes('token') || error.message.includes('401')) {
       chrome.action.setBadgeText({ text: '!' });
       chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
@@ -90,113 +163,200 @@ async function checkForUpdates() {
   }
 }
 
-// Set up periodic sync alarm
-async function setupSyncAlarm() {
-  // Clear existing alarm
-  await chrome.alarms.clear(ALARM_NAME);
-  
-  // Create new alarm
-  chrome.alarms.create(ALARM_NAME, {
-    delayInMinutes: 1, // First check after 1 minute
-    periodInMinutes: SYNC_INTERVAL_MINUTES
-  });
-  
-  console.log(`Sync alarm set for every ${SYNC_INTERVAL_MINUTES} minutes`);
-}
-
-// Listen for alarm
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === ALARM_NAME) {
-    console.log('Running scheduled sync check');
-    checkForUpdates();
-  }
-});
-
-// Listen for extension install/update
-chrome.runtime.onInstalled.addListener((details) => {
-  console.log('Extension installed/updated:', details.reason);
-  setupSyncAlarm();
-  
-  if (details.reason === 'install') {
-    // Open options or welcome page on install
-    console.log('Extension installed for the first time');
-  }
-});
-
-// Listen for browser startup
-chrome.runtime.onStartup.addListener(() => {
-  console.log('Browser started, setting up sync');
-  setupSyncAlarm();
-});
-
-// Listen for messages from popup
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'CHECK_UPDATES') {
-    checkForUpdates().then(() => sendResponse({ success: true }));
-    return true; // Keep channel open for async response
-  }
-  
-  if (message.type === 'CLEAR_BADGE') {
-    chrome.action.setBadgeText({ text: '' });
-    sendResponse({ success: true });
-  }
-  
-  if (message.type === 'GET_SYNC_STATUS') {
-    getStorage(['lastSync', 'toolVersions']).then(data => {
-      sendResponse(data);
-    });
-    return true;
-  }
-  
-  // Handle cookie injection from popup
-  if (message.type === 'INJECT_COOKIES') {
-    injectCookies(message.targetUrl, message.cookies)
-      .then(result => sendResponse(result))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    return true;
-  }
-  
-  // Handle storage injection
-  if (message.type === 'INJECT_STORAGE') {
-    injectStorage(message.tabId, message.storageType, message.data)
-      .then(result => sendResponse(result))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    return true;
-  }
-});
-
 // ============================================================================
-// COOKIE INJECTION HELPERS
+// AUTO-LOGIN CONTROLLER
 // ============================================================================
 
 /**
- * Extract domain from URL
+ * Handle login required notification from content script
  */
-function extractDomain(url) {
+async function handleLoginRequired(data, sender) {
+  const { hostname, url } = data;
+  const tabId = sender.tab?.id;
+  
+  console.log(`[Background] Login required for ${hostname}`, { tabId, url });
+  
+  // Check if we're already processing login for this tab
+  if (activeLogins.has(tabId)) {
+    console.log('[Background] Login already in progress for tab', tabId);
+    return;
+  }
+  
+  // Find tool for this domain
+  const tool = domainToolMap.get(hostname);
+  
+  if (!tool) {
+    console.log(`[Background] No tool found for domain: ${hostname}`);
+    return;
+  }
+  
+  // Mark login as active
+  activeLogins.set(tabId, { tool, startTime: Date.now() });
+  
   try {
-    return new URL(url).hostname;
+    // Get credentials
+    const credentials = await getToolCredentials(tool.id);
+    
+    if (!credentials) {
+      console.log(`[Background] No credentials for tool: ${tool.name}`);
+      return;
+    }
+    
+    // Create tool config
+    const config = createToolConfig(tool, credentials);
+    
+    // Execute login strategies
+    const context = { tabId, url };
+    const result = await strategyEngine.execute(config, context);
+    
+    console.log('[Background] Strategy execution result:', result);
+    
+    // If successful and needs reload, reload the tab
+    if (result.success && result.needsReload) {
+      await chrome.tabs.reload(tabId);
+    }
+    
+    // Log tool opened
+    try {
+      await apiRequest(`/tools/${tool.id}/opened`, { method: 'POST' });
+    } catch (e) {
+      console.warn('[Background] Failed to log tool opened:', e);
+    }
+    
+  } catch (error) {
+    console.error('[Background] Auto-login failed:', error);
+  } finally {
+    // Clear active login
+    activeLogins.delete(tabId);
+  }
+}
+
+/**
+ * Get credentials for a tool (with caching)
+ */
+async function getToolCredentials(toolId) {
+  // Check cache
+  if (toolCredentialsCache.has(toolId)) {
+    const cached = toolCredentialsCache.get(toolId);
+    if (Date.now() - cached.timestamp < 5 * 60 * 1000) { // 5 min cache
+      return cached.credentials;
+    }
+  }
+  
+  try {
+    const result = await apiRequest(`/tools/${toolId}/credentials`);
+    
+    if (result.credentials) {
+      toolCredentialsCache.set(toolId, {
+        credentials: result.credentials,
+        timestamp: Date.now()
+      });
+    }
+    
+    return result.credentials;
+  } catch (error) {
+    console.error('[Background] Failed to fetch credentials:', error);
+    return null;
+  }
+}
+
+// ============================================================================
+// ONE-CLICK LOGIN (from popup)
+// ============================================================================
+
+/**
+ * Execute one-click login for a tool
+ */
+async function executeOneClickLogin(toolId, tool) {
+  console.log(`[Background] One-click login for tool: ${tool.name}`);
+  
+  // Get credentials
+  const credentials = await getToolCredentials(toolId);
+  
+  if (!credentials) {
+    return { success: false, error: 'No credentials available' };
+  }
+  
+  // Create tool config
+  const config = createToolConfig(tool, credentials);
+  
+  // Pre-execute strategies that don't need a tab (cookies)
+  const preResult = await strategyEngine.preExecute(config);
+  
+  console.log('[Background] Pre-execute result:', preResult);
+  
+  // Open the tab
+  const tab = await chrome.tabs.create({ url: tool.targetUrl, active: true });
+  
+  // Wait for tab to load
+  await waitForTabLoad(tab.id);
+  
+  // If cookies were set, reload to apply them
+  if (preResult.success && preResult.needsReload) {
+    await chrome.tabs.reload(tab.id);
+    await waitForTabLoad(tab.id);
+  }
+  
+  // Execute remaining strategies that need a tab
+  const context = { tabId: tab.id, url: tool.targetUrl };
+  const skipStrategies = preResult.preExecuted || [];
+  
+  const postResult = await strategyEngine.postExecute(config, context, skipStrategies);
+  
+  console.log('[Background] Post-execute result:', postResult);
+  
+  // Final reload if needed
+  if (postResult.success && postResult.needsReload) {
+    await chrome.tabs.reload(tab.id);
+  }
+  
+  // Log tool opened
+  try {
+    await apiRequest(`/tools/${toolId}/opened`, { method: 'POST' });
   } catch (e) {
-    return url;
+    console.warn('[Background] Failed to log tool opened:', e);
   }
+  
+  return {
+    success: preResult.success || postResult.success,
+    preResult,
+    postResult,
+    tabId: tab.id
+  };
 }
 
 /**
- * Get base domain for subdomain cookies
+ * Wait for tab to finish loading
  */
-function getBaseDomain(hostname) {
-  const parts = hostname.split('.');
-  if (parts.length <= 2) return hostname;
-  const commonMultiPartTLDs = ['co.uk', 'com.au', 'co.nz', 'co.in', 'com.br'];
-  const lastTwo = parts.slice(-2).join('.');
-  if (commonMultiPartTLDs.includes(lastTwo)) {
-    return parts.slice(-3).join('.');
-  }
-  return parts.slice(-2).join('.');
+function waitForTabLoad(tabId, timeout = 30000) {
+  return new Promise((resolve, reject) => {
+    const startTime = Date.now();
+    
+    const checkTab = () => {
+      chrome.tabs.get(tabId, (tab) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        
+        if (tab.status === 'complete') {
+          resolve(tab);
+        } else if (Date.now() - startTime > timeout) {
+          resolve(tab); // Resolve anyway after timeout
+        } else {
+          setTimeout(checkTab, 100);
+        }
+      });
+    };
+    
+    checkTab();
+  });
 }
 
-/**
- * Inject cookies for a target URL
- */
+// ============================================================================
+// COOKIE INJECTION
+// ============================================================================
+
 async function injectCookies(targetUrl, cookies) {
   if (!Array.isArray(cookies) || cookies.length === 0) {
     return { success: false, error: 'No cookies provided' };
@@ -273,9 +433,10 @@ async function injectCookies(targetUrl, cookies) {
   };
 }
 
-/**
- * Inject localStorage/sessionStorage via content script
- */
+// ============================================================================
+// STORAGE INJECTION
+// ============================================================================
+
 async function injectStorage(tabId, storageType, data) {
   return chrome.scripting.executeScript({
     target: { tabId },
@@ -301,33 +462,30 @@ async function injectStorage(tabId, storageType, data) {
 }
 
 // ============================================================================
-// REQUEST INTERCEPTION FOR TOKEN INJECTION
+// TOKEN CONFIGURATION
 // ============================================================================
 
-// Track domains that need token injection
 let tokenDomains = new Map();
 
-// Load token configurations on startup
 async function loadTokenConfigs() {
   const data = await getStorage(null);
   tokenDomains.clear();
   
   for (const [key, value] of Object.entries(data)) {
-    if (key.startsWith('token_')) {
-      const domain = key.replace('token_', '');
+    if (key.startsWith('token_') || key.startsWith('jwt_')) {
+      const domain = key.replace(/^(token_|jwt_)/, '');
       tokenDomains.set(domain, value);
     }
   }
   
-  console.log('Loaded token configs for domains:', Array.from(tokenDomains.keys()));
+  console.log('[Background] Loaded token configs for domains:', Array.from(tokenDomains.keys()));
 }
 
-// Listen for storage changes to update token configs
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'local') {
-    for (const [key, { newValue, oldValue }] of Object.entries(changes)) {
-      if (key.startsWith('token_')) {
-        const domain = key.replace('token_', '');
+    for (const [key, { newValue }] of Object.entries(changes)) {
+      if (key.startsWith('token_') || key.startsWith('jwt_')) {
+        const domain = key.replace(/^(token_|jwt_)/, '');
         if (newValue) {
           tokenDomains.set(domain, newValue);
         } else {
@@ -338,10 +496,151 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
   }
 });
 
-// Note: declarativeNetRequest would be better for MV3, but for simplicity
-// we store tokens and let content scripts handle injection when needed
+// ============================================================================
+// UTILITIES
+// ============================================================================
 
-// Initialize on load
-setupSyncAlarm();
-loadTokenConfigs();
-console.log('ToolStack Extension background worker initialized');
+function extractDomain(url) {
+  try {
+    return new URL(url).hostname;
+  } catch (e) {
+    return url;
+  }
+}
+
+function getBaseDomain(hostname) {
+  const parts = hostname.split('.');
+  if (parts.length <= 2) return hostname;
+  const commonMultiPartTLDs = ['co.uk', 'com.au', 'co.nz', 'co.in', 'com.br'];
+  const lastTwo = parts.slice(-2).join('.');
+  if (commonMultiPartTLDs.includes(lastTwo)) {
+    return parts.slice(-3).join('.');
+  }
+  return parts.slice(-2).join('.');
+}
+
+// ============================================================================
+// EVENT LISTENERS
+// ============================================================================
+
+// Alarm listener
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === ALARM_NAME) {
+    console.log('[Background] Running scheduled sync check');
+    checkForUpdates();
+  }
+});
+
+// Install/Update listener
+chrome.runtime.onInstalled.addListener((details) => {
+  console.log('[Background] Extension installed/updated:', details.reason);
+  initialize();
+});
+
+// Startup listener
+chrome.runtime.onStartup.addListener(() => {
+  console.log('[Background] Browser started');
+  initialize();
+});
+
+// Message listener
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('[Background] Message received:', message.type, { from: sender.tab?.id || 'popup' });
+  
+  // Handle messages from content script
+  if (message.source === 'content') {
+    switch (message.type) {
+      case 'LOGIN_REQUIRED':
+        handleLoginRequired(message.data, sender);
+        sendResponse({ received: true });
+        break;
+        
+      case 'LOGIN_STATE':
+        // Store login state for the domain
+        if (message.hostname) {
+          setStorage({ [`loginState_${message.hostname}`]: message.data });
+        }
+        sendResponse({ received: true });
+        break;
+        
+      default:
+        sendResponse({ error: 'Unknown content message type' });
+    }
+    return;
+  }
+  
+  // Handle messages from popup
+  switch (message.type) {
+    case 'CHECK_UPDATES':
+      checkForUpdates().then(() => sendResponse({ success: true }));
+      return true;
+      
+    case 'CLEAR_BADGE':
+      chrome.action.setBadgeText({ text: '' });
+      sendResponse({ success: true });
+      break;
+      
+    case 'GET_SYNC_STATUS':
+      getStorage(['lastSync', 'toolVersions']).then(data => sendResponse(data));
+      return true;
+      
+    case 'ONE_CLICK_LOGIN':
+      executeOneClickLogin(message.toolId, message.tool)
+        .then(result => sendResponse(result))
+        .catch(error => sendResponse({ success: false, error: error.message }));
+      return true;
+      
+    case 'INJECT_COOKIES':
+      injectCookies(message.targetUrl, message.cookies)
+        .then(result => sendResponse(result))
+        .catch(error => sendResponse({ success: false, error: error.message }));
+      return true;
+      
+    case 'INJECT_STORAGE':
+      injectStorage(message.tabId, message.storageType, message.data)
+        .then(result => sendResponse(result))
+        .catch(error => sendResponse({ success: false, error: error.message }));
+      return true;
+      
+    case 'GET_TOOL_FOR_DOMAIN':
+      const tool = domainToolMap.get(message.hostname);
+      sendResponse({ tool: tool || null });
+      break;
+      
+    case 'REFRESH_DOMAIN_MAP':
+      loadCachedData().then(() => sendResponse({ success: true }));
+      return true;
+      
+    case 'GET_STRATEGY_ENGINE_STATUS':
+      sendResponse({
+        initialized: !!strategyEngine,
+        activeLogins: Array.from(activeLogins.keys()),
+        cachedCredentials: Array.from(toolCredentialsCache.keys())
+      });
+      break;
+      
+    default:
+      sendResponse({ error: 'Unknown message type' });
+  }
+});
+
+// Tab update listener - detect navigation to tool domains
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && tab.url) {
+    try {
+      const hostname = new URL(tab.url).hostname;
+      const tool = domainToolMap.get(hostname);
+      
+      if (tool) {
+        console.log(`[Background] Tab navigated to tool domain: ${hostname}`);
+        // The content script will handle login detection
+      }
+    } catch (e) {
+      // Invalid URL
+    }
+  }
+});
+
+// Initialize on script load
+initialize();
+console.log('[Background] ToolStack Extension background worker loaded');
