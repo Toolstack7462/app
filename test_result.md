@@ -274,15 +274,7 @@ metadata:
   run_ui: true
 
 test_plan:
-<<<<<<< HEAD
-  current_focus:
-    - "Dynamic CORS Configuration"
-    - "Admin Bootstrap Auto-Creation"
-    - "Input Normalization in Auth"
-    - "SPA 404 Catch-All Route"
-=======
   current_focus: []
->>>>>>> 50524b5 (Squashed after rollback: b35d0b22-fd0c-49a4-9da4-89095b06d1d6)
   stuck_tasks: []
   test_all: true
   test_priority: "high_first"
