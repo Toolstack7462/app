@@ -257,36 +257,88 @@ router.get('/tools/:toolId/credentials', verifyExtensionToken, async (req, res) 
       return res.status(404).json({ error: 'Tool not found or inactive' });
     }
     
-    // Prepare credentials based on type
+    // Build unified credential response
     let credentials = null;
-    const credentialType = tool.credentialType || 'cookies';
     
     try {
-      if (credentialType === 'cookies' && tool.cookiesEncrypted) {
-        const cookiesJson = decryptCookies(tool.cookiesEncrypted);
+      // Check for new unified credentials first
+      if (tool.credentials && tool.credentials.type && tool.credentials.payloadEncrypted) {
+        const payloadJson = decryptCookies(tool.credentials.payloadEncrypted);
+        const payload = JSON.parse(payloadJson);
+        
         credentials = {
-          type: 'cookies',
-          data: JSON.parse(cookiesJson),
-          domain: tool.domain
+          type: tool.credentials.type,
+          payload: payload,
+          selectors: tool.credentials.selectors || {},
+          successCheck: tool.credentials.successCheck || {},
+          domain: tool.domain,
+          loginUrl: tool.loginUrl || tool.targetUrl
         };
-      } else if (credentialType === 'token' && tool.tokenEncrypted) {
-        const tokenValue = decryptCookies(tool.tokenEncrypted);
-        credentials = {
-          type: 'token',
-          data: {
-            header: tool.tokenHeader || 'Authorization',
-            prefix: tool.tokenPrefix || 'Bearer ',
-            value: tokenValue
-          },
-          domain: tool.domain
-        };
-      } else if (credentialType === 'localStorage' && tool.localStorageEncrypted) {
-        const storageJson = decryptCookies(tool.localStorageEncrypted);
-        credentials = {
-          type: 'localStorage',
-          data: JSON.parse(storageJson),
-          domain: tool.domain
-        };
+        
+        // Add legacy header info if it's a headers/token type
+        if (tool.credentials.type === 'headers' || tool.credentials.type === 'token') {
+          credentials.tokenHeader = tool.credentials.tokenHeader || tool.tokenHeader || 'Authorization';
+          credentials.tokenPrefix = tool.credentials.tokenPrefix || tool.tokenPrefix || 'Bearer ';
+        }
+      }
+      // Fallback to legacy credentials
+      else {
+        const credentialType = tool.credentialType || 'cookies';
+        
+        if (credentialType === 'cookies' && tool.cookiesEncrypted) {
+          const cookiesJson = decryptCookies(tool.cookiesEncrypted);
+          credentials = {
+            type: 'cookies',
+            payload: JSON.parse(cookiesJson),
+            selectors: {},
+            successCheck: {},
+            domain: tool.domain
+          };
+        } else if (credentialType === 'token' && tool.tokenEncrypted) {
+          const tokenValue = decryptCookies(tool.tokenEncrypted);
+          credentials = {
+            type: 'token',
+            payload: {
+              value: tokenValue,
+              header: tool.tokenHeader || 'Authorization',
+              prefix: tool.tokenPrefix || 'Bearer '
+            },
+            selectors: {},
+            successCheck: {},
+            domain: tool.domain,
+            tokenHeader: tool.tokenHeader || 'Authorization',
+            tokenPrefix: tool.tokenPrefix || 'Bearer '
+          };
+        } else if ((credentialType === 'localStorage' || credentialType === 'sessionStorage') && tool.localStorageEncrypted) {
+          const storageJson = decryptCookies(tool.localStorageEncrypted);
+          credentials = {
+            type: credentialType,
+            payload: JSON.parse(storageJson),
+            selectors: {},
+            successCheck: {},
+            domain: tool.domain
+          };
+        } else if (credentialType === 'form') {
+          // Form login - check if we have form data in legacy or new format
+          credentials = {
+            type: 'form',
+            payload: {},
+            selectors: {},
+            successCheck: {},
+            domain: tool.domain,
+            loginUrl: tool.loginUrl || tool.targetUrl
+          };
+        } else if (credentialType === 'sso') {
+          // SSO login
+          credentials = {
+            type: 'sso',
+            payload: {},
+            selectors: {},
+            successCheck: {},
+            domain: tool.domain,
+            loginUrl: tool.loginUrl || tool.targetUrl
+          };
+        }
       }
     } catch (decryptError) {
       console.error('Credential decryption error:', decryptError);
@@ -311,7 +363,7 @@ router.get('/tools/:toolId/credentials', verifyExtensionToken, async (req, res) 
     await ActivityLog.log('CLIENT', req.clientId, 'EXTENSION_CREDENTIALS_FETCH', {
       toolId: tool._id,
       toolName: tool.name,
-      credentialType
+      credentialType: credentials?.type || 'none'
     });
     
     res.json({
@@ -320,9 +372,17 @@ router.get('/tools/:toolId/credentials', verifyExtensionToken, async (req, res) 
         id: tool._id,
         name: tool.name,
         targetUrl: tool.targetUrl,
+        loginUrl: tool.loginUrl || tool.targetUrl,
         domain: tool.domain,
         credentialVersion: tool.credentialVersion,
-        extensionSettings: tool.extensionSettings || {}
+        extensionSettings: {
+          ...tool.extensionSettings,
+          reloadAfterLogin: tool.extensionSettings?.reloadAfterLogin ?? true,
+          waitForNavigation: tool.extensionSettings?.waitForNavigation ?? true,
+          spaMode: tool.extensionSettings?.spaMode ?? false,
+          retryAttempts: tool.extensionSettings?.retryAttempts ?? 2,
+          retryDelayMs: tool.extensionSettings?.retryDelayMs ?? 1000
+        }
       },
       credentials,
       fetchedAt: new Date().toISOString()
