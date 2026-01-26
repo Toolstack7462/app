@@ -468,6 +468,26 @@ const AdminToolForm = () => {
                   placeholder="https://example.com"
                   data-testid="tool-url-input"
                 />
+                <p className="mt-1 text-xs text-toolstack-muted">Main URL to open after login</p>
+              </div>
+              
+              {/* Login URL */}
+              <div className="md:col-span-2">
+                <label htmlFor="loginUrl" className="flex items-center gap-2 text-sm font-medium text-white mb-2">
+                  <LogIn size={16} className="text-toolstack-orange" />
+                  Login URL (Optional)
+                </label>
+                <input
+                  type="url"
+                  id="loginUrl"
+                  name="loginUrl"
+                  value={formData.loginUrl}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange transition-colors"
+                  placeholder="https://example.com/login (defaults to Target URL)"
+                  data-testid="tool-login-url-input"
+                />
+                <p className="mt-1 text-xs text-toolstack-muted">If login page is different from target URL</p>
               </div>
 
               {/* Description */}
