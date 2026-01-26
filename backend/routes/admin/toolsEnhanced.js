@@ -188,14 +188,20 @@ router.put('/:id', normalizeStringInputs, validate(schemas.updateTool), async (r
     // Track changes
     const changes = {};
     const allowedUpdates = [
-      'name', 'description', 'targetUrl', 'category', 'status', 
+      'name', 'description', 'targetUrl', 'loginUrl', 'category', 'status', 
       'cookiesEncrypted', 'tokenEncrypted', 'tokenHeader', 'tokenPrefix',
-      'localStorageEncrypted', 'credentialType', 'extensionSettings', 'fileMeta'
+      'localStorageEncrypted', 'credentialType', 'extensionSettings', 'fileMeta',
+      'credentials' // New unified credentials field
     ];
     
     allowedUpdates.forEach(field => {
       if (req.body[field] !== undefined && req.body[field] !== tool[field]) {
-        changes[field] = { from: field.includes('Encrypted') ? '[encrypted]' : tool[field], to: field.includes('Encrypted') ? '[encrypted]' : req.body[field] };
+        // Mask encrypted/sensitive fields in change log
+        const isSensitive = field.includes('Encrypted') || field === 'credentials';
+        changes[field] = { 
+          from: isSensitive ? '[encrypted]' : tool[field], 
+          to: isSensitive ? '[encrypted]' : req.body[field] 
+        };
         tool[field] = req.body[field];
       }
     });
