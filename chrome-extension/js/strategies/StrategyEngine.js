@@ -31,19 +31,21 @@ export class StrategyEngine {
   }
   
   /**
-   * Execute login strategies in order with fallback
+   * Execute login strategies in order with fallback and retry
    * @param {Object} config - Tool configuration
    * @param {Object} context - Execution context (tabId, url, etc.)
    * @returns {Promise<Object>} Combined result
    */
   async execute(config, context) {
-    const strategyOrder = config.strategies || DEFAULT_STRATEGY_ORDER;
+    const strategyOrder = this.getOptimalStrategyOrder(config);
     const results = [];
     let finalResult = null;
+    const retryAttempts = config.options?.retryAttempts || RETRY_CONFIG.maxAttempts;
     
     this.log(`Starting strategy execution for ${config.domain}`, { 
       strategies: strategyOrder,
-      context 
+      context,
+      retryAttempts
     });
     
     for (const strategyName of strategyOrder) {
@@ -67,43 +69,82 @@ export class StrategyEngine {
       
       this.log(`Executing strategy: ${strategyName}`);
       
-      try {
-        // Execute strategy with timeout
-        const result = await this.executeWithTimeout(
-          strategy.execute(config, context),
-          TIMEOUTS.strategyExecution
-        );
+      // Execute with retry
+      let attemptCount = 0;
+      let lastError = null;
+      let result = null;
+      
+      while (attemptCount < retryAttempts) {
+        attemptCount++;
         
-        results.push({
-          strategy: strategyName,
-          ...result
-        });
-        
-        // If successful, we're done (unless we need to continue for completeness)
-        if (result.success) {
-          this.log(`Strategy ${strategyName} succeeded`);
-          finalResult = result;
+        try {
+          // Execute strategy with timeout
+          result = await this.executeWithTimeout(
+            strategy.execute(config, context),
+            TIMEOUTS.strategyExecution
+          );
           
-          // Some strategies may indicate we should continue (e.g., cookie + token)
-          if (!result.continueStrategies) {
+          if (result.success) {
+            // Update success tracking
+            this.updateSuccessRate(config.domain, strategyName, true);
             break;
           }
-        } else if (result.partial) {
-          // Partial success - continue but remember this result
-          this.log(`Strategy ${strategyName} partially succeeded`);
-          if (!finalResult) {
-            finalResult = result;
+          
+          lastError = result.error;
+          
+          // Don't retry if it's a configuration issue
+          if (result.skipRetry) {
+            break;
           }
-        } else {
-          this.log(`Strategy ${strategyName} failed: ${result.error || 'Unknown error'}`);
+          
+          // Wait before retry with exponential backoff
+          if (attemptCount < retryAttempts) {
+            const delay = Math.min(
+              (config.options?.retryDelayMs || RETRY_CONFIG.retryDelay) * Math.pow(RETRY_CONFIG.backoffMultiplier, attemptCount - 1),
+              RETRY_CONFIG.maxDelay
+            );
+            this.log(`Strategy ${strategyName} failed, retrying in ${delay}ms (attempt ${attemptCount}/${retryAttempts})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+        } catch (error) {
+          lastError = error.message;
+          this.log(`Strategy ${strategyName} threw error: ${error.message}`);
+          
+          if (error.message === 'Strategy timeout') {
+            break; // Don't retry timeouts
+          }
         }
-      } catch (error) {
-        this.log(`Strategy ${strategyName} threw error: ${error.message}`);
-        results.push({
-          strategy: strategyName,
-          success: false,
-          error: error.message
-        });
+      }
+      
+      const strategyResult = result || {
+        success: false,
+        strategy: strategyName,
+        error: lastError || 'Unknown error',
+        attempts: attemptCount
+      };
+      
+      strategyResult.attempts = attemptCount;
+      results.push(strategyResult);
+      
+      // If successful, we're done (unless we need to continue for completeness)
+      if (strategyResult.success) {
+        this.log(`Strategy ${strategyName} succeeded after ${attemptCount} attempt(s)`);
+        finalResult = strategyResult;
+        
+        // Some strategies may indicate we should continue (e.g., cookie + token)
+        if (!strategyResult.continueStrategies) {
+          break;
+        }
+      } else if (strategyResult.partial) {
+        // Partial success - continue but remember this result
+        this.log(`Strategy ${strategyName} partially succeeded`);
+        this.updateSuccessRate(config.domain, strategyName, false);
+        if (!finalResult) {
+          finalResult = strategyResult;
+        }
+      } else {
+        this.log(`Strategy ${strategyName} failed: ${strategyResult.error || 'Unknown error'}`);
+        this.updateSuccessRate(config.domain, strategyName, false);
       }
     }
     
@@ -128,6 +169,47 @@ export class StrategyEngine {
     this.log('Strategy execution complete', combinedResult);
     
     return combinedResult;
+  }
+  
+  /**
+   * Get optimal strategy order based on config and success history
+   */
+  getOptimalStrategyOrder(config) {
+    const baseOrder = config.strategies || DEFAULT_STRATEGY_ORDER;
+    const domainHistory = this.successRates.get(config.domain);
+    
+    if (!domainHistory) {
+      return baseOrder;
+    }
+    
+    // Sort by success rate (descending)
+    return [...baseOrder].sort((a, b) => {
+      const rateA = domainHistory[a]?.successRate || 0;
+      const rateB = domainHistory[b]?.successRate || 0;
+      return rateB - rateA;
+    });
+  }
+  
+  /**
+   * Update success rate tracking
+   */
+  updateSuccessRate(domain, strategy, success) {
+    if (!this.successRates.has(domain)) {
+      this.successRates.set(domain, {});
+    }
+    
+    const domainRates = this.successRates.get(domain);
+    
+    if (!domainRates[strategy]) {
+      domainRates[strategy] = { attempts: 0, successes: 0, successRate: 0 };
+    }
+    
+    domainRates[strategy].attempts++;
+    if (success) {
+      domainRates[strategy].successes++;
+    }
+    domainRates[strategy].successRate = 
+      domainRates[strategy].successes / domainRates[strategy].attempts;
   }
   
   /**
