@@ -202,7 +202,21 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ TOOL CREATION VALIDATION FIX RE-VERIFIED - ALL 5 CRITICAL TEST SCENARIOS FROM REVIEW REQUEST PASSED: (1) Complete Fields (CRITICAL) ✅ - Tool created successfully with ID 6974b6c7d9960df400387146, all fields (name, description, targetUrl, category, cookiesEncrypted, status) properly validated and stored, (2) Minimal Fields (HIGH) ✅ - Tool created with ID 6974b6c7d9960df40038714b using only required fields (name, targetUrl, category), optional fields (description, cookiesEncrypted) correctly handled, (3) Missing Required Field (HIGH) ✅ - Proper 400 validation error returned: 'targetUrl is required', (4) Invalid URL (MEDIUM) ✅ - Proper 400 validation error returned: 'Please provide a valid URL' for 'not-a-valid-url', (5) Invalid Category (MEDIUM) ✅ - Proper 400 validation error returned with list of valid categories [AI, Academic, SEO, Productivity, Graphics & SEO, Text Humanizers, Career-Oriented, Miscellaneous, Other]. Backend validation schema working perfectly: name (required), targetUrl (required, valid URI), category (from specific list), cookiesEncrypted (optional), status (optional, defaults to 'active'). Database persistence verified: Both created tools found in database. The tool creation validation fix is working exactly as intended - frontend form changes and backend validation are perfectly aligned."
->>>>>>> 50524b5 (Squashed after rollback: b35d0b22-fd0c-49a4-9da4-89095b06d1d6)
+
+  - task: "Environment-Agnostic API Configuration"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Environment-agnostic API configuration implemented with dynamic CORS and API gateway proxy for frontend-backend connectivity using relative URLs."
+      - working: true
+        agent: "testing"
+        comment: "✅ ENVIRONMENT-AGNOSTIC API CONFIGURATION VERIFIED - ALL TESTS PASSED: Conducted comprehensive testing of environment-agnostic configuration as per review request. PERFECT RESULTS: (1) Health Check Endpoints ✅ - Both /api/health and /api/crm/health responding correctly, gateway status 'running', CRM status 'ok', MongoDB state 'connected' to toolstack_crm database, (2) CORS Headers ✅ - ALL 4 test origins working perfectly (passportal-9.preview.emergentagent.com, another-app.preview.emergentagent.com, main.emergentagent.com, localhost:3000), Access-Control-Allow-Origin and Access-Control-Allow-Credentials headers properly set, (3) API Gateway Proxy ✅ - /api/crm/* routes properly proxied to CRM backend, CRM-specific data returned correctly. Architecture verified: Frontend (preview URL) → FastAPI Gateway (8001) → CRM Backend (8002) → MongoDB. Fixed missing Node.js dependencies issue that was preventing CRM server startup. Environment-agnostic configuration working as intended - frontend can connect to backend using relative URLs and CORS supports URL changes."
 
 frontend:
   - task: "SPA 404 Catch-All Route"
