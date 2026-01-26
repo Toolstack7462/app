@@ -1,14 +1,15 @@
 {
   "manifest_version": 3,
   "name": "ToolStack Access",
-  "version": "1.1.0",
-  "description": "Access your assigned tools with automatic credential sync",
+  "version": "2.0.0",
+  "description": "Enterprise-grade auto-login system with intelligent strategy fallback for web tools",
   "permissions": [
     "storage",
     "alarms",
     "cookies",
     "tabs",
-    "scripting"
+    "scripting",
+    "activeTab"
   ],
   "optional_host_permissions": [
     "https://*/*",
@@ -19,6 +20,14 @@
     "service_worker": "js/background.js",
     "type": "module"
   },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["js/content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -36,5 +45,11 @@
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["js/strategies/*.js", "js/config/*.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }
