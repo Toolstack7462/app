@@ -152,8 +152,8 @@ class ToolStackCRMTester:
         
         # Test with allowed preview subdomain
         test_origins = [
-            "https://ui-consistency-fix-10.preview.emergentagent.com",
-            "https://ui-consistency-fix-10.preview.emergentagent.com", 
+            "https://passportal-9.preview.emergentagent.com",
+            "https://passportal-9.preview.emergentagent.com", 
             "https://main.emergentagent.com",
             "http://localhost:3000"
         ]

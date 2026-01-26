@@ -293,7 +293,7 @@ tail -f /var/log/crm-backend.out.log
 tail -f /var/log/crm-backend.out.log | grep CORS
 
 # Should see:
-# ✅ CORS: Allowed origin: https://ui-consistency-fix-10.preview.emergentagent.com
+# ✅ CORS: Allowed origin: https://passportal-9.preview.emergentagent.com
 ```
 
 ### 4. Test Admin Login
