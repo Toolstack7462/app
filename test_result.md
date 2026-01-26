@@ -182,8 +182,6 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: Cookie settings implemented correctly. sameSite='lax' configured for both accessToken and refreshToken cookies. This supports cross-subdomain authentication while maintaining security."
-<<<<<<< HEAD
-=======
 
   - task: "Tool Creation with Input Normalization"
     implemented: true
