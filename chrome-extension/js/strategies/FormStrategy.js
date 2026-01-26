@@ -1,6 +1,9 @@
 /**
  * Form Strategy
  * Handles form-based auto-fill and submit authentication
+ * 
+ * INVISIBLE LOGIN: Login happens in a hidden background tab.
+ * Client lands DIRECTLY on postLoginUrl after successful auth.
  */
 import { BaseStrategy } from './BaseStrategy.js';
 import { GENERIC_FORM_SELECTORS } from '../config/toolConfigs.js';
@@ -20,59 +23,283 @@ export class FormStrategy extends BaseStrategy {
   }
   
   /**
-   * Execute form auto-fill and submit
+   * Execute INVISIBLE form login in a background tab
+   * Client's active tab goes directly to postLoginUrl/targetUrl
    */
   async execute(config, context) {
-    if (!context.tabId) {
-      return {
-        success: false,
-        strategy: this.name,
-        error: 'No tab ID provided - form fill requires an open tab'
-      };
-    }
+    this.log('Executing INVISIBLE form login', { 
+      domain: config.domain,
+      loginUrl: config.loginUrl,
+      targetUrl: config.targetUrl
+    });
     
-    this.log('Executing form auto-fill', { tabId: context.tabId, domain: config.domain });
-    
-    // Merge custom selectors with generic ones
+    const loginUrl = config.loginUrl || config.targetUrl;
+    const postLoginUrl = config.targetUrl;
     const selectors = this.mergeSelectors(config.selectors);
+    const successCheck = config.successCheck || {};
     
     try {
-      // Execute form fill script in page context
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: context.tabId },
-        func: this.formFillScript,
-        args: [{
-          username: config.formData.username,
-          password: config.formData.password,
-          selectors,
-          autoSubmit: config.options?.autoSubmit !== false,
-          rememberMe: config.options?.rememberMe !== false
-        }]
-      });
-      
-      const result = results[0]?.result;
-      
-      if (!result) {
-        throw new Error('No result from content script');
+      // Step 1: Check if already logged in by testing targetUrl
+      const isLoggedIn = await this.checkAlreadyLoggedIn(postLoginUrl, successCheck);
+      if (isLoggedIn) {
+        this.log('Already logged in, skipping form login');
+        return {
+          success: true,
+          strategy: this.name,
+          alreadyLoggedIn: true,
+          redirectTo: postLoginUrl,
+          needsReload: false
+        };
       }
       
-      this.log('Form fill result', result);
+      // Step 2: Create a HIDDEN background tab for login
+      const hiddenTab = await this.createHiddenTab(loginUrl);
       
-      return {
-        success: result.success,
-        strategy: this.name,
-        ...result,
-        needsReload: false // Form submit handles navigation
-      };
+      if (!hiddenTab) {
+        throw new Error('Failed to create hidden tab for login');
+      }
+      
+      this.log('Created hidden tab for login', { tabId: hiddenTab.id });
+      
+      // Step 3: Wait for login page to load
+      await this.waitForTabLoad(hiddenTab.id, 10000);
+      
+      // Step 4: Execute form fill in hidden tab
+      const fillResult = await this.executeFormFill(hiddenTab.id, {
+        username: config.formData.username,
+        password: config.formData.password,
+        selectors,
+        autoSubmit: config.options?.autoSubmit !== false,
+        rememberMe: config.options?.rememberMe !== false
+      });
+      
+      if (!fillResult.success) {
+        await chrome.tabs.remove(hiddenTab.id).catch(() => {});
+        return {
+          success: false,
+          strategy: this.name,
+          error: fillResult.error || 'Form fill failed in hidden tab',
+          details: fillResult
+        };
+      }
+      
+      // Step 5: Wait for successful login (navigation or success check)
+      const loginSuccess = await this.waitForLoginSuccess(hiddenTab.id, successCheck, postLoginUrl, 15000);
+      
+      // Step 6: Close hidden tab
+      await chrome.tabs.remove(hiddenTab.id).catch(() => {});
+      
+      if (loginSuccess) {
+        this.log('Login successful in hidden tab');
+        return {
+          success: true,
+          strategy: this.name,
+          redirectTo: postLoginUrl,
+          needsReload: false,
+          invisible: true
+        };
+      } else {
+        return {
+          success: false,
+          strategy: this.name,
+          error: 'Login did not complete successfully'
+        };
+      }
     } catch (error) {
-      this.logError('Form fill failed', error);
-      
+      this.logError('Invisible form login failed', error);
       return {
         success: false,
         strategy: this.name,
         error: error.message
       };
     }
+  }
+  
+  /**
+   * Check if user is already logged in
+   */
+  async checkAlreadyLoggedIn(targetUrl, successCheck) {
+    try {
+      // Create a temporary hidden tab to check login status
+      const checkTab = await chrome.tabs.create({
+        url: targetUrl,
+        active: false,
+        pinned: false
+      });
+      
+      // Minimize by moving to background window if possible
+      try {
+        await chrome.windows.update(checkTab.windowId, { focused: false });
+      } catch (e) {
+        // Ignore - not critical
+      }
+      
+      await this.waitForTabLoad(checkTab.id, 8000);
+      
+      // Check if we're on a login page or the actual target
+      const result = await chrome.scripting.executeScript({
+        target: { tabId: checkTab.id },
+        func: (checks) => {
+          const url = window.location.href;
+          
+          // If redirected to login page, not logged in
+          if (/\/(login|signin|sign-in|auth)\b/i.test(url)) {
+            return { loggedIn: false, reason: 'redirected_to_login' };
+          }
+          
+          // Check URL excludes (e.g., /login should NOT be in URL if logged in)
+          if (checks.urlExcludes && url.includes(checks.urlExcludes)) {
+            return { loggedIn: false, reason: 'url_excludes_match' };
+          }
+          
+          // Check URL includes
+          if (checks.urlIncludes && !url.includes(checks.urlIncludes)) {
+            return { loggedIn: false, reason: 'url_includes_not_match' };
+          }
+          
+          // Check element exists (logged-in indicator)
+          if (checks.elementExists) {
+            const el = document.querySelector(checks.elementExists);
+            if (!el || el.offsetParent === null) {
+              return { loggedIn: false, reason: 'element_not_found' };
+            }
+          }
+          
+          // Check element NOT exists (login form should not exist)
+          if (checks.elementNotExists) {
+            const el = document.querySelector(checks.elementNotExists);
+            if (el && el.offsetParent !== null) {
+              return { loggedIn: false, reason: 'login_element_exists' };
+            }
+          }
+          
+          // Check for password field (indicates login page)
+          const hasPasswordField = document.querySelector('input[type="password"]');
+          if (hasPasswordField && hasPasswordField.offsetParent !== null) {
+            return { loggedIn: false, reason: 'password_field_visible' };
+          }
+          
+          return { loggedIn: true };
+        },
+        args: [successCheck]
+      });
+      
+      await chrome.tabs.remove(checkTab.id).catch(() => {});
+      
+      return result[0]?.result?.loggedIn || false;
+    } catch (error) {
+      this.logError('Check already logged in failed', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Create a hidden tab for invisible login
+   */
+  async createHiddenTab(url) {
+    try {
+      const tab = await chrome.tabs.create({
+        url: url,
+        active: false,  // NOT active - hidden from user
+        pinned: false
+      });
+      
+      return tab;
+    } catch (error) {
+      this.logError('Failed to create hidden tab', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Execute form fill in a specific tab
+   */
+  async executeFormFill(tabId, options) {
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: this.formFillScript,
+        args: [options]
+      });
+      
+      return results[0]?.result || { success: false, error: 'No result' };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+  
+  /**
+   * Wait for login success after form submit
+   */
+  async waitForLoginSuccess(tabId, successCheck, targetUrl, timeout = 15000) {
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < timeout) {
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        const currentUrl = tab.url || '';
+        
+        // Check if navigated away from login page
+        const isStillOnLogin = /\/(login|signin|sign-in|auth)\b/i.test(currentUrl);
+        
+        // Check success conditions
+        if (!isStillOnLogin) {
+          // Verify with success check if provided
+          if (successCheck.urlIncludes && !currentUrl.includes(successCheck.urlIncludes)) {
+            // URL check failed, continue waiting
+          } else if (successCheck.urlExcludes && currentUrl.includes(successCheck.urlExcludes)) {
+            // Still on excluded URL, continue waiting
+          } else {
+            // Success!
+            return true;
+          }
+        }
+        
+        // If reached target URL, success
+        if (targetUrl && currentUrl.includes(new URL(targetUrl).hostname)) {
+          if (!isStillOnLogin) {
+            return true;
+          }
+        }
+        
+      } catch (error) {
+        // Tab might have been closed or navigated
+        if (error.message.includes('No tab with id')) {
+          return false;
+        }
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    return false;
+  }
+  
+  /**
+   * Wait for tab to finish loading
+   */
+  waitForTabLoad(tabId, timeout = 10000) {
+    return new Promise((resolve, reject) => {
+      const startTime = Date.now();
+      
+      const checkTab = async () => {
+        try {
+          const tab = await chrome.tabs.get(tabId);
+          
+          if (tab.status === 'complete') {
+            resolve(tab);
+          } else if (Date.now() - startTime > timeout) {
+            resolve(tab); // Resolve anyway after timeout
+          } else {
+            setTimeout(checkTab, 100);
+          }
+        } catch (error) {
+          reject(error);
+        }
+      };
+      
+      checkTab();
+    });
   }
   
   /**
