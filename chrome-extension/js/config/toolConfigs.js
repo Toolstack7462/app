@@ -243,9 +243,11 @@ export function getToolConfig(domain) {
 
 /**
  * Create a tool configuration dynamically from API response
+ * Supports both unified and legacy credential formats
+ * 
  * @param {Object} tool - Tool data from API
- * @param {Object} credentials - Credentials data from API
- * @returns {Object} Tool configuration
+ * @param {Object} credentials - Credentials data from API (unified format)
+ * @returns {Object} Tool configuration for strategy engine
  */
 export function createToolConfig(tool, credentials) {
   const config = {
@@ -258,67 +260,148 @@ export function createToolConfig(tool, credentials) {
     selectors: {},
     storage: {},
     cookies: [],
+    formData: null,
+    oauth: null,
+    headers: [],
     options: {
-      reloadAfterLogin: true,
-      waitForNavigation: true,
-      spaMode: false
-    }
+      reloadAfterLogin: tool.extensionSettings?.reloadAfterLogin ?? true,
+      waitForNavigation: tool.extensionSettings?.waitForNavigation ?? true,
+      spaMode: tool.extensionSettings?.spaMode ?? false,
+      retryAttempts: tool.extensionSettings?.retryAttempts ?? 2,
+      retryDelayMs: tool.extensionSettings?.retryDelayMs ?? 1000,
+      autoSubmit: true,
+      rememberMe: true
+    },
+    successCheck: {}
   };
   
   if (!credentials) {
     return config;
   }
   
-  // Configure based on credential type
-  switch (credentials.type) {
+  // Set success check from credentials
+  if (credentials.successCheck) {
+    config.successCheck = credentials.successCheck;
+  }
+  
+  // Set selectors from credentials
+  if (credentials.selectors) {
+    config.selectors = credentials.selectors;
+  }
+  
+  // Configure based on unified credential type
+  const credType = credentials.type;
+  const payload = credentials.payload;
+  
+  switch (credType) {
     case 'cookies':
       config.strategies = ['cookie'];
-      config.cookies = credentials.data;
+      // Payload is array of cookies or wrapped in 'cookies' key
+      config.cookies = Array.isArray(payload) ? payload : (payload.cookies || []);
+      break;
+      
+    case 'token':
+      config.strategies = ['token'];
+      // Token can be injected to storage and/or used as header
+      if (payload.value) {
+        config.storage = {
+          type: payload.storageType || 'localStorage',
+          data: {
+            [payload.storageKey || 'token']: payload.value,
+            'access_token': payload.value,
+            'auth_token': payload.value
+          },
+          injectToStorage: payload.injectToStorage !== false
+        };
+        // Also prepare for header injection if MV3 server-side is used
+        config.tokenHeader = credentials.tokenHeader || payload.header || 'Authorization';
+        config.tokenPrefix = credentials.tokenPrefix || payload.prefix || 'Bearer ';
+        config.tokenValue = payload.value;
+      }
       break;
       
     case 'localStorage':
     case 'sessionStorage':
       config.strategies = ['token'];
       config.storage = {
-        type: credentials.type,
-        data: credentials.data
-      };
-      break;
-      
-    case 'token':
-      config.strategies = ['token'];
-      config.storage = {
-        type: 'localStorage',
-        data: credentials.data
+        type: credType,
+        data: payload
       };
       break;
       
     case 'form':
-    case 'credentials':
       config.strategies = ['form'];
-      config.selectors = credentials.selectors || {};
       config.formData = {
-        username: credentials.data.username || credentials.data.email,
-        password: credentials.data.password
+        username: payload.username || payload.email,
+        password: payload.password
+      };
+      config.loginUrl = payload.loginUrl || credentials.loginUrl || tool.loginUrl || tool.targetUrl;
+      // Merge selectors from credentials
+      config.selectors = {
+        username: credentials.selectors?.username,
+        password: credentials.selectors?.password,
+        submit: credentials.selectors?.submit,
+        rememberMe: credentials.selectors?.rememberMe,
+        errorMessage: credentials.selectors?.errorMessage,
+        twoFactor: credentials.selectors?.twoFactor
       };
       break;
       
-    case 'oauth':
-      config.strategies = ['oauth'];
-      config.oauth = credentials.data;
+    case 'sso':
+      config.strategies = ['sso', 'oauth'];
+      config.oauth = {
+        provider: payload.provider,
+        authStartUrl: payload.authStartUrl,
+        postLoginUrl: payload.postLoginUrl,
+        autoClick: payload.autoClick,
+        buttonSelector: payload.buttonSelector,
+        // SSO may also provide session bootstrap data
+        sessionData: payload.sessionData,
+        tokens: payload.tokens
+      };
+      config.ssoConfig = {
+        authStartUrl: payload.authStartUrl,
+        postLoginUrl: payload.postLoginUrl || tool.targetUrl,
+        successCheck: credentials.successCheck
+      };
       break;
       
-    case 'mixed':
-    case 'multi':
-      // Multiple strategies
-      config.strategies = credentials.strategies || DEFAULT_STRATEGY_ORDER;
-      if (credentials.cookies) config.cookies = credentials.cookies;
-      if (credentials.storage) config.storage = credentials.storage;
-      if (credentials.formData) config.formData = credentials.formData;
-      if (credentials.selectors) config.selectors = credentials.selectors;
+    case 'headers':
+      config.strategies = ['headers', 'token'];
+      // Multiple headers support
+      config.headers = payload.headers || [];
+      // For backward compatibility, also support single header
+      if (payload.value && !config.headers.length) {
+        config.headers = [{
+          name: credentials.tokenHeader || payload.header || 'Authorization',
+          value: payload.value,
+          prefix: credentials.tokenPrefix || payload.prefix || ''
+        }];
+      }
+      // Note: MV3 cannot modify headers directly, prefer server-side session bootstrap
+      // If cookies are also provided, use them
+      if (payload.cookies) {
+        config.cookies = payload.cookies;
+        config.strategies.unshift('cookie');
+      }
+      break;
+      
+    case 'none':
+      config.strategies = [];
       break;
       
     default:
+      // Legacy format support - map old 'data' to new 'payload'
+      if (credentials.data) {
+        return createToolConfig(tool, {
+          type: credType,
+          payload: credentials.data,
+          selectors: credentials.selectors || {},
+          successCheck: credentials.successCheck || {},
+          tokenHeader: credentials.tokenHeader,
+          tokenPrefix: credentials.tokenPrefix
+        });
+      }
       // Default to trying all strategies
       config.strategies = DEFAULT_STRATEGY_ORDER;
   }
@@ -345,7 +428,9 @@ function extractDomain(url) {
 
 export default {
   DEFAULT_STRATEGY_ORDER,
+  TYPE_TO_STRATEGY_MAP,
   TIMEOUTS,
+  RETRY_CONFIG,
   LOGIN_INDICATORS,
   LOGGED_IN_INDICATORS,
   GENERIC_FORM_SELECTORS,
