@@ -297,7 +297,8 @@ async function getToolCredentials(toolId) {
 
 /**
  * Execute one-click login for a tool
- * INVISIBLE LOGIN: Form login happens in hidden tab, user lands on targetUrl
+ * INVISIBLE LOGIN: User should NEVER see login page
+ * Flow: Do everything in background → only show final destination
  */
 async function executeOneClickLogin(toolId, tool) {
   console.log(`[Background] One-click login for tool: ${tool.name}`);
@@ -312,95 +313,405 @@ async function executeOneClickLogin(toolId, tool) {
   // Create tool config
   const config = createToolConfig(tool, credentials);
   
-  // Determine the URL to open (post-login URL)
-  const postLoginUrl = tool.targetUrl;
   const loginUrl = credentials.loginUrl || tool.loginUrl || tool.targetUrl;
+  const postLoginUrl = tool.targetUrl;
   
-  // For FORM credentials: Do invisible login FIRST, then open target
-  if (credentials.type === 'form' && config.formData) {
-    console.log('[Background] Form login detected - executing invisible login');
+  console.log('[Background] URLs:', { loginUrl, postLoginUrl, credType: credentials.type });
+  
+  // =========================================================================
+  // STEP 1: For ALL credential types, first inject cookies/tokens silently
+  // =========================================================================
+  if (credentials.type === 'cookies' && config.cookies?.length > 0) {
+    console.log('[Background] Injecting cookies silently');
+    const cookieResult = await injectCookies(postLoginUrl, config.cookies);
+    console.log('[Background] Cookie injection result:', cookieResult);
     
-    // Execute form strategy invisibly (in hidden tab)
-    const formStrategy = strategyEngine.strategies.form;
-    const formResult = await formStrategy.execute(config, {});
-    
-    console.log('[Background] Invisible form login result:', formResult);
-    
-    if (formResult.success) {
-      // Login succeeded - open the target URL directly
+    if (cookieResult.success) {
+      // Cookies injected - open target URL, should go directly to dashboard
       const tab = await chrome.tabs.create({ url: postLoginUrl, active: true });
+      await waitForTabLoad(tab.id);
       
-      // Log tool opened
-      try {
-        await apiRequest(`/tools/${toolId}/opened`, { method: 'POST' });
-      } catch (e) {
-        console.warn('[Background] Failed to log tool opened:', e);
+      // Check if we ended up on login page anyway (cookies expired/invalid)
+      const finalUrl = await getTabUrl(tab.id);
+      const isStillLogin = /\/(login|signin|sign-in|auth)\b/i.test(finalUrl);
+      
+      if (!isStillLogin) {
+        // Success - we're on the app, not login page
+        logToolOpened(toolId);
+        return { success: true, tabId: tab.id, method: 'cookies' };
       }
-      
-      return {
-        success: true,
-        invisible: true,
-        tabId: tab.id
-      };
-    } else if (formResult.alreadyLoggedIn) {
-      // Already logged in - just open target
-      const tab = await chrome.tabs.create({ url: postLoginUrl, active: true });
-      return {
-        success: true,
-        alreadyLoggedIn: true,
-        tabId: tab.id
-      };
-    } else {
-      // Form login failed - fall through to normal flow
-      console.log('[Background] Invisible login failed, trying normal flow');
+      // If still on login, fall through to form login
+      console.log('[Background] Cookies didn\'t work, trying form login');
     }
   }
   
-  // For NON-FORM credentials (cookies, tokens, SSO): Pre-execute then open tab
+  // =========================================================================
+  // STEP 2: For FORM credentials - do login in HIDDEN TAB
+  // =========================================================================
+  if (credentials.type === 'form' || config.formData?.username) {
+    console.log('[Background] Executing INVISIBLE form login');
+    
+    const result = await executeInvisibleFormLogin(config, loginUrl, postLoginUrl);
+    
+    if (result.success) {
+      // Login done invisibly - now open the final URL for user
+      const finalUrl = result.redirectedTo || postLoginUrl;
+      const tab = await chrome.tabs.create({ url: finalUrl, active: true });
+      logToolOpened(toolId);
+      return { success: true, tabId: tab.id, method: 'invisible_form', finalUrl };
+    }
+    
+    // Form login failed
+    console.log('[Background] Invisible form login failed:', result.error);
+  }
   
-  // Pre-execute strategies that don't need a tab (cookies)
-  const preResult = await strategyEngine.preExecute(config);
+  // =========================================================================
+  // STEP 3: For token/storage credentials
+  // =========================================================================
+  if (credentials.type === 'token' || credentials.type === 'localStorage' || credentials.type === 'sessionStorage') {
+    // Create hidden tab to inject storage, then redirect user
+    const hiddenTab = await chrome.tabs.create({ url: postLoginUrl, active: false });
+    await waitForTabLoad(hiddenTab.id);
+    
+    // Inject storage
+    const storageData = config.storage?.data || {};
+    if (config.tokenValue) {
+      storageData.token = config.tokenValue;
+      storageData.access_token = config.tokenValue;
+    }
+    
+    if (Object.keys(storageData).length > 0) {
+      await injectStorage(hiddenTab.id, credentials.type === 'sessionStorage' ? 'sessionStorage' : 'localStorage', storageData);
+      await chrome.tabs.reload(hiddenTab.id);
+      await waitForTabLoad(hiddenTab.id);
+    }
+    
+    // Check final URL
+    const finalUrl = await getTabUrl(hiddenTab.id);
+    const isStillLogin = /\/(login|signin|sign-in|auth)\b/i.test(finalUrl);
+    
+    // Close hidden tab
+    await chrome.tabs.remove(hiddenTab.id).catch(() => {});
+    
+    if (!isStillLogin) {
+      // Success - open for user
+      const tab = await chrome.tabs.create({ url: finalUrl, active: true });
+      logToolOpened(toolId);
+      return { success: true, tabId: tab.id, method: 'token' };
+    }
+  }
   
-  console.log('[Background] Pre-execute result:', preResult);
-  
-  // Open the tab to target URL
+  // =========================================================================
+  // FALLBACK: Just open the URL (for SSO, etc.)
+  // =========================================================================
   const tab = await chrome.tabs.create({ url: postLoginUrl, active: true });
+  logToolOpened(toolId);
+  return { success: true, tabId: tab.id, method: 'fallback' };
+}
+
+/**
+ * Execute form login completely invisibly in a hidden tab
+ * Returns the final URL after successful login
+ */
+async function executeInvisibleFormLogin(config, loginUrl, postLoginUrl) {
+  console.log('[Background] Starting invisible form login');
   
-  // Wait for tab to load
-  await waitForTabLoad(tab.id);
+  // Create HIDDEN tab for login
+  const hiddenTab = await chrome.tabs.create({
+    url: loginUrl,
+    active: false,  // HIDDEN - not shown to user
+    pinned: false
+  });
   
-  // If cookies were set, reload to apply them
-  if (preResult.success && preResult.needsReload) {
-    await chrome.tabs.reload(tab.id);
-    await waitForTabLoad(tab.id);
+  const tabId = hiddenTab.id;
+  
+  try {
+    // Wait for login page to load
+    await waitForTabLoad(tabId, 15000);
+    
+    // Wait a bit for any JS frameworks to initialize
+    await sleep(1000);
+    
+    // Check if we're already logged in (might have valid session)
+    let currentUrl = await getTabUrl(tabId);
+    if (!isLoginPageUrl(currentUrl)) {
+      console.log('[Background] Already logged in!');
+      await chrome.tabs.remove(tabId).catch(() => {});
+      return { success: true, alreadyLoggedIn: true, redirectedTo: currentUrl };
+    }
+    
+    // Fill and submit the form
+    const fillResult = await fillAndSubmitForm(tabId, config);
+    console.log('[Background] Form fill result:', fillResult);
+    
+    if (!fillResult.success) {
+      await chrome.tabs.remove(tabId).catch(() => {});
+      return { success: false, error: fillResult.error || 'Form fill failed' };
+    }
+    
+    // Wait for navigation after form submit (login processing)
+    await sleep(2000);
+    
+    // Poll for successful login (URL change away from login page)
+    const maxWait = 20000;
+    const startTime = Date.now();
+    let finalUrl = loginUrl;
+    
+    while (Date.now() - startTime < maxWait) {
+      try {
+        currentUrl = await getTabUrl(tabId);
+        
+        // Check if we've left the login page
+        if (!isLoginPageUrl(currentUrl)) {
+          finalUrl = currentUrl;
+          console.log('[Background] Login successful! Redirected to:', finalUrl);
+          break;
+        }
+        
+        // Check for login errors on page
+        const hasError = await checkForLoginError(tabId);
+        if (hasError) {
+          console.log('[Background] Login error detected on page');
+          await chrome.tabs.remove(tabId).catch(() => {});
+          return { success: false, error: 'Login failed - invalid credentials' };
+        }
+        
+      } catch (e) {
+        // Tab might have navigated
+      }
+      
+      await sleep(500);
+    }
+    
+    // Close hidden tab
+    await chrome.tabs.remove(tabId).catch(() => {});
+    
+    // Check if login was successful
+    if (!isLoginPageUrl(finalUrl)) {
+      return { success: true, redirectedTo: finalUrl };
+    }
+    
+    return { success: false, error: 'Login timeout - still on login page' };
+    
+  } catch (error) {
+    console.error('[Background] Invisible form login error:', error);
+    await chrome.tabs.remove(tabId).catch(() => {});
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Fill and submit login form in a tab
+ */
+async function fillAndSubmitForm(tabId, config) {
+  const formData = config.formData;
+  const selectors = config.selectors || {};
+  
+  if (!formData?.username || !formData?.password) {
+    return { success: false, error: 'No credentials provided' };
   }
   
-  // Execute remaining strategies that need a tab (tokens, storage)
-  const context = { tabId: tab.id, url: postLoginUrl };
-  const skipStrategies = preResult.preExecuted || [];
-  
-  const postResult = await strategyEngine.postExecute(config, context, skipStrategies);
-  
-  console.log('[Background] Post-execute result:', postResult);
-  
-  // Final reload if needed
-  if (postResult.success && postResult.needsReload) {
-    await chrome.tabs.reload(tab.id);
+  try {
+    const result = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (username, password, customSelectors) => {
+        // Generic selectors for finding form elements
+        const usernameSelectors = [
+          customSelectors?.username,
+          'input[type="email"]',
+          'input[name="email"]',
+          'input[name="username"]',
+          'input[name="user"]',
+          'input[id="email"]',
+          'input[id="username"]',
+          'input[autocomplete="email"]',
+          'input[autocomplete="username"]',
+          'input[placeholder*="email" i]',
+          'input[placeholder*="username" i]'
+        ].filter(Boolean);
+        
+        const passwordSelectors = [
+          customSelectors?.password,
+          'input[type="password"]',
+          'input[name="password"]',
+          'input[id="password"]',
+          'input[autocomplete="current-password"]'
+        ].filter(Boolean);
+        
+        const submitSelectors = [
+          customSelectors?.submit,
+          'button[type="submit"]',
+          'input[type="submit"]',
+          'button:contains("Sign in")',
+          'button:contains("Log in")',
+          'button:contains("Login")',
+          'button:contains("Submit")',
+          'button[class*="login"]',
+          'button[class*="submit"]',
+          'button[class*="signin"]',
+          '[data-testid*="login"]',
+          '[data-testid*="submit"]'
+        ].filter(Boolean);
+        
+        // Find element helper
+        const findElement = (selectorList) => {
+          for (const selector of selectorList) {
+            if (!selector) continue;
+            try {
+              // Handle :contains pseudo-selector
+              if (selector.includes(':contains(')) {
+                const match = selector.match(/(.+):contains\(["']?(.+?)["']?\)/);
+                if (match) {
+                  const baseSelector = match[1];
+                  const text = match[2];
+                  const elements = document.querySelectorAll(baseSelector);
+                  for (const el of elements) {
+                    if (el.textContent.toLowerCase().includes(text.toLowerCase())) {
+                      return el;
+                    }
+                  }
+                }
+                continue;
+              }
+              
+              const el = document.querySelector(selector);
+              if (el && el.offsetParent !== null) {
+                return el;
+              }
+            } catch (e) {}
+          }
+          return null;
+        };
+        
+        // Set input value with proper events
+        const setInputValue = (input, value) => {
+          input.focus();
+          input.value = '';
+          
+          // Use native setter for React
+          const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+          if (nativeSetter) {
+            nativeSetter.call(input, value);
+          } else {
+            input.value = value;
+          }
+          
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+        };
+        
+        // Find and fill fields
+        const usernameField = findElement(usernameSelectors);
+        const passwordField = findElement(passwordSelectors);
+        
+        if (!usernameField) {
+          return { success: false, error: 'Username field not found' };
+        }
+        if (!passwordField) {
+          return { success: false, error: 'Password field not found' };
+        }
+        
+        // Fill fields
+        setInputValue(usernameField, username);
+        setInputValue(passwordField, password);
+        
+        // Find and click submit
+        setTimeout(() => {
+          const submitBtn = findElement(submitSelectors);
+          if (submitBtn) {
+            submitBtn.click();
+          } else {
+            // Try form submit
+            const form = usernameField.closest('form') || passwordField.closest('form');
+            if (form) {
+              form.submit();
+            }
+          }
+        }, 500);
+        
+        return { success: true, filled: true };
+      },
+      args: [formData.username, formData.password, selectors]
+    });
+    
+    return result[0]?.result || { success: false, error: 'Script execution failed' };
+    
+  } catch (error) {
+    return { success: false, error: error.message };
   }
-  
-  // Log tool opened
+}
+
+/**
+ * Check if current URL is a login page
+ */
+function isLoginPageUrl(url) {
+  if (!url) return true;
+  return /\/(login|signin|sign-in|auth|authenticate|session\/new)\b/i.test(url);
+}
+
+/**
+ * Check for login error messages on page
+ */
+async function checkForLoginError(tabId) {
+  try {
+    const result = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const errorSelectors = [
+          '.error', '.error-message', '.alert-danger', '.alert-error',
+          '[class*="error"]', '[class*="invalid"]', '[role="alert"]',
+          '[data-testid*="error"]'
+        ];
+        
+        for (const selector of errorSelectors) {
+          const el = document.querySelector(selector);
+          if (el && el.offsetParent !== null && el.textContent.trim().length > 0) {
+            const text = el.textContent.toLowerCase();
+            if (text.includes('invalid') || text.includes('incorrect') || 
+                text.includes('wrong') || text.includes('failed')) {
+              return true;
+            }
+          }
+        }
+        return false;
+      }
+    });
+    
+    return result[0]?.result || false;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Get current URL of a tab
+ */
+async function getTabUrl(tabId) {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    return tab.url || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+/**
+ * Log tool opened
+ */
+async function logToolOpened(toolId) {
   try {
     await apiRequest(`/tools/${toolId}/opened`, { method: 'POST' });
   } catch (e) {
     console.warn('[Background] Failed to log tool opened:', e);
   }
-  
-  return {
-    success: preResult.success || postResult.success,
-    preResult,
-    postResult,
-    tabId: tab.id
-  };
+}
+
+/**
+ * Sleep helper
+ */
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
