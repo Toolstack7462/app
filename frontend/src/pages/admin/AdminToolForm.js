@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../../components/AdminLayout';
-import { ArrowLeft, Save, Package, Link as LinkIcon, FileText, Key, Settings, Shield, Database } from 'lucide-react';
+import { ArrowLeft, Save, Package, Link as LinkIcon, FileText, Key, Settings, Shield, Database, LogIn, Globe, AlertCircle, CheckCircle, Info } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/Toast';
 
@@ -17,8 +17,17 @@ const AdminToolForm = () => {
     name: '',
     description: '',
     targetUrl: '',
+    loginUrl: '',
     category: 'Other',
     credentialType: 'cookies',
+    // Unified credential fields
+    credentials: {
+      type: 'cookies',
+      payload: {},
+      selectors: {},
+      successCheck: {}
+    },
+    // Legacy fields (for backward compatibility)
     cookiesEncrypted: '',
     tokenEncrypted: '',
     tokenHeader: 'Authorization',
@@ -29,17 +38,113 @@ const AdminToolForm = () => {
       requirePermission: true,
       autoInject: true,
       injectOnPageLoad: true,
-      clearExistingCookies: false
+      clearExistingCookies: false,
+      reloadAfterLogin: true,
+      waitForNavigation: true,
+      spaMode: false,
+      retryAttempts: 2,
+      retryDelayMs: 1000
     }
   });
 
   const CATEGORIES = ['AI', 'Academic', 'SEO', 'Productivity', 'Graphics & SEO', 'Text Humanizers', 'Career-Oriented', 'Miscellaneous', 'Other'];
+  
+  // Unified credential types with better descriptions
   const CREDENTIAL_TYPES = [
-    { value: 'cookies', label: 'Cookies', icon: '🍪', description: 'Inject browser cookies' },
-    { value: 'token', label: 'Bearer Token', icon: '🔑', description: 'Inject Authorization header' },
-    { value: 'localStorage', label: 'Local Storage', icon: '💾', description: 'Inject localStorage data' },
-    { value: 'none', label: 'None', icon: '⭕', description: 'No credentials needed' }
+    { 
+      value: 'form', 
+      label: 'Form Login', 
+      icon: '📝', 
+      description: 'Username/password form auto-fill',
+      hint: 'Best for traditional login pages'
+    },
+    { 
+      value: 'sso', 
+      label: 'SSO / OAuth', 
+      icon: '🔐', 
+      description: 'One-click SSO authentication',
+      hint: 'Google, Microsoft, SAML, etc.'
+    },
+    { 
+      value: 'cookies', 
+      label: 'Cookies', 
+      icon: '🍪', 
+      description: 'Inject browser cookies',
+      hint: 'Export from browser DevTools'
+    },
+    { 
+      value: 'token', 
+      label: 'Bearer Token', 
+      icon: '🔑', 
+      description: 'JWT / API token injection',
+      hint: 'Stored in localStorage'
+    },
+    { 
+      value: 'headers', 
+      label: 'Custom Headers', 
+      icon: '📋', 
+      description: 'Multiple header auth (MV3 limited)',
+      hint: 'Prefer cookies for MV3'
+    },
+    { 
+      value: 'localStorage', 
+      label: 'Local Storage', 
+      icon: '💾', 
+      description: 'Inject localStorage data',
+      hint: 'Key-value pairs'
+    },
+    { 
+      value: 'sessionStorage', 
+      label: 'Session Storage', 
+      icon: '⏱️', 
+      description: 'Inject sessionStorage data',
+      hint: 'Cleared on tab close'
+    },
+    { 
+      value: 'none', 
+      label: 'None', 
+      icon: '⭕', 
+      description: 'No credentials needed',
+      hint: 'Public tool'
+    }
   ];
+
+  // Form-specific state
+  const [formLoginData, setFormLoginData] = useState({
+    username: '',
+    password: '',
+    loginUrl: ''
+  });
+  
+  const [formSelectors, setFormSelectors] = useState({
+    username: '',
+    password: '',
+    submit: '',
+    rememberMe: '',
+    errorMessage: ''
+  });
+  
+  const [successCheck, setSuccessCheck] = useState({
+    urlIncludes: '',
+    urlExcludes: '',
+    elementExists: '',
+    elementNotExists: '',
+    cookieNames: ''
+  });
+  
+  // SSO-specific state
+  const [ssoData, setSsoData] = useState({
+    authStartUrl: '',
+    postLoginUrl: '',
+    provider: '',
+    buttonSelector: '',
+    autoClick: true
+  });
+  
+  // Headers-specific state
+  const [headersData, setHeadersData] = useState([
+    { name: 'Authorization', value: '', prefix: 'Bearer ' }
+  ]);
 
   useEffect(() => {
     if (isEdit) {
