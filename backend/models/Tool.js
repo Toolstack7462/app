@@ -191,10 +191,21 @@ toolSchema.pre('save', async function() {
     }
   }
   
+  // Also extract domain from loginUrl if provided
+  if (this.isModified('loginUrl') && this.loginUrl && !this.domain) {
+    try {
+      const url = new URL(this.loginUrl);
+      this.domain = url.hostname;
+    } catch (e) {
+      // Ignore
+    }
+  }
+  
   // Bump credential version when credentials change
   if (this.isModified('cookiesEncrypted') || 
       this.isModified('tokenEncrypted') || 
-      this.isModified('localStorageEncrypted')) {
+      this.isModified('localStorageEncrypted') ||
+      this.isModified('credentials')) {
     this.credentialVersion = (this.credentialVersion || 0) + 1;
     this.credentialUpdatedAt = new Date();
   }
@@ -202,7 +213,20 @@ toolSchema.pre('save', async function() {
 
 // Method to check if credentials are available
 toolSchema.methods.hasCredentials = function() {
+  // Check unified credentials
+  if (this.credentials && this.credentials.type && this.credentials.type !== 'none') {
+    return !!(this.credentials.payloadEncrypted);
+  }
+  // Check legacy credentials
   return !!(this.cookiesEncrypted || this.tokenEncrypted || this.localStorageEncrypted);
+};
+
+// Method to get unified credential format (for API response)
+toolSchema.methods.getUnifiedCredentialType = function() {
+  if (this.credentials && this.credentials.type) {
+    return this.credentials.type;
+  }
+  return this.credentialType || 'none';
 };
 
 // Static method to get all unique domains (for extension permissions)
