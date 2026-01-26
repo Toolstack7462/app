@@ -9,6 +9,8 @@ import re
 import subprocess
 import signal
 import sys
+import io
+import zipfile
 
 # Global reference to CRM subprocess
 crm_process = None
