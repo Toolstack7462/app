@@ -157,23 +157,59 @@ const schemas = {
     name: Joi.string().min(2).max(200),
     description: Joi.string().max(1000).allow('', null),
     targetUrl: Joi.string().uri(),
+    loginUrl: Joi.string().uri().allow('', null),
     category: Joi.string().valid(
       'AI', 'Academic', 'SEO', 'Productivity', 
       'Graphics & SEO', 'Text Humanizers', 
       'Career-Oriented', 'Miscellaneous', 'Other'
     ),
     status: Joi.string().valid('active', 'inactive'),
-    credentialType: Joi.string().valid('cookies', 'token', 'localStorage', 'none'),
+    // Updated to support unified credential types
+    credentialType: Joi.string().valid('form', 'sso', 'headers', 'cookies', 'token', 'localStorage', 'sessionStorage', 'none'),
+    // Legacy credential fields
     cookiesEncrypted: Joi.string().allow('', null),
     tokenEncrypted: Joi.string().allow('', null),
     tokenHeader: Joi.string().max(100),
     tokenPrefix: Joi.string().max(50).allow(''),
     localStorageEncrypted: Joi.string().allow('', null),
+    // New unified credentials field
+    credentials: Joi.object({
+      type: Joi.string().valid('form', 'sso', 'headers', 'cookies', 'token', 'localStorage', 'sessionStorage', 'none').required(),
+      payload: Joi.object().allow(null),
+      selectors: Joi.object({
+        username: Joi.string().allow(''),
+        password: Joi.string().allow(''),
+        submit: Joi.string().allow(''),
+        rememberMe: Joi.string().allow(''),
+        twoFactor: Joi.string().allow(''),
+        errorMessage: Joi.string().allow('')
+      }).allow(null),
+      successCheck: Joi.object({
+        urlIncludes: Joi.string().allow(''),
+        urlExcludes: Joi.string().allow(''),
+        urlPattern: Joi.string().allow(''),
+        cookieNames: Joi.array().items(Joi.string()),
+        cookieValues: Joi.object(),
+        elementExists: Joi.string().allow(''),
+        elementNotExists: Joi.string().allow(''),
+        storageKeys: Joi.array().items(Joi.string()),
+        customRules: Joi.string().allow('')
+      }).allow(null),
+      tokenHeader: Joi.string().allow(''),
+      tokenPrefix: Joi.string().allow('')
+    }).allow(null),
+    // Enhanced extension settings
     extensionSettings: Joi.object({
       requirePermission: Joi.boolean(),
       autoInject: Joi.boolean(),
       injectOnPageLoad: Joi.boolean(),
-      clearExistingCookies: Joi.boolean()
+      clearExistingCookies: Joi.boolean(),
+      reloadAfterLogin: Joi.boolean(),
+      waitForNavigation: Joi.boolean(),
+      spaMode: Joi.boolean(),
+      retryAttempts: Joi.number().min(0).max(10),
+      retryDelayMs: Joi.number().min(100).max(10000),
+      notes: Joi.string().allow('', null)
     }),
     fileMeta: Joi.object({
       name: Joi.string(),
