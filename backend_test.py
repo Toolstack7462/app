@@ -733,57 +733,27 @@ class ToolStackCRMTester:
             self.log_result("admin_dashboard", "Get current user", False, f"HTTP {response.status_code if response else 'No response'}")
 
     def run_all_tests(self):
-<<<<<<< HEAD
-        """Run focused input normalization tests as per review request"""
-        print("🧪 RE-TESTING INPUT NORMALIZATION FIX...")
-        print("Context: Fixed critical input normalization issue by adding middleware BEFORE validation")
-        print("Fix: normalizeAuthInputs middleware runs before Joi validation to trim spaces")
-        
-        # FOCUSED TEST as per review request
-        print("\n" + "="*70)
-        print("🎯 FOCUSED TEST: Input Normalization Fix Verification")
-        print("="*70)
-        
-        # 1. Quick connectivity check
-        print("\n📡 Quick Connectivity Check...")
-        response = self.make_request("GET", self.gateway_url + "/health", auth_required=False)
-        if response and response.status_code == 200:
-            print("✅ Gateway connectivity OK")
-        else:
-            print("❌ Gateway connectivity failed - aborting tests")
-            return
-        
-        # 2. MAIN TEST: Input Normalization with all 5 scenarios
-        self.test_input_normalization_auth()
-=======
-        """Run comprehensive backend tests as per review request"""
-        print("🧪 TOOLSTACK CRM BACKEND TESTING - COMPREHENSIVE SUITE...")
-        print("Context: Testing recently fixed tool creation issue and overall system stability")
-        print("Priority: Tool Creation (CRITICAL), Admin Login, Client Login, Database Persistence, CORS")
+        """Run comprehensive backend tests including new Chrome Extension endpoints"""
+        print("🧪 TOOLSTACK CRM BACKEND TESTING - CHROME EXTENSION AUTO-LOGIN IMPROVEMENTS...")
+        print("Context: Testing new backend endpoints for Chrome Extension auto-login improvements")
+        print("Priority: Extension Login Attempt Logging, Admin Credential Validation, Admin Login Stats")
         
         # COMPREHENSIVE TEST as per review request
         print("\n" + "="*70)
-        print("🎯 COMPREHENSIVE BACKEND TESTING SUITE")
+        print("🎯 CHROME EXTENSION AUTO-LOGIN ENDPOINTS TESTING")
         print("="*70)
         
         # 1. Health and connectivity check
         self.test_health_checks_connectivity()
         
-        # 2. CORS validation
-        self.test_cors_validation()
-        
-        # 3. Admin bootstrap verification
+        # 2. Admin bootstrap verification (to get admin token)
         self.test_admin_bootstrap_verification()
         
-        # 4. Input normalization (verify still working)
-        self.test_input_normalization_auth()
+        # 3. NEW: Chrome Extension endpoints testing
+        self.test_chrome_extension_endpoints()
         
-        # 5. CRITICAL: Tool Creation with Input Normalization
-        self.test_tool_creation_critical()
-        
-        # 6. Admin dashboard access
-        self.test_admin_dashboard_access()
->>>>>>> 50524b5 (Squashed after rollback: b35d0b22-fd0c-49a4-9da4-89095b06d1d6)
+        # 4. NEW: Admin tool management endpoints
+        self.test_admin_tool_endpoints()
         
         # Print summary
         success = self.print_summary()
