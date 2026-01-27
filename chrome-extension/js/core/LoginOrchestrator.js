@@ -168,14 +168,64 @@ export class LoginOrchestrator {
   }
 
   /**
-   * Execute Combo Auth - SSO + Form with fallback
+   * Execute Combo Auth - Supports both Sequential and Parallel modes
+   * 
+   * Sequential: Primary -> Fallback (existing behavior)
+   * Parallel: Apply session bundle first, then run both auth methods simultaneously
    */
   async executeComboAuth(tool, credentials, options, flowId) {
     const comboAuth = tool.comboAuth;
-    const primary = comboAuth.primary || 'sso';
+    const runMode = comboAuth.runMode || 'sequential';
+    const primaryType = comboAuth.primaryType || comboAuth.primary || 'sso';
+    const secondaryType = comboAuth.secondaryType || (primaryType === 'sso' ? 'form' : 'sso');
     const fallbackEnabled = comboAuth.fallbackEnabled !== false;
+    const fallbackOnlyOnce = comboAuth.fallbackOnlyOnce !== false;
+    const skipIfLoggedIn = comboAuth.skipIfLoggedIn !== false;
     
-    this.logger.info('Executing Combo Auth', { primary, fallbackEnabled });
+    this.logger.info('Executing Combo Auth', { 
+      runMode, 
+      primaryType, 
+      secondaryType, 
+      fallbackEnabled,
+      skipIfLoggedIn
+    });
+
+    // Check if already logged in (if skipIfLoggedIn is true)
+    if (skipIfLoggedIn) {
+      const alreadyLoggedIn = await this.checkAlreadyLoggedIn(tool, credentials);
+      if (alreadyLoggedIn.success) {
+        this.logger.info('Already logged in, skipping auth');
+        const tab = await chrome.tabs.create({ url: tool.targetUrl, active: true });
+        return {
+          success: true,
+          method: 'already_logged_in',
+          tabId: tab.id,
+          finalUrl: tool.targetUrl,
+          attempts: 0,
+          errors: []
+        };
+      }
+    }
+
+    // Route to appropriate mode handler
+    if (runMode === 'parallel') {
+      return this.executeParallelComboAuth(tool, credentials, options, flowId);
+    } else {
+      return this.executeSequentialComboAuth(tool, credentials, options, flowId);
+    }
+  }
+
+  /**
+   * Execute Sequential Combo Auth - Primary then Fallback
+   */
+  async executeSequentialComboAuth(tool, credentials, options, flowId) {
+    const comboAuth = tool.comboAuth;
+    const primaryType = comboAuth.primaryType || comboAuth.primary || 'sso';
+    const secondaryType = comboAuth.secondaryType || (primaryType === 'sso' ? 'form' : 'sso');
+    const fallbackEnabled = comboAuth.fallbackEnabled !== false;
+    const fallbackOnlyOnce = comboAuth.fallbackOnlyOnce !== false;
+    
+    this.logger.info('Executing Sequential Combo Auth', { primaryType, secondaryType, fallbackEnabled });
     
     const result = {
       success: false,
@@ -187,37 +237,25 @@ export class LoginOrchestrator {
     };
 
     // Build credentials for each strategy
-    const ssoCredentials = {
-      type: 'sso',
-      payload: comboAuth.ssoConfig || {},
-      selectors: credentials.selectors || {},
-      successCheck: credentials.successCheck || {}
-    };
-    
-    const formCredentials = {
-      type: 'form',
-      payload: comboAuth.formConfig || {},
-      selectors: credentials.selectors || {},
-      successCheck: credentials.successCheck || {}
-    };
+    const authCredentials = this.buildAuthCredentials(tool, credentials, comboAuth);
 
-    // Try primary strategy
-    const primaryCredentials = primary === 'sso' ? ssoCredentials : formCredentials;
-    this.updateFlowStatus(flowId, `executing_primary_${primary}`);
-    
-    const primaryResult = await this.executeWithRetry(
-      () => primary === 'sso' 
-        ? this.executeSSOLogin(primaryCredentials.payload, tool, primaryCredentials)
-        : this.executeFormLoginAuto(primaryCredentials.payload, tool, primaryCredentials, options),
-      primary,
-      2
-    );
+    // STEP 1: Apply session bundle first if available
+    const sessionBundle = options.sessionBundle;
+    if (sessionBundle && comboAuth.parallelSettings?.prepSessionFirst !== false) {
+      this.logger.info('Applying session bundle before auth');
+      await this.applySessionBundleParallel(tool.targetUrl, sessionBundle, tool.domain);
+    }
 
-    result.attempts += primaryResult.attempts;
+    // STEP 2: Try primary strategy
+    const primaryCredentials = authCredentials[primaryType];
+    this.updateFlowStatus(flowId, `executing_primary_${primaryType}`);
+    
+    const primaryResult = await this.executeAuthMethod(primaryType, primaryCredentials, tool, options);
+    result.attempts += primaryResult.attempts || 1;
 
     if (primaryResult.success) {
       result.success = true;
-      result.method = `combo_${primary}`;
+      result.method = `combo_${primaryType}`;
       result.tabId = primaryResult.tabId;
       result.finalUrl = primaryResult.finalUrl;
       return result;
@@ -230,29 +268,21 @@ export class LoginOrchestrator {
       return result;
     }
 
-    result.errors.push({ method: primary, error: primaryResult.error });
+    result.errors.push({ method: primaryType, error: primaryResult.error });
 
-    // Try fallback if enabled
+    // STEP 3: Try fallback if enabled
     if (fallbackEnabled) {
-      const fallback = primary === 'sso' ? 'form' : 'sso';
-      const fallbackCredentials = primary === 'sso' ? formCredentials : ssoCredentials;
+      const fallbackCredentials = authCredentials[secondaryType];
       
-      this.logger.info('Primary failed, trying fallback', { fallback });
-      this.updateFlowStatus(flowId, `executing_fallback_${fallback}`);
+      this.logger.info('Primary failed, trying fallback', { secondaryType });
+      this.updateFlowStatus(flowId, `executing_fallback_${secondaryType}`);
 
-      const fallbackResult = await this.executeWithRetry(
-        () => fallback === 'sso' 
-          ? this.executeSSOLogin(fallbackCredentials.payload, tool, fallbackCredentials)
-          : this.executeFormLoginAuto(fallbackCredentials.payload, tool, fallbackCredentials, options),
-        fallback,
-        2
-      );
-
-      result.attempts += fallbackResult.attempts;
+      const fallbackResult = await this.executeAuthMethod(secondaryType, fallbackCredentials, tool, options);
+      result.attempts += fallbackResult.attempts || 1;
 
       if (fallbackResult.success) {
         result.success = true;
-        result.method = `combo_fallback_${fallback}`;
+        result.method = `combo_fallback_${secondaryType}`;
         result.tabId = fallbackResult.tabId;
         result.finalUrl = fallbackResult.finalUrl;
         return result;
@@ -265,10 +295,396 @@ export class LoginOrchestrator {
         return result;
       }
 
-      result.errors.push({ method: fallback, error: fallbackResult.error });
+      result.errors.push({ method: secondaryType, error: fallbackResult.error });
     }
 
     result.error = this.buildActionableError(result.errors, tool);
+    return result;
+  }
+
+  /**
+   * Execute Parallel Combo Auth - Run both auth methods simultaneously
+   * 
+   * 1. PREP: Apply cookies + localStorage + sessionStorage in parallel (before navigation)
+   * 2. COMMIT: Run selected auth methods (SSO / Form) in parallel
+   * 3. VERIFY: Check login success with commit-lock (only first success navigates)
+   * 4. FALLBACK: If not logged in, run other method once
+   */
+  async executeParallelComboAuth(tool, credentials, options, flowId) {
+    const comboAuth = tool.comboAuth;
+    const primaryType = comboAuth.primaryType || 'sso';
+    const secondaryType = comboAuth.secondaryType || 'form';
+    const parallelSettings = comboAuth.parallelSettings || {};
+    const parallelTimeout = parallelSettings.parallelTimeout || 30000;
+    const fallbackOnlyOnce = comboAuth.fallbackOnlyOnce !== false;
+    
+    this.logger.info('Executing Parallel Combo Auth', { 
+      primaryType, 
+      secondaryType, 
+      parallelTimeout 
+    });
+    
+    const result = {
+      success: false,
+      method: null,
+      attempts: 0,
+      errors: [],
+      tabId: null,
+      finalUrl: null
+    };
+
+    // Build credentials for each auth type
+    const authCredentials = this.buildAuthCredentials(tool, credentials, comboAuth);
+
+    // PHASE 1: PREP - Apply session bundle in parallel (cookies + localStorage + sessionStorage)
+    this.updateFlowStatus(flowId, 'parallel_prep');
+    const sessionBundle = options.sessionBundle;
+    
+    if (sessionBundle && parallelSettings.prepSessionFirst !== false) {
+      this.logger.info('Phase 1: Applying session bundle in parallel');
+      
+      const prepResult = await this.applySessionBundleParallel(
+        tool.targetUrl, 
+        sessionBundle, 
+        tool.domain
+      );
+      
+      if (prepResult.anySuccess) {
+        this.logger.info('Session bundle applied', prepResult);
+        
+        // Check if session bundle alone succeeded (rare but possible)
+        await this.sleep(1500);
+        const quickCheck = await this.checkAlreadyLoggedIn(tool, credentials);
+        if (quickCheck.success) {
+          const tab = await chrome.tabs.create({ url: tool.targetUrl, active: true });
+          return {
+            success: true,
+            method: 'session_bundle',
+            tabId: tab.id,
+            finalUrl: tool.targetUrl,
+            attempts: 1,
+            errors: []
+          };
+        }
+      }
+    }
+
+    // PHASE 2: COMMIT - Run both auth methods in parallel with commit-lock
+    this.updateFlowStatus(flowId, 'parallel_commit');
+    this.logger.info('Phase 2: Running auth methods in parallel');
+
+    // Create a commit lock to ensure only one navigation succeeds
+    let commitLocked = false;
+    const commitLock = () => {
+      if (commitLocked) return false;
+      commitLocked = true;
+      return true;
+    };
+
+    // Execute both methods in parallel
+    const authPromises = [];
+    const methodTypes = [primaryType, secondaryType];
+
+    for (const methodType of methodTypes) {
+      const methodCredentials = authCredentials[methodType];
+      if (methodCredentials) {
+        authPromises.push(
+          this.executeAuthMethodWithLock(
+            methodType, 
+            methodCredentials, 
+            tool, 
+            options, 
+            commitLock
+          ).catch(error => ({
+            success: false,
+            method: methodType,
+            error: error.message
+          }))
+        );
+      }
+    }
+
+    // Race with timeout
+    const timeoutPromise = new Promise(resolve => 
+      setTimeout(() => resolve({ timeout: true }), parallelTimeout)
+    );
+
+    try {
+      // Wait for first success or all to complete
+      const raceResult = await Promise.race([
+        Promise.any(authPromises.map(p => 
+          p.then(r => r.success ? r : Promise.reject(r))
+        )).catch(() => null),
+        timeoutPromise
+      ]);
+
+      if (raceResult?.timeout) {
+        this.logger.warn('Parallel auth timed out');
+        result.errors.push({ method: 'parallel', error: 'Timeout' });
+      } else if (raceResult?.success) {
+        result.success = true;
+        result.method = `parallel_${raceResult.method}`;
+        result.tabId = raceResult.tabId;
+        result.finalUrl = raceResult.finalUrl;
+        result.attempts = 1;
+        return result;
+      }
+
+      // Get all results
+      const allResults = await Promise.allSettled(authPromises);
+      
+      for (const settled of allResults) {
+        if (settled.status === 'fulfilled') {
+          const r = settled.value;
+          if (r.success && !result.success) {
+            result.success = true;
+            result.method = `parallel_${r.method}`;
+            result.tabId = r.tabId;
+            result.finalUrl = r.finalUrl;
+          } else if (r.requiresManualAction && !result.requiresManualAction) {
+            result.requiresManualAction = true;
+            result.manualActionReason = r.manualActionReason;
+            result.tabId = r.tabId;
+          } else if (r.error) {
+            result.errors.push({ method: r.method, error: r.error });
+          }
+        }
+      }
+
+    } catch (error) {
+      this.logger.error('Parallel auth error', { error: error.message });
+      result.errors.push({ method: 'parallel', error: error.message });
+    }
+
+    // PHASE 3: VERIFY - Check login status
+    if (!result.success && !result.requiresManualAction && parallelSettings.verifyAfterAuth !== false) {
+      this.updateFlowStatus(flowId, 'parallel_verify');
+      this.logger.info('Phase 3: Verifying login status');
+      
+      await this.sleep(2000);
+      const verifyResult = await this.checkAlreadyLoggedIn(tool, credentials);
+      
+      if (verifyResult.success) {
+        const tab = await chrome.tabs.create({ url: tool.targetUrl, active: true });
+        return {
+          success: true,
+          method: 'parallel_verified',
+          tabId: tab.id,
+          finalUrl: tool.targetUrl,
+          attempts: result.attempts,
+          errors: result.errors
+        };
+      }
+    }
+
+    // PHASE 4: FALLBACK - Run other method once if both failed
+    if (!result.success && !result.requiresManualAction && fallbackOnlyOnce) {
+      this.updateFlowStatus(flowId, 'parallel_fallback');
+      this.logger.info('Phase 4: Trying fallback (once)');
+
+      // Try secondary method one more time
+      const fallbackCredentials = authCredentials[secondaryType];
+      if (fallbackCredentials) {
+        const fallbackResult = await this.executeAuthMethod(
+          secondaryType, 
+          fallbackCredentials, 
+          tool, 
+          options
+        );
+
+        if (fallbackResult.success) {
+          result.success = true;
+          result.method = `parallel_fallback_${secondaryType}`;
+          result.tabId = fallbackResult.tabId;
+          result.finalUrl = fallbackResult.finalUrl;
+          return result;
+        }
+
+        if (fallbackResult.requiresManualAction) {
+          result.requiresManualAction = true;
+          result.manualActionReason = fallbackResult.manualActionReason;
+          result.tabId = fallbackResult.tabId;
+          return result;
+        }
+      }
+    }
+
+    if (!result.success) {
+      result.error = this.buildActionableError(result.errors, tool);
+    }
+    
+    return result;
+  }
+
+  /**
+   * Apply session bundle in parallel (cookies + localStorage + sessionStorage)
+   */
+  async applySessionBundleParallel(targetUrl, sessionBundle, domain) {
+    const results = {
+      cookies: { success: false, count: 0 },
+      localStorage: { success: false, count: 0 },
+      sessionStorage: { success: false, count: 0 },
+      anySuccess: false
+    };
+
+    const promises = [];
+
+    // Apply cookies (can be done without a tab)
+    if (sessionBundle.cookies && Array.isArray(sessionBundle.cookies) && sessionBundle.cookies.length > 0) {
+      promises.push(
+        this.injectCookies(targetUrl, sessionBundle.cookies)
+          .then(r => { results.cookies = r; })
+          .catch(e => { results.cookies = { success: false, error: e.message }; })
+      );
+    }
+
+    // For localStorage and sessionStorage, we need a tab
+    const needsTab = (sessionBundle.localStorage && Object.keys(sessionBundle.localStorage).length > 0) ||
+                    (sessionBundle.sessionStorage && Object.keys(sessionBundle.sessionStorage).length > 0);
+
+    if (needsTab) {
+      promises.push(
+        (async () => {
+          const hiddenTab = await this.createHiddenTab(targetUrl);
+          if (!hiddenTab) return;
+
+          await this.waitForTabLoad(hiddenTab.id);
+
+          // Inject localStorage and sessionStorage in parallel
+          const storagePromises = [];
+
+          if (sessionBundle.localStorage && Object.keys(sessionBundle.localStorage).length > 0) {
+            storagePromises.push(
+              this.injectStorage(hiddenTab.id, 'localStorage', sessionBundle.localStorage)
+                .then(r => { results.localStorage = r; })
+                .catch(e => { results.localStorage = { success: false, error: e.message }; })
+            );
+          }
+
+          if (sessionBundle.sessionStorage && Object.keys(sessionBundle.sessionStorage).length > 0) {
+            storagePromises.push(
+              this.injectStorage(hiddenTab.id, 'sessionStorage', sessionBundle.sessionStorage)
+                .then(r => { results.sessionStorage = r; })
+                .catch(e => { results.sessionStorage = { success: false, error: e.message }; })
+            );
+          }
+
+          await Promise.all(storagePromises);
+
+          // Close hidden tab
+          await chrome.tabs.remove(hiddenTab.id).catch(() => {});
+        })()
+      );
+    }
+
+    await Promise.all(promises);
+
+    results.anySuccess = results.cookies.success || results.localStorage.success || results.sessionStorage.success;
+    
+    this.logger.debug('Session bundle applied', results);
+    return results;
+  }
+
+  /**
+   * Build credentials object for each auth type
+   */
+  buildAuthCredentials(tool, credentials, comboAuth) {
+    return {
+      sso: {
+        type: 'sso',
+        payload: comboAuth.ssoConfig || {},
+        selectors: credentials.selectors || {},
+        successCheck: credentials.successCheck || {}
+      },
+      form: {
+        type: 'form',
+        payload: comboAuth.formConfig || {},
+        selectors: credentials.selectors || {},
+        successCheck: credentials.successCheck || {}
+      },
+      cookies: {
+        type: 'cookies',
+        payload: comboAuth.cookiesConfig?.cookies ? JSON.parse(comboAuth.cookiesConfig.cookies) : [],
+        selectors: {},
+        successCheck: credentials.successCheck || {}
+      },
+      token: {
+        type: 'token',
+        payload: comboAuth.tokenConfig || {},
+        selectors: {},
+        successCheck: credentials.successCheck || {}
+      },
+      localStorage: {
+        type: 'localStorage',
+        payload: comboAuth.localStorageConfig?.data ? JSON.parse(comboAuth.localStorageConfig.data) : {},
+        selectors: {},
+        successCheck: credentials.successCheck || {}
+      },
+      sessionStorage: {
+        type: 'sessionStorage',
+        payload: comboAuth.sessionStorageConfig?.data ? JSON.parse(comboAuth.sessionStorageConfig.data) : {},
+        selectors: {},
+        successCheck: credentials.successCheck || {}
+      }
+    };
+  }
+
+  /**
+   * Execute a specific auth method
+   */
+  async executeAuthMethod(methodType, methodCredentials, tool, options) {
+    switch (methodType) {
+      case 'sso':
+        return this.executeSSOLogin(methodCredentials.payload, tool, methodCredentials);
+      case 'form':
+        return this.executeFormLoginAuto(methodCredentials.payload, tool, methodCredentials, options);
+      case 'cookies':
+        return this.executeSessionInjection(
+          { cookies: methodCredentials.payload, localStorage: {}, sessionStorage: {} },
+          tool,
+          methodCredentials
+        );
+      case 'token':
+        return this.executeSessionInjection(
+          { cookies: [], localStorage: { token: methodCredentials.payload.token }, sessionStorage: {} },
+          tool,
+          methodCredentials
+        );
+      case 'localStorage':
+        return this.executeSessionInjection(
+          { cookies: [], localStorage: methodCredentials.payload, sessionStorage: {} },
+          tool,
+          methodCredentials
+        );
+      case 'sessionStorage':
+        return this.executeSessionInjection(
+          { cookies: [], localStorage: {}, sessionStorage: methodCredentials.payload },
+          tool,
+          methodCredentials
+        );
+      default:
+        return { success: false, error: `Unknown method: ${methodType}` };
+    }
+  }
+
+  /**
+   * Execute auth method with commit lock (for parallel mode)
+   */
+  async executeAuthMethodWithLock(methodType, methodCredentials, tool, options, commitLock) {
+    const result = await this.executeAuthMethod(methodType, methodCredentials, tool, options);
+    
+    // If successful, try to acquire commit lock
+    if (result.success) {
+      if (!commitLock()) {
+        // Another method already succeeded - close our tab
+        if (result.tabId) {
+          await chrome.tabs.remove(result.tabId).catch(() => {});
+        }
+        return { ...result, success: false, superseded: true };
+      }
+    }
+    
+    result.method = methodType;
     return result;
   }
 
