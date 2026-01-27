@@ -1,3 +1,13 @@
+/**
+ * Popup Script v2.1 for ToolStack Extension
+ * 
+ * Enhanced with:
+ * - Improved error messages for users
+ * - Debug mode toggle
+ * - Login status indicators
+ * - Retry UI for failed logins
+ */
+
 import { Storage, ApiClient } from './api.js';
 
 // Initialize API client
@@ -9,6 +19,7 @@ let profile = null;
 let toolVersions = {};
 let grantedPermissions = new Set();
 let loginInProgress = new Map();
+let debugMode = false;
 
 // DOM Elements
 const loginView = document.getElementById('login-view');
@@ -50,7 +61,7 @@ async function init() {
   await api.init();
   
   // Load stored data
-  const data = await Storage.get(['extensionToken', 'apiUrl', 'tools', 'lastSync', 'toolVersions']);
+  const data = await Storage.get(['extensionToken', 'apiUrl', 'tools', 'lastSync', 'toolVersions', 'debugMode']);
   
   if (data.apiUrl) {
     apiUrlInput.value = data.apiUrl;
@@ -60,6 +71,8 @@ async function init() {
     tools = data.tools;
     toolVersions = data.toolVersions || {};
   }
+  
+  debugMode = data.debugMode || false;
   
   // Check if logged in
   if (data.extensionToken) {
@@ -80,6 +93,9 @@ async function init() {
   
   // Notify background to refresh domain map
   chrome.runtime.sendMessage({ type: 'REFRESH_DOMAIN_MAP' });
+  
+  // Setup debug mode UI if exists
+  setupDebugUI();
 }
 
 // ============================================================================
@@ -258,16 +274,21 @@ function renderTools(search = '') {
   toolsList.innerHTML = filteredTools.map(tool => {
     const hasPermission = grantedPermissions.has(tool.domain) || !tool.domain;
     const status = getToolStatus(tool, hasPermission);
-    const isLoading = loginInProgress.has(tool.id);
+    const loginState = loginInProgress.get(tool.id);
+    const isLoading = loginState?.status === 'loading';
+    const hasError = loginState?.status === 'error';
+    const needsManualAction = loginState?.status === 'manual';
     
     return `
-      <div class="tool-card ${!hasPermission ? 'needs-permission' : ''}" 
+      <div class="tool-card ${!hasPermission ? 'needs-permission' : ''} ${hasError ? 'has-error' : ''}" 
            data-tool-id="${tool.id}" 
            data-domain="${tool.domain || ''}">
         <div class="tool-icon">${tool.name.charAt(0).toUpperCase()}</div>
         <div class="tool-info">
           <div class="tool-name">${escapeHtml(tool.name)}</div>
           <div class="tool-domain">${escapeHtml(tool.domain || tool.targetUrl)}</div>
+          ${hasError ? `<div class="tool-error">${escapeHtml(loginState.error)}</div>` : ''}
+          ${needsManualAction ? `<div class="tool-manual">${escapeHtml(loginState.reason)}</div>` : ''}
         </div>
         <div class="tool-status">
           <span class="status-badge ${status.class}">${status.text}</span>
@@ -275,7 +296,7 @@ function renderTools(search = '') {
             ? `<button class="tool-action open-btn ${isLoading ? 'loading' : ''}" 
                        data-tool-id="${tool.id}" 
                        ${isLoading ? 'disabled' : ''}>
-                ${isLoading ? '<span class="btn-spinner"></span>' : 'Open'}
+                ${isLoading ? '<span class="btn-spinner"></span>' : (hasError ? 'Retry' : 'Open')}
               </button>`
             : `<button class="tool-action grant-btn" data-tool-id="${tool.id}" data-domain="${tool.domain}">Grant</button>`
           }
@@ -318,6 +339,14 @@ function getToolStatus(tool, hasPermission) {
     return { class: 'permission-needed', text: 'Grant Access' };
   }
   
+  const loginState = loginInProgress.get(tool.id);
+  if (loginState?.status === 'error') {
+    return { class: 'error', text: 'Failed' };
+  }
+  if (loginState?.status === 'manual') {
+    return { class: 'manual', text: 'Action Needed' };
+  }
+  
   if (tool.assignment?.endDate) {
     const endDate = new Date(tool.assignment.endDate);
     if (endDate < new Date()) {
@@ -349,12 +378,12 @@ async function oneClickLogin(toolId) {
   }
   
   // Check if already in progress
-  if (loginInProgress.has(toolId)) {
+  if (loginInProgress.get(toolId)?.status === 'loading') {
     return;
   }
   
   // Mark as in progress
-  loginInProgress.set(toolId, true);
+  loginInProgress.set(toolId, { status: 'loading' });
   renderTools(searchInput.value);
   
   console.log(`[Popup] One-click login for: ${tool.name}`);
@@ -378,130 +407,41 @@ async function oneClickLogin(toolId) {
     console.log('[Popup] One-click login result:', result);
     
     if (result.success) {
+      loginInProgress.delete(toolId);
       showToast(`Logged in to ${tool.name}`, 'success');
-    } else if (result.error) {
-      showToast(`Login failed: ${result.error}`, 'error');
+    } else if (result.requiresManualAction) {
+      loginInProgress.set(toolId, { 
+        status: 'manual', 
+        reason: result.manualActionReason || 'Manual action required'
+      });
+      showToast(result.manualActionReason || 'Please complete login manually', 'info');
+    } else if (result.error || result.actionableError) {
+      loginInProgress.set(toolId, { 
+        status: 'error', 
+        error: result.actionableError || result.error || 'Login failed'
+      });
+      showToast(result.actionableError || result.error || 'Login failed', 'error');
     } else {
-      // Partial success or strategies executed
+      loginInProgress.delete(toolId);
       showToast(`Opening ${tool.name}...`, 'info');
     }
     
   } catch (error) {
     console.error('[Popup] One-click login error:', error);
-    
-    // Fallback: try traditional method
-    await fallbackOpen(tool);
-  } finally {
-    loginInProgress.delete(toolId);
-    renderTools(searchInput.value);
+    loginInProgress.set(toolId, { status: 'error', error: error.message });
+    showToast(`Login failed: ${error.message}`, 'error');
   }
-}
-
-/**
- * Fallback to traditional open method
- */
-async function fallbackOpen(tool) {
-  try {
-    // Fetch credentials from API
-    const result = await api.getCredentials(tool.id);
-    
-    if (!result.credentials) {
-      // No credentials, just open the tool
-      chrome.tabs.create({ url: tool.targetUrl });
-      await api.logToolOpened(tool.id);
-      return;
+  
+  renderTools(searchInput.value);
+  
+  // Clear error state after 10 seconds
+  setTimeout(() => {
+    const state = loginInProgress.get(toolId);
+    if (state?.status === 'error' || state?.status === 'manual') {
+      loginInProgress.delete(toolId);
+      renderTools(searchInput.value);
     }
-    
-    const credentials = result.credentials;
-    const targetUrl = tool.targetUrl;
-    
-    console.log(`[Popup] Fallback open: ${tool.name}, credential type: ${credentials.type}`);
-    
-    // Handle different credential types
-    if (credentials.type === 'cookies') {
-      // Apply cookies before opening
-      await new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage({
-          type: 'INJECT_COOKIES',
-          targetUrl,
-          cookies: credentials.data
-        }, (response) => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-          } else {
-            resolve(response);
-          }
-        });
-      });
-      
-      // Open and reload
-      const tab = await chrome.tabs.create({ url: targetUrl, active: true });
-      await waitForTabLoad(tab.id);
-      await chrome.tabs.reload(tab.id);
-      
-    } else if (credentials.type === 'localStorage' || credentials.type === 'sessionStorage') {
-      // Open tab first, then inject storage
-      const tab = await chrome.tabs.create({ url: targetUrl, active: true });
-      await waitForTabLoad(tab.id);
-      
-      await new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage({
-          type: 'INJECT_STORAGE',
-          tabId: tab.id,
-          storageType: credentials.type,
-          data: credentials.data
-        }, (response) => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-          } else {
-            resolve(response);
-          }
-        });
-      });
-      
-      await chrome.tabs.reload(tab.id);
-      
-    } else {
-      // Unknown type, just open
-      chrome.tabs.create({ url: targetUrl });
-    }
-    
-    // Log tool opened
-    await api.logToolOpened(tool.id);
-    
-  } catch (error) {
-    console.error('[Popup] Fallback open failed:', error);
-    // Last resort: just open the URL
-    chrome.tabs.create({ url: tool.targetUrl });
-  }
-}
-
-/**
- * Wait for a tab to finish loading
- */
-function waitForTabLoad(tabId, timeout = 30000) {
-  return new Promise((resolve, reject) => {
-    const startTime = Date.now();
-    
-    const checkTab = () => {
-      chrome.tabs.get(tabId, (tab) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-          return;
-        }
-        
-        if (tab.status === 'complete') {
-          resolve(tab);
-        } else if (Date.now() - startTime > timeout) {
-          resolve(tab);
-        } else {
-          setTimeout(checkTab, 100);
-        }
-      });
-    };
-    
-    checkTab();
-  });
+  }, 10000);
 }
 
 // ============================================================================
@@ -585,6 +525,46 @@ async function loadProfile() {
 }
 
 // ============================================================================
+// DEBUG MODE UI
+// ============================================================================
+
+function setupDebugUI() {
+  // Check if debug section exists, if not create it
+  let debugSection = document.getElementById('debug-section');
+  
+  if (!debugSection) {
+    // Add debug toggle to profile view if it exists
+    const profileActions = document.querySelector('.profile-actions');
+    if (profileActions) {
+      const debugToggle = document.createElement('div');
+      debugToggle.className = 'debug-toggle';
+      debugToggle.innerHTML = `
+        <label class="toggle-label">
+          <input type="checkbox" id="debug-mode-toggle" ${debugMode ? 'checked' : ''}>
+          <span class="toggle-text">Debug Mode</span>
+        </label>
+      `;
+      profileActions.insertBefore(debugToggle, profileActions.firstChild);
+      
+      const toggle = document.getElementById('debug-mode-toggle');
+      if (toggle) {
+        toggle.addEventListener('change', async (e) => {
+          debugMode = e.target.checked;
+          await Storage.set({ debugMode });
+          
+          // Notify background
+          chrome.runtime.sendMessage({ 
+            type: debugMode ? 'ENABLE_DEBUG_MODE' : 'DISABLE_DEBUG_MODE'
+          });
+          
+          showToast(debugMode ? 'Debug mode enabled' : 'Debug mode disabled', 'info');
+        });
+      }
+    }
+  }
+}
+
+// ============================================================================
 // UTILITIES
 // ============================================================================
 
@@ -611,7 +591,7 @@ function showToast(message, type = 'info') {
   
   setTimeout(() => {
     toast.classList.remove('show');
-  }, 3000);
+  }, 4000);
 }
 
 function updateSyncText(date) {
