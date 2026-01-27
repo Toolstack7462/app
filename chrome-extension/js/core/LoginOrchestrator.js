@@ -1,20 +1,20 @@
 /**
- * Login Orchestrator - Unified Login Flow Controller
+ * Login Orchestrator v2.0 - Unified Login Flow Controller
  * 
  * This is the BRAIN of the auto-login system.
- * It manages the entire login lifecycle with:
- * - Pre-login success detection (already logged in?)
- * - Ordered strategy execution with fallbacks
- * - Robust retry logic with exponential backoff
- * - MFA detection and user notification
- * - Comprehensive diagnostics without exposing secrets
+ * Enhanced with:
+ * - Combo Auth support (SSO + Form in one tool with fallback)
+ * - Auto-start mode (?auto=1 trigger)
+ * - Hidden mode (?hidden=1 for invisible login)
+ * - "Logging in... Cancel" overlay injection
+ * - MFA detection with graceful halt
  * 
  * Flow:
- * 1. Check if already logged in → success → done
- * 2. Try session injection (cookies/storage/token) → check success
- * 3. Try form login (if configured) → check success
- * 4. Try SSO (if configured) → check success
- * 5. If all fail → return actionable error
+ * 1. Parse URL params (auto=1, hidden=1)
+ * 2. Check if already logged in → success → done
+ * 3. If Combo Auth enabled, execute primary → fallback if needed
+ * 4. Otherwise, try strategies in order: session → form → sso
+ * 5. If hidden mode, redirect main tab on success
  */
 
 import { Logger } from './Logger.js';
@@ -28,16 +28,10 @@ const ORCHESTRATOR_CONFIG = {
   maxRetryDelay: 8000,
   successCheckDelayMs: 1500,
   pageLoadTimeoutMs: 15000,
-  formFillDelayMs: 500,
-  postSubmitWaitMs: 3000
+  formFillDelayMs: 800,  // Delay before auto-fill
+  postSubmitWaitMs: 3000,
+  hiddenModeTimeout: 60000  // 60 seconds for hidden mode
 };
-
-// Login method priorities (order of execution)
-const METHOD_PRIORITY = [
-  'session',    // Cookies + Storage injection (fastest, invisible)
-  'form',       // Form fill and submit
-  'sso'         // SSO/OAuth redirect flow
-];
 
 /**
  * Login Orchestrator Class
@@ -48,25 +42,34 @@ export class LoginOrchestrator {
     this.successDetector = new SuccessDetector();
     this.activeFlows = new Map();
     this.flowResults = new Map();
+    this.cancelledFlows = new Set();
   }
 
   /**
    * Execute one-click login for a tool
-   * This is the main entry point
+   * Main entry point - handles all modes (normal, auto, hidden, combo)
    * 
    * @param {Object} tool - Tool configuration
    * @param {Object} credentials - Credentials from API
-   * @param {Object} options - Additional options
+   * @param {Object} options - Additional options (auto, hidden, sourceTabId)
    * @returns {Promise<Object>} Login result
    */
   async executeLogin(tool, credentials, options = {}) {
     const flowId = `${tool.id}_${Date.now()}`;
     
+    // Parse options
+    const isAutoMode = options.auto === true;
+    const isHiddenMode = options.hidden === true;
+    const sourceTabId = options.sourceTabId;
+    const comboAuth = tool.comboAuth || {};
+    
     this.logger.info('Starting login flow', { 
       flowId, 
       tool: tool.name, 
       credentialType: credentials?.type,
-      targetUrl: tool.targetUrl 
+      isAutoMode,
+      isHiddenMode,
+      comboAuthEnabled: comboAuth.enabled
     });
 
     // Track active flow
@@ -74,7 +77,10 @@ export class LoginOrchestrator {
       tool,
       credentials,
       startTime: Date.now(),
-      status: 'starting'
+      status: 'starting',
+      isAutoMode,
+      isHiddenMode,
+      sourceTabId
     });
 
     const result = {
@@ -91,71 +97,64 @@ export class LoginOrchestrator {
     };
 
     try {
+      // Check if should trigger based on settings
+      if (comboAuth.triggerOnAuto && isAutoMode === false) {
+        this.logger.info('Combo auth configured for auto trigger only, skipping');
+        // Just open the tool normally
+        const tab = await chrome.tabs.create({ url: tool.targetUrl, active: true });
+        result.tabId = tab.id;
+        result.finalUrl = tool.targetUrl;
+        result.method = 'direct_open';
+        this.completeFlow(flowId, result);
+        return result;
+      }
+
       // STEP 1: Check if already logged in
       this.logger.debug('Step 1: Checking if already logged in');
       const alreadyLoggedIn = await this.checkAlreadyLoggedIn(tool, credentials);
       
       if (alreadyLoggedIn.success) {
         this.logger.info('Already logged in, opening target URL');
-        const tab = await chrome.tabs.create({ url: tool.targetUrl, active: true });
+        
+        if (isHiddenMode && sourceTabId) {
+          // Redirect the source tab to the target URL
+          await chrome.tabs.update(sourceTabId, { url: tool.targetUrl });
+          result.tabId = sourceTabId;
+        } else {
+          const tab = await chrome.tabs.create({ url: tool.targetUrl, active: true });
+          result.tabId = tab.id;
+        }
         
         result.success = true;
         result.method = 'already_logged_in';
-        result.tabId = tab.id;
         result.finalUrl = tool.targetUrl;
         
         this.completeFlow(flowId, result);
         return result;
       }
 
-      // STEP 2: Build execution plan based on credentials
-      const executionPlan = this.buildExecutionPlan(tool, credentials);
-      this.logger.debug('Execution plan', { methods: executionPlan.map(m => m.method) });
-
-      // STEP 3: Execute methods in order with retry
-      for (const step of executionPlan) {
-        this.updateFlowStatus(flowId, `executing_${step.method}`);
-        
-        const stepResult = await this.executeWithRetry(
-          () => this.executeMethod(step, tool, credentials),
-          step.method,
-          options.maxRetries || ORCHESTRATOR_CONFIG.maxRetries
-        );
-
-        result.attempts += stepResult.attempts;
-
-        if (stepResult.success) {
-          result.success = true;
-          result.method = step.method;
-          result.tabId = stepResult.tabId;
-          result.finalUrl = stepResult.finalUrl;
-          
-          this.logger.info('Login successful', { method: step.method });
-          break;
-        }
-
-        if (stepResult.requiresManualAction) {
-          result.requiresManualAction = true;
-          result.manualActionReason = stepResult.manualActionReason;
-          result.tabId = stepResult.tabId;
-          
-          this.logger.warn('Manual action required', { reason: stepResult.manualActionReason });
-          break;
-        }
-
-        if (stepResult.error) {
-          result.errors.push({
-            method: step.method,
-            error: stepResult.error,
-            attempts: stepResult.attempts
-          });
-        }
+      // STEP 2: Execute login based on mode
+      let loginResult;
+      
+      if (comboAuth.enabled) {
+        // Combo Auth mode - try primary then fallback
+        loginResult = await this.executeComboAuth(tool, credentials, options, flowId);
+      } else {
+        // Standard mode - single strategy
+        loginResult = await this.executeStandardLogin(tool, credentials, options, flowId);
       }
+      
+      // Merge results
+      Object.assign(result, loginResult);
 
-      // STEP 4: If all methods failed, provide actionable error
-      if (!result.success && !result.requiresManualAction) {
-        result.error = this.buildActionableError(result.errors, tool);
-        this.logger.error('All login methods failed', { errors: result.errors });
+      // STEP 3: Handle hidden mode success
+      if (result.success && isHiddenMode && sourceTabId && result.tabId !== sourceTabId) {
+        // Redirect source tab to final URL and close hidden tab
+        await chrome.tabs.update(sourceTabId, { url: result.finalUrl || tool.targetUrl });
+        if (result.tabId) {
+          await chrome.tabs.remove(result.tabId).catch(() => {});
+        }
+        result.tabId = sourceTabId;
       }
 
     } catch (error) {
@@ -165,6 +164,179 @@ export class LoginOrchestrator {
     }
 
     this.completeFlow(flowId, result);
+    return result;
+  }
+
+  /**
+   * Execute Combo Auth - SSO + Form with fallback
+   */
+  async executeComboAuth(tool, credentials, options, flowId) {
+    const comboAuth = tool.comboAuth;
+    const primary = comboAuth.primary || 'sso';
+    const fallbackEnabled = comboAuth.fallbackEnabled !== false;
+    
+    this.logger.info('Executing Combo Auth', { primary, fallbackEnabled });
+    
+    const result = {
+      success: false,
+      method: null,
+      attempts: 0,
+      errors: [],
+      tabId: null,
+      finalUrl: null
+    };
+
+    // Build credentials for each strategy
+    const ssoCredentials = {
+      type: 'sso',
+      payload: comboAuth.ssoConfig || {},
+      selectors: credentials.selectors || {},
+      successCheck: credentials.successCheck || {}
+    };
+    
+    const formCredentials = {
+      type: 'form',
+      payload: comboAuth.formConfig || {},
+      selectors: credentials.selectors || {},
+      successCheck: credentials.successCheck || {}
+    };
+
+    // Try primary strategy
+    const primaryCredentials = primary === 'sso' ? ssoCredentials : formCredentials;
+    this.updateFlowStatus(flowId, `executing_primary_${primary}`);
+    
+    const primaryResult = await this.executeWithRetry(
+      () => primary === 'sso' 
+        ? this.executeSSOLogin(primaryCredentials.payload, tool, primaryCredentials)
+        : this.executeFormLoginAuto(primaryCredentials.payload, tool, primaryCredentials, options),
+      primary,
+      2
+    );
+
+    result.attempts += primaryResult.attempts;
+
+    if (primaryResult.success) {
+      result.success = true;
+      result.method = `combo_${primary}`;
+      result.tabId = primaryResult.tabId;
+      result.finalUrl = primaryResult.finalUrl;
+      return result;
+    }
+
+    if (primaryResult.requiresManualAction) {
+      result.requiresManualAction = true;
+      result.manualActionReason = primaryResult.manualActionReason;
+      result.tabId = primaryResult.tabId;
+      return result;
+    }
+
+    result.errors.push({ method: primary, error: primaryResult.error });
+
+    // Try fallback if enabled
+    if (fallbackEnabled) {
+      const fallback = primary === 'sso' ? 'form' : 'sso';
+      const fallbackCredentials = primary === 'sso' ? formCredentials : ssoCredentials;
+      
+      this.logger.info('Primary failed, trying fallback', { fallback });
+      this.updateFlowStatus(flowId, `executing_fallback_${fallback}`);
+
+      const fallbackResult = await this.executeWithRetry(
+        () => fallback === 'sso' 
+          ? this.executeSSOLogin(fallbackCredentials.payload, tool, fallbackCredentials)
+          : this.executeFormLoginAuto(fallbackCredentials.payload, tool, fallbackCredentials, options),
+        fallback,
+        2
+      );
+
+      result.attempts += fallbackResult.attempts;
+
+      if (fallbackResult.success) {
+        result.success = true;
+        result.method = `combo_fallback_${fallback}`;
+        result.tabId = fallbackResult.tabId;
+        result.finalUrl = fallbackResult.finalUrl;
+        return result;
+      }
+
+      if (fallbackResult.requiresManualAction) {
+        result.requiresManualAction = true;
+        result.manualActionReason = fallbackResult.manualActionReason;
+        result.tabId = fallbackResult.tabId;
+        return result;
+      }
+
+      result.errors.push({ method: fallback, error: fallbackResult.error });
+    }
+
+    result.error = this.buildActionableError(result.errors, tool);
+    return result;
+  }
+
+  /**
+   * Execute standard login (non-combo)
+   */
+  async executeStandardLogin(tool, credentials, options, flowId) {
+    const result = {
+      success: false,
+      method: null,
+      attempts: 0,
+      errors: [],
+      tabId: null,
+      finalUrl: null
+    };
+
+    const executionPlan = this.buildExecutionPlan(tool, credentials);
+    this.logger.debug('Execution plan', { methods: executionPlan.map(m => m.method) });
+
+    for (const step of executionPlan) {
+      if (this.cancelledFlows.has(flowId)) {
+        result.error = 'Login cancelled by user';
+        break;
+      }
+
+      this.updateFlowStatus(flowId, `executing_${step.method}`);
+      
+      const stepResult = await this.executeWithRetry(
+        () => this.executeMethod(step, tool, credentials, options),
+        step.method,
+        options.maxRetries || ORCHESTRATOR_CONFIG.maxRetries
+      );
+
+      result.attempts += stepResult.attempts;
+
+      if (stepResult.success) {
+        result.success = true;
+        result.method = step.method;
+        result.tabId = stepResult.tabId;
+        result.finalUrl = stepResult.finalUrl;
+        
+        this.logger.info('Login successful', { method: step.method });
+        break;
+      }
+
+      if (stepResult.requiresManualAction) {
+        result.requiresManualAction = true;
+        result.manualActionReason = stepResult.manualActionReason;
+        result.tabId = stepResult.tabId;
+        
+        this.logger.warn('Manual action required', { reason: stepResult.manualActionReason });
+        break;
+      }
+
+      if (stepResult.error) {
+        result.errors.push({
+          method: step.method,
+          error: stepResult.error,
+          attempts: stepResult.attempts
+        });
+      }
+    }
+
+    if (!result.success && !result.requiresManualAction) {
+      result.error = this.buildActionableError(result.errors, tool);
+      this.logger.error('All login methods failed', { errors: result.errors });
+    }
+
     return result;
   }
 
@@ -193,7 +365,9 @@ export class LoginOrchestrator {
           username: credentials.payload.username,
           password: credentials.payload.password,
           loginUrl: credentials.payload.loginUrl || credentials.loginUrl || tool.loginUrl || tool.targetUrl,
-          selectors: credentials.selectors || {}
+          selectors: credentials.selectors || {},
+          multiStep: credentials.payload.multiStep || credentials.formOptions?.multiStep,
+          submitDelay: credentials.payload.submitDelay || 800
         }
       });
     }
@@ -344,12 +518,12 @@ export class LoginOrchestrator {
   /**
    * Execute a specific login method
    */
-  async executeMethod(step, tool, credentials) {
+  async executeMethod(step, tool, credentials, options = {}) {
     switch (step.method) {
       case 'session':
         return this.executeSessionInjection(step.data, tool, credentials);
       case 'form':
-        return this.executeFormLogin(step.data, tool, credentials);
+        return this.executeFormLoginAuto(step.data, tool, credentials, options);
       case 'sso':
         return this.executeSSOLogin(step.data, tool, credentials);
       default:
@@ -475,63 +649,99 @@ export class LoginOrchestrator {
   }
 
   /**
-   * Execute form login
+   * Execute form login with auto-start capability
+   * Enhanced for ?auto=1 support
    */
-  async executeFormLogin(data, tool, credentials) {
-    this.logger.info('Executing form login', { loginUrl: data.loginUrl });
+  async executeFormLoginAuto(data, tool, credentials, options = {}) {
+    const loginUrl = data.loginUrl || data.payload?.loginUrl || tool.loginUrl || tool.targetUrl;
+    const isHiddenMode = options.hidden === true;
+    const autoStartDelay = tool.extensionSettings?.autoStartDelay || ORCHESTRATOR_CONFIG.formFillDelayMs;
+    const maxAttempts = tool.extensionSettings?.maxAutoAttempts || 2;
+    
+    this.logger.info('Executing form login (auto-start)', { loginUrl, isHiddenMode });
 
-    // Create hidden tab for login
-    const hiddenTab = await this.createHiddenTab(data.loginUrl);
-    if (!hiddenTab) {
+    // Create tab for login (hidden if requested)
+    const loginTab = isHiddenMode
+      ? await this.createHiddenTab(loginUrl)
+      : await chrome.tabs.create({ url: loginUrl, active: true });
+      
+    if (!loginTab) {
       return { success: false, error: 'Failed to create login tab' };
     }
 
     try {
-      // Wait for page and form to load
-      await this.waitForTabLoad(hiddenTab.id);
-      await this.sleep(ORCHESTRATOR_CONFIG.formFillDelayMs);
+      // Wait for page to load
+      await this.waitForTabLoad(loginTab.id);
+      
+      // Inject "Logging in..." overlay if visible tab
+      if (!isHiddenMode) {
+        await this.injectLoginOverlay(loginTab.id, tool.name);
+      }
+      
+      // Auto-start delay
+      await this.sleep(autoStartDelay);
 
       // Wait for login form to appear (handles SPA rendering)
-      const formReady = await this.waitForLoginForm(hiddenTab.id, 8000);
+      const formReady = await this.waitForLoginForm(loginTab.id, 8000);
       
       if (!formReady.hasForm) {
         // Check if we're already logged in
         const alreadyIn = await this.successDetector.checkLoginSuccess(
-          hiddenTab.id, tool, credentials?.successCheck
+          loginTab.id, tool, credentials?.successCheck
         );
         
         if (alreadyIn.success) {
-          await chrome.tabs.update(hiddenTab.id, { active: true });
+          if (!isHiddenMode) {
+            await this.removeLoginOverlay(loginTab.id);
+          }
           return {
             success: true,
-            tabId: hiddenTab.id,
+            tabId: loginTab.id,
             finalUrl: alreadyIn.currentUrl,
             method: 'form',
             note: 'Already logged in'
           };
         }
         
-        await chrome.tabs.remove(hiddenTab.id).catch(() => {});
+        await chrome.tabs.remove(loginTab.id).catch(() => {});
         return { success: false, error: 'Login form not found' };
       }
 
-      // Check for MFA/2FA field
+      // Check for MFA/2FA field - stop if detected
       if (formReady.hasMFA) {
-        await chrome.tabs.update(hiddenTab.id, { active: true });
+        if (!isHiddenMode) {
+          await this.removeLoginOverlay(loginTab.id);
+        } else {
+          // Bring hidden tab to foreground for MFA
+          await chrome.tabs.update(loginTab.id, { active: true });
+        }
         return {
           success: false,
           requiresManualAction: true,
           manualActionReason: 'MFA/2FA detected - please complete authentication manually',
-          tabId: hiddenTab.id,
+          tabId: loginTab.id,
           skipRetry: true
         };
       }
 
-      // Execute form fill (handles multi-step if needed)
-      const fillResult = await this.executeFormFill(hiddenTab.id, data, credentials?.selectors);
+      // Execute form fill with auto-submit
+      const username = data.username || data.payload?.username;
+      const password = data.password || data.payload?.password;
+      const multiStep = data.multiStep || data.payload?.multiStep;
+      
+      const fillResult = await this.executeFormFillAutoSubmit(
+        loginTab.id, 
+        username, 
+        password, 
+        credentials?.selectors,
+        multiStep
+      );
 
       if (!fillResult.success) {
-        await chrome.tabs.remove(hiddenTab.id).catch(() => {});
+        if (!isHiddenMode) {
+          await this.removeLoginOverlay(loginTab.id);
+        }
+        await chrome.tabs.remove(loginTab.id).catch(() => {});
         return { success: false, error: fillResult.error || 'Form fill failed' };
       }
 
@@ -540,63 +750,370 @@ export class LoginOrchestrator {
 
       // Monitor for success or error
       const loginResult = await this.monitorLoginResult(
-        hiddenTab.id, 
+        loginTab.id, 
         tool, 
         credentials?.successCheck,
         15000
       );
 
+      // Remove overlay
+      if (!isHiddenMode) {
+        await this.removeLoginOverlay(loginTab.id);
+      }
+
       if (loginResult.success) {
-        await chrome.tabs.update(hiddenTab.id, { active: true });
         return {
           success: true,
-          tabId: hiddenTab.id,
+          tabId: loginTab.id,
           finalUrl: loginResult.currentUrl,
           method: 'form'
         };
       }
 
       if (loginResult.hasMFA) {
-        await chrome.tabs.update(hiddenTab.id, { active: true });
+        if (isHiddenMode) {
+          // Bring hidden tab to foreground for MFA
+          await chrome.tabs.update(loginTab.id, { active: true });
+        }
         return {
           success: false,
           requiresManualAction: true,
           manualActionReason: 'MFA/2FA required - please complete authentication',
-          tabId: hiddenTab.id,
+          tabId: loginTab.id,
           skipRetry: true
         };
       }
 
       if (loginResult.hasError) {
-        await chrome.tabs.remove(hiddenTab.id).catch(() => {});
+        await chrome.tabs.remove(loginTab.id).catch(() => {});
         return { 
           success: false, 
           error: loginResult.errorMessage || 'Login failed - invalid credentials?'
         };
       }
 
-      await chrome.tabs.remove(hiddenTab.id).catch(() => {});
+      await chrome.tabs.remove(loginTab.id).catch(() => {});
       return { success: false, error: 'Login did not complete successfully' };
 
     } catch (error) {
-      await chrome.tabs.remove(hiddenTab.id).catch(() => {});
+      await chrome.tabs.remove(loginTab.id).catch(() => {});
       throw error;
     }
+  }
+
+  /**
+   * Inject "Logging in..." overlay into the page
+   */
+  async injectLoginOverlay(tabId, toolName) {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        func: (name) => {
+          // Remove any existing overlay
+          const existing = document.getElementById('toolstack-login-overlay');
+          if (existing) existing.remove();
+
+          // Create overlay
+          const overlay = document.createElement('div');
+          overlay.id = 'toolstack-login-overlay';
+          overlay.innerHTML = `
+            <div style="
+              position: fixed;
+              top: 20px;
+              right: 20px;
+              z-index: 999999;
+              background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+              border: 1px solid rgba(255, 140, 0, 0.3);
+              border-radius: 12px;
+              padding: 16px 24px;
+              box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+              display: flex;
+              align-items: center;
+              gap: 12px;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            ">
+              <div style="
+                width: 24px;
+                height: 24px;
+                border: 3px solid rgba(255, 140, 0, 0.3);
+                border-top-color: #ff8c00;
+                border-radius: 50%;
+                animation: toolstack-spin 1s linear infinite;
+              "></div>
+              <div>
+                <div style="color: white; font-weight: 600; font-size: 14px;">Logging in to ${name}...</div>
+                <div style="color: rgba(255,255,255,0.6); font-size: 12px; margin-top: 2px;">Please wait</div>
+              </div>
+              <button id="toolstack-cancel-login" style="
+                margin-left: 16px;
+                background: transparent;
+                border: 1px solid rgba(255,255,255,0.3);
+                color: rgba(255,255,255,0.8);
+                padding: 6px 12px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 12px;
+                transition: all 0.2s;
+              " onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">
+                Cancel
+              </button>
+            </div>
+            <style>
+              @keyframes toolstack-spin {
+                to { transform: rotate(360deg); }
+              }
+            </style>
+          `;
+          document.body.appendChild(overlay);
+
+          // Handle cancel button
+          document.getElementById('toolstack-cancel-login')?.addEventListener('click', () => {
+            overlay.remove();
+            window.dispatchEvent(new CustomEvent('toolstack-login-cancelled'));
+          });
+        },
+        args: [toolName]
+      });
+    } catch (error) {
+      this.logger.warn('Failed to inject overlay', { error: error.message });
+    }
+  }
+
+  /**
+   * Remove login overlay
+   */
+  async removeLoginOverlay(tabId) {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => {
+          const overlay = document.getElementById('toolstack-login-overlay');
+          if (overlay) overlay.remove();
+        }
+      });
+    } catch (error) {
+      // Tab might have navigated
+    }
+  }
+
+  /**
+   * Execute form fill with auto-submit (Enter key fallback)
+   */
+  async executeFormFillAutoSubmit(tabId, username, password, customSelectors = {}, multiStep = false) {
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: this.formFillAutoSubmitScript,
+        args: [username, password, customSelectors, multiStep]
+      });
+
+      return results[0]?.result || { success: false, error: 'No result' };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Form fill script with auto-submit (injected into page)
+   */
+  formFillAutoSubmitScript(username, password, customSelectors, multiStep) {
+    const result = {
+      success: false,
+      steps: [],
+      error: null
+    };
+
+    // Selector lists
+    const usernameSelectors = [
+      customSelectors?.username,
+      'input[type="email"]', 'input[name="email"]', 'input[id="email"]',
+      'input[name="username"]', 'input[id="username"]', 'input[name="login"]',
+      'input[autocomplete="email"]', 'input[autocomplete="username"]',
+      'input[placeholder*="email" i]', 'input[placeholder*="username" i]',
+      'input[name="identifier"]', 'input[name="account"]'
+    ].filter(Boolean);
+
+    const passwordSelectors = [
+      customSelectors?.password,
+      'input[type="password"]', 'input[name="password"]', 'input[id="password"]',
+      'input[autocomplete="current-password"]'
+    ].filter(Boolean);
+
+    const submitSelectors = [
+      customSelectors?.submit,
+      'button[type="submit"]', 'input[type="submit"]',
+      'button[class*="login" i]', 'button[class*="signin" i]', 'button[class*="submit" i]',
+      'button[id*="login" i]', 'button[id*="signin" i]',
+      '[role="button"][class*="login" i]', '[role="button"][class*="submit" i]'
+    ].filter(Boolean);
+
+    const nextButtonSelectors = [
+      customSelectors?.next,
+      'button[class*="next" i]', 'button[id*="next" i]',
+      'button:not([type="submit"])[class*="continue" i]',
+      'input[type="button"][value*="next" i]',
+      'input[type="button"][value*="continue" i]'
+    ].filter(Boolean);
+
+    // Helper: Find visible element
+    const findElement = (selectorList, doc = document) => {
+      for (const selector of selectorList) {
+        if (!selector) continue;
+        try {
+          let el = doc.querySelector(selector);
+          if (el && el.offsetParent !== null) return { el, inIframe: false };
+
+          // Check iframes
+          const iframes = doc.querySelectorAll('iframe');
+          for (const iframe of iframes) {
+            try {
+              if (iframe.contentDocument) {
+                el = iframe.contentDocument.querySelector(selector);
+                if (el && el.offsetParent !== null) {
+                  return { el, inIframe: true, iframe };
+                }
+              }
+            } catch (e) {}
+          }
+        } catch (e) {}
+      }
+      return { el: null };
+    };
+
+    // Helper: Set input value with events (React/Vue/Angular compatible)
+    const setInputValue = (input, value) => {
+      input.focus();
+      input.value = '';
+
+      // Native setter for React
+      const nativeSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype, 'value'
+      )?.set;
+
+      if (nativeSetter) {
+        nativeSetter.call(input, value);
+      } else {
+        input.value = value;
+      }
+
+      // Dispatch events
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'a' }));
+    };
+
+    // Helper: Click element
+    const clickElement = (el) => {
+      el.focus();
+      el.click();
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    };
+
+    // Helper: Press Enter key
+    const pressEnter = (el) => {
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+      el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+    };
+
+    // STEP 1: Find and fill username
+    const usernameField = findElement(usernameSelectors);
+    if (!usernameField.el) {
+      result.error = 'Username field not found';
+      return result;
+    }
+
+    setInputValue(usernameField.el, username);
+    result.steps.push({ field: 'username', success: true });
+
+    // STEP 2: Check if password field is visible (single-step) or need to click next (multi-step)
+    const passwordField = findElement(passwordSelectors);
+
+    if (passwordField.el) {
+      // Single-step login
+      setInputValue(passwordField.el, password);
+      result.steps.push({ field: 'password', success: true });
+
+      // Auto-submit after delay
+      setTimeout(() => {
+        const submitBtn = findElement(submitSelectors);
+        if (submitBtn.el) {
+          clickElement(submitBtn.el);
+          result.steps.push({ action: 'submit_click', success: true });
+        } else {
+          // Fallback: Press Enter on password field
+          pressEnter(passwordField.el);
+          result.steps.push({ action: 'enter_key', success: true });
+        }
+      }, 200);
+
+      result.success = true;
+      result.multiStep = false;
+
+    } else {
+      // Multi-step login - click next/continue first
+      const nextBtn = findElement(nextButtonSelectors);
+      const submitBtn = findElement(submitSelectors);
+      const clickTarget = nextBtn.el || submitBtn.el;
+
+      if (clickTarget) {
+        clickElement(clickTarget);
+        result.steps.push({ action: 'next_click', success: true });
+        result.multiStep = true;
+        result.needsPasswordStep = true;
+
+        // Schedule password fill after next button processes
+        setTimeout(() => {
+          const pwdField = findElement(passwordSelectors);
+          if (pwdField.el) {
+            setInputValue(pwdField.el, password);
+
+            setTimeout(() => {
+              const finalSubmit = findElement(submitSelectors);
+              if (finalSubmit.el) {
+                clickElement(finalSubmit.el);
+              } else {
+                // Fallback: Press Enter
+                pressEnter(pwdField.el);
+              }
+            }, 200);
+          }
+        }, 1500);
+
+        result.success = true;
+      } else {
+        // No submit/next button - try Enter key on username
+        pressEnter(usernameField.el);
+        result.steps.push({ action: 'enter_key_username', success: true });
+        result.success = true;
+      }
+    }
+
+    return result;
   }
 
   /**
    * Execute SSO login
    */
   async executeSSOLogin(data, tool, credentials) {
+    const authStartUrl = data.authStartUrl || data.payload?.authStartUrl || tool.loginUrl;
+    const postLoginUrl = data.postLoginUrl || data.payload?.postLoginUrl || tool.targetUrl;
+    const provider = data.provider || data.payload?.provider;
+    const autoClick = data.autoClick !== false && data.payload?.autoClick !== false;
+    const buttonSelector = data.buttonSelector || data.payload?.buttonSelector;
+    
     this.logger.info('Executing SSO login', { 
-      provider: data.provider,
-      authStartUrl: data.authStartUrl 
+      provider,
+      authStartUrl 
     });
+
+    if (!authStartUrl) {
+      return { success: false, error: 'No auth start URL configured' };
+    }
 
     // Create visible tab for SSO (user may need to interact)
     const ssoTab = await chrome.tabs.create({ 
-      url: data.authStartUrl, 
-      active: true  // SSO often needs user visibility
+      url: authStartUrl, 
+      active: true
     });
 
     try {
@@ -604,8 +1121,8 @@ export class LoginOrchestrator {
       await this.sleep(1000);
 
       // Try to click provider button if autoClick is enabled
-      if (data.autoClick && data.provider) {
-        const clickResult = await this.clickSSOProvider(ssoTab.id, data.provider, data.buttonSelector);
+      if (autoClick && (provider || buttonSelector)) {
+        const clickResult = await this.clickSSOProvider(ssoTab.id, provider, buttonSelector);
         if (clickResult.clicked) {
           this.logger.debug('Clicked SSO provider button');
         }
@@ -626,7 +1143,7 @@ export class LoginOrchestrator {
       // Monitor for redirect to post-login URL
       const ssoResult = await this.monitorSSOCompletion(
         ssoTab.id,
-        data.postLoginUrl,
+        postLoginUrl,
         tool,
         credentials?.successCheck,
         30000
@@ -707,7 +1224,6 @@ export class LoginOrchestrator {
         // Normalize cookie domain
         let cookieDomain = cookie.domain || domain;
         
-        // Ensure leading dot for subdomain cookies
         if (cookieDomain && !cookieDomain.startsWith('.') && cookieDomain !== domain) {
           cookieDomain = '.' + cookieDomain;
         }
@@ -722,10 +1238,7 @@ export class LoginOrchestrator {
           sameSite = 'lax';
         }
 
-        // SameSite=None requires Secure
         const secure = sameSite === 'no_restriction' ? true : (cookie.secure !== false && isHttps);
-
-        // Build cookie URL
         const protocol = secure ? 'https' : 'http';
         const cleanDomain = cookieDomain.startsWith('.') ? cookieDomain.substring(1) : cookieDomain;
         const cookieUrl = `${protocol}://${cleanDomain}${cookie.path || '/'}`;
@@ -740,12 +1253,10 @@ export class LoginOrchestrator {
           sameSite
         };
 
-        // Set domain for subdomain cookies
         if (cookieDomain.startsWith('.')) {
           cookieDetails.domain = cookieDomain;
         }
 
-        // Handle expiration
         if (cookie.expirationDate) {
           cookieDetails.expirationDate = cookie.expirationDate;
         } else if (cookie.expires) {
@@ -754,7 +1265,6 @@ export class LoginOrchestrator {
             cookieDetails.expirationDate = expiresDate.getTime() / 1000;
           }
         } else {
-          // Default: 30 days
           cookieDetails.expirationDate = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60);
         }
 
@@ -766,12 +1276,6 @@ export class LoginOrchestrator {
         errors.push({ name: cookie.name, error: error.message });
       }
     }
-
-    this.logger.debug('Cookie injection result', { 
-      success: successCount, 
-      total: cookies.length, 
-      errors: errors.length 
-    });
 
     return {
       success: successCount > 0,
@@ -795,32 +1299,28 @@ export class LoginOrchestrator {
         func: (storageData, type) => {
           const storage = type === 'sessionStorage' ? sessionStorage : localStorage;
           let count = 0;
-          const errors = [];
 
           for (const [key, value] of Object.entries(storageData)) {
             try {
               const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
               storage.setItem(key, valueStr);
               count++;
-            } catch (e) {
-              errors.push({ key, error: e.message });
-            }
+            } catch (e) {}
           }
 
-          return { success: count > 0, count, errors };
+          return { success: count > 0, count };
         },
         args: [data, storageType]
       });
 
       return results[0]?.result || { success: false, count: 0 };
     } catch (error) {
-      this.logger.warn('Storage injection failed', { error: error.message });
       return { success: false, count: 0, error: error.message };
     }
   }
 
   /**
-   * Wait for login form to appear (handles SPA)
+   * Wait for login form to appear
    */
   async waitForLoginForm(tabId, timeout = 8000) {
     const startTime = Date.now();
@@ -830,17 +1330,14 @@ export class LoginOrchestrator {
         const results = await chrome.scripting.executeScript({
           target: { tabId },
           func: () => {
-            // Check main document
             const checkDocument = (doc) => {
               const passwordField = doc.querySelector('input[type="password"]');
               const hasPassword = passwordField && passwordField.offsetParent !== null;
 
-              // Check for MFA fields
               const mfaSelectors = [
                 'input[name*="otp"]', 'input[name*="code"]', 'input[name*="2fa"]',
                 'input[name*="totp"]', 'input[name*="mfa"]', 'input[id*="otp"]',
-                'input[placeholder*="code" i]', 'input[placeholder*="authenticator" i]',
-                '[class*="mfa"]', '[class*="two-factor"]', '[class*="2fa"]'
+                'input[placeholder*="code" i]', 'input[placeholder*="authenticator" i]'
               ];
               const hasMFA = mfaSelectors.some(s => {
                 const el = doc.querySelector(s);
@@ -850,10 +1347,8 @@ export class LoginOrchestrator {
               return { hasPassword, hasMFA };
             };
 
-            // Check main document
             let result = checkDocument(document);
 
-            // Check same-origin iframes
             if (!result.hasPassword) {
               const iframes = document.querySelectorAll('iframe');
               for (const iframe of iframes) {
@@ -865,9 +1360,7 @@ export class LoginOrchestrator {
                       break;
                     }
                   }
-                } catch (e) {
-                  // Cross-origin iframe, skip
-                }
+                } catch (e) {}
               }
             }
 
@@ -883,204 +1376,12 @@ export class LoginOrchestrator {
         if (result?.hasForm || result?.hasMFA) {
           return result;
         }
-      } catch (error) {
-        // Tab might have navigated
-      }
+      } catch (error) {}
 
       await this.sleep(300);
     }
 
     return { hasForm: false, hasMFA: false };
-  }
-
-  /**
-   * Execute form fill with multi-step support
-   */
-  async executeFormFill(tabId, data, customSelectors = {}) {
-    try {
-      const results = await chrome.scripting.executeScript({
-        target: { tabId },
-        func: this.formFillScript,
-        args: [data.username, data.password, customSelectors]
-      });
-
-      return results[0]?.result || { success: false, error: 'No result' };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-
-  /**
-   * Form fill script (injected into page)
-   * Handles single-step and multi-step login forms
-   */
-  formFillScript(username, password, customSelectors) {
-    const result = {
-      success: false,
-      steps: [],
-      error: null
-    };
-
-    // Selector lists
-    const usernameSelectors = [
-      customSelectors?.username,
-      'input[type="email"]', 'input[name="email"]', 'input[id="email"]',
-      'input[name="username"]', 'input[id="username"]', 'input[name="login"]',
-      'input[autocomplete="email"]', 'input[autocomplete="username"]',
-      'input[placeholder*="email" i]', 'input[placeholder*="username" i]',
-      'input[name="identifier"]', 'input[name="account"]'
-    ].filter(Boolean);
-
-    const passwordSelectors = [
-      customSelectors?.password,
-      'input[type="password"]', 'input[name="password"]', 'input[id="password"]',
-      'input[autocomplete="current-password"]'
-    ].filter(Boolean);
-
-    const submitSelectors = [
-      customSelectors?.submit,
-      'button[type="submit"]', 'input[type="submit"]',
-      'button[class*="login" i]', 'button[class*="signin" i]', 'button[class*="submit" i]',
-      'button[id*="login" i]', 'button[id*="signin" i]',
-      '[role="button"][class*="login" i]', '[role="button"][class*="submit" i]'
-    ].filter(Boolean);
-
-    const nextButtonSelectors = [
-      'button[class*="next" i]', 'button[id*="next" i]',
-      'button:not([type="submit"])[class*="continue" i]',
-      'input[type="button"][value*="next" i]',
-      'input[type="button"][value*="continue" i]'
-    ];
-
-    // Helper: Find visible element
-    const findElement = (selectorList, doc = document) => {
-      for (const selector of selectorList) {
-        if (!selector) continue;
-        try {
-          // Check main document
-          let el = doc.querySelector(selector);
-          if (el && el.offsetParent !== null) return { el, inIframe: false };
-
-          // Check iframes
-          const iframes = doc.querySelectorAll('iframe');
-          for (const iframe of iframes) {
-            try {
-              if (iframe.contentDocument) {
-                el = iframe.contentDocument.querySelector(selector);
-                if (el && el.offsetParent !== null) {
-                  return { el, inIframe: true, iframe };
-                }
-              }
-            } catch (e) {}
-          }
-        } catch (e) {}
-      }
-      return { el: null };
-    };
-
-    // Helper: Set input value with events
-    const setInputValue = (input, value) => {
-      input.focus();
-      input.value = '';
-
-      // Native setter for React
-      const nativeSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype, 'value'
-      )?.set;
-
-      if (nativeSetter) {
-        nativeSetter.call(input, value);
-      } else {
-        input.value = value;
-      }
-
-      // Dispatch events
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'a' }));
-    };
-
-    // Helper: Click element
-    const clickElement = (el) => {
-      el.focus();
-      el.click();
-      el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    };
-
-    // STEP 1: Find and fill username
-    const usernameField = findElement(usernameSelectors);
-    if (!usernameField.el) {
-      result.error = 'Username field not found';
-      return result;
-    }
-
-    setInputValue(usernameField.el, username);
-    result.steps.push({ field: 'username', success: true });
-
-    // STEP 2: Check if password field is visible (single-step) or need to click next (multi-step)
-    const passwordField = findElement(passwordSelectors);
-
-    if (passwordField.el) {
-      // Single-step login
-      setInputValue(passwordField.el, password);
-      result.steps.push({ field: 'password', success: true });
-
-      // Click submit
-      setTimeout(() => {
-        const submitBtn = findElement(submitSelectors);
-        if (submitBtn.el) {
-          clickElement(submitBtn.el);
-          result.steps.push({ action: 'submit', success: true });
-        } else {
-          // Try form submit
-          const form = usernameField.el.closest('form') || passwordField.el.closest('form');
-          if (form) {
-            form.submit();
-            result.steps.push({ action: 'form_submit', success: true });
-          }
-        }
-      }, 200);
-
-      result.success = true;
-      result.multiStep = false;
-
-    } else {
-      // Multi-step login - click next/continue first
-      const nextBtn = findElement(nextButtonSelectors);
-      const submitBtn = findElement(submitSelectors);
-      const clickTarget = nextBtn.el || submitBtn.el;
-
-      if (clickTarget) {
-        clickElement(clickTarget);
-        result.steps.push({ action: 'next_click', success: true });
-        result.multiStep = true;
-        result.needsPasswordStep = true;
-
-        // Schedule password fill after next button processes
-        setTimeout(() => {
-          const pwdField = findElement(passwordSelectors);
-          if (pwdField.el) {
-            setInputValue(pwdField.el, password);
-
-            setTimeout(() => {
-              const finalSubmit = findElement(submitSelectors);
-              if (finalSubmit.el) {
-                clickElement(finalSubmit.el);
-              } else {
-                const form = pwdField.el.closest('form');
-                if (form) form.submit();
-              }
-            }, 200);
-          }
-        }, 1500);
-
-        result.success = true;
-      } else {
-        result.error = 'No submit or next button found';
-      }
-    }
-
-    return result;
   }
 
   /**
@@ -1091,19 +1392,16 @@ export class LoginOrchestrator {
 
     while (Date.now() - startTime < timeout) {
       try {
-        // Check success
         const check = await this.successDetector.checkLoginSuccess(tabId, tool, successCheck);
         if (check.success) {
           return check;
         }
 
-        // Check for MFA
         const mfaCheck = await this.checkForMFA(tabId);
         if (mfaCheck.hasMFA) {
           return { success: false, hasMFA: true };
         }
 
-        // Check for error messages
         const errorCheck = await this.checkForLoginError(tabId);
         if (errorCheck.hasError) {
           return { 
@@ -1113,9 +1411,7 @@ export class LoginOrchestrator {
           };
         }
 
-      } catch (error) {
-        // Tab might have navigated
-      }
+      } catch (error) {}
 
       await this.sleep(500);
     }
@@ -1134,29 +1430,21 @@ export class LoginOrchestrator {
           const mfaIndicators = [
             'input[name*="otp"]', 'input[name*="code"]', 'input[name*="2fa"]',
             'input[name*="totp"]', 'input[name*="mfa"]', 'input[id*="otp"]',
-            'input[placeholder*="code" i]', 'input[placeholder*="authenticator" i]',
-            '[class*="mfa"]', '[class*="two-factor"]', '[class*="2fa"]',
-            '[class*="verification"]', '[class*="verify-code"]'
+            'input[placeholder*="code" i]', 'input[placeholder*="authenticator" i]'
           ];
 
-          const textIndicators = [
-            'verification code', 'authenticator', '2-step', 'two-factor',
-            'enter code', 'security code', 'one-time'
-          ];
-
-          // Check for MFA form elements
           for (const selector of mfaIndicators) {
             const el = document.querySelector(selector);
             if (el && el.offsetParent !== null) {
-              return { hasMFA: true, type: 'form_element' };
+              return { hasMFA: true };
             }
           }
 
-          // Check page text
           const bodyText = document.body.innerText.toLowerCase();
+          const textIndicators = ['verification code', 'authenticator', '2-step', 'two-factor'];
           for (const text of textIndicators) {
             if (bodyText.includes(text)) {
-              return { hasMFA: true, type: 'text_indicator' };
+              return { hasMFA: true };
             }
           }
 
@@ -1180,14 +1468,10 @@ export class LoginOrchestrator {
         func: () => {
           const errorSelectors = [
             '.error', '.error-message', '.alert-danger', '.alert-error',
-            '[class*="error"]', '[class*="invalid"]', '[role="alert"]',
-            '[data-testid*="error"]', '.form-error', '.login-error'
+            '[class*="error"]', '[class*="invalid"]', '[role="alert"]'
           ];
 
-          const errorTexts = [
-            'invalid', 'incorrect', 'wrong', 'failed', 'error',
-            'does not match', 'not found', 'try again'
-          ];
+          const errorTexts = ['invalid', 'incorrect', 'wrong', 'failed', 'error'];
 
           for (const selector of errorSelectors) {
             try {
@@ -1218,8 +1502,7 @@ export class LoginOrchestrator {
     const providerSelectors = {
       google: [
         '[data-provider="google"]', 'button[class*="google"]',
-        'a[href*="google.com/o/oauth"]', '[aria-label*="Google"]',
-        '.google-login', '#google-signin'
+        'a[href*="google.com/o/oauth"]', '[aria-label*="Google"]'
       ],
       microsoft: [
         '[data-provider="microsoft"]', 'button[class*="microsoft"]',
@@ -1229,13 +1512,8 @@ export class LoginOrchestrator {
         '[data-provider="github"]', 'button[class*="github"]',
         'a[href*="github.com/login/oauth"]', '[aria-label*="GitHub"]'
       ],
-      okta: [
-        '[data-provider="okta"]', 'button[class*="okta"]', 'a[href*="okta"]'
-      ],
-      saml: [
-        '[data-provider="sso"]', '[data-provider="saml"]',
-        'button[class*="sso"]', 'a[href*="sso"]', '.sso-login'
-      ]
+      okta: ['[data-provider="okta"]', 'button[class*="okta"]', 'a[href*="okta"]'],
+      saml: ['[data-provider="sso"]', '[data-provider="saml"]', 'button[class*="sso"]', '.sso-login']
     };
 
     const selectors = customSelector 
@@ -1262,7 +1540,7 @@ export class LoginOrchestrator {
 
       return results[0]?.result || { clicked: false };
     } catch (error) {
-      return { clicked: false, error: error.message };
+      return { clicked: false };
     }
   }
 
@@ -1277,38 +1555,14 @@ export class LoginOrchestrator {
           const url = window.location.href.toLowerCase();
           const bodyText = document.body.innerText.toLowerCase();
 
-          // URL indicators
-          const urlIndicators = [
-            'accountchooser', 'account_chooser', 'select_account',
-            'selectaccount', 'pick_account'
-          ];
-
-          // Text indicators
-          const textIndicators = [
-            'choose an account', 'select an account', 'pick an account',
-            'which account', 'sign in with', 'use another account'
-          ];
-
-          // Check URL
-          if (urlIndicators.some(i => url.includes(i))) {
-            return { detected: true, type: 'url' };
+          const urlIndicators = ['accountchooser', 'select_account', 'pick_account'];
+          for (const i of urlIndicators) {
+            if (url.includes(i)) return { detected: true };
           }
 
-          // Check text
-          if (textIndicators.some(i => bodyText.includes(i))) {
-            return { detected: true, type: 'text' };
-          }
-
-          // Check for multiple account list
-          const accountSelectors = [
-            '[data-identifier]', '[data-email]', '.account-list',
-            '.picker-list', '[class*="account-chooser"]'
-          ];
-          for (const selector of accountSelectors) {
-            const elements = document.querySelectorAll(selector);
-            if (elements.length > 1) {
-              return { detected: true, type: 'account_list' };
-            }
+          const textIndicators = ['choose an account', 'select an account', 'pick an account'];
+          for (const t of textIndicators) {
+            if (bodyText.includes(t)) return { detected: true };
           }
 
           return { detected: false };
@@ -1332,18 +1586,15 @@ export class LoginOrchestrator {
         const tab = await chrome.tabs.get(tabId);
         const currentUrl = tab.url;
 
-        // Check if redirected to post-login URL
         if (postLoginUrl && currentUrl.includes(postLoginUrl)) {
           return { success: true, currentUrl };
         }
 
-        // Check success conditions
         const check = await this.successDetector.checkLoginSuccess(tabId, tool, successCheck);
         if (check.success) {
           return check;
         }
 
-        // Check for account chooser
         const accountChooser = await this.detectAccountChooser(tabId);
         if (accountChooser.detected) {
           return {
@@ -1353,10 +1604,8 @@ export class LoginOrchestrator {
           };
         }
 
-        // Check if no longer on auth pages
         const isAuthPage = /\/(login|signin|auth|oauth|sso)/i.test(currentUrl);
         if (!isAuthPage) {
-          // Verify with success detector
           const finalCheck = await this.successDetector.checkLoginSuccess(tabId, tool, successCheck);
           if (finalCheck.success || !finalCheck.isLoginPage) {
             return { success: true, currentUrl };
@@ -1409,7 +1658,7 @@ export class LoginOrchestrator {
           if (tab.status === 'complete') {
             resolve(tab);
           } else if (Date.now() - startTime > timeout) {
-            resolve(tab); // Resolve anyway after timeout
+            resolve(tab);
           } else {
             setTimeout(checkTab, 100);
           }
@@ -1446,6 +1695,17 @@ export class LoginOrchestrator {
   }
 
   /**
+   * Cancel a login flow
+   */
+  cancelFlow(flowId) {
+    this.cancelledFlows.add(flowId);
+    const flow = this.activeFlows.get(flowId);
+    if (flow && flow.tabId) {
+      chrome.tabs.remove(flow.tabId).catch(() => {});
+    }
+  }
+
+  /**
    * Update flow status
    */
   updateFlowStatus(flowId, status) {
@@ -1473,6 +1733,7 @@ export class LoginOrchestrator {
     });
 
     this.activeFlows.delete(flowId);
+    this.cancelledFlows.delete(flowId);
   }
 
   /**
