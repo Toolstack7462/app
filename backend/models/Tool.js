@@ -12,6 +12,47 @@ const mongoose = require('mongoose');
  *   successCheck: { ... validation after login ... }
  * }
  */
+
+/**
+ * Combo Auth Schema - Allows both SSO and Form in one tool
+ */
+const comboAuthSchema = new mongoose.Schema({
+  // Enable combo auth mode
+  enabled: { type: Boolean, default: false },
+  
+  // Primary strategy to try first
+  primary: { 
+    type: String, 
+    enum: ['sso', 'form'], 
+    default: 'sso' 
+  },
+  
+  // Whether to try fallback strategy if primary fails
+  fallbackEnabled: { type: Boolean, default: true },
+  
+  // Only trigger auto-login when ?auto=1 in URL
+  triggerOnAuto: { type: Boolean, default: true },
+  
+  // Form login configuration (when combo auth is enabled)
+  formConfig: {
+    username: String,
+    password: String, // Will be encrypted
+    loginUrl: String,
+    multiStep: { type: Boolean, default: false },
+    rememberMe: { type: Boolean, default: true },
+    submitDelay: { type: Number, default: 800 }
+  },
+  
+  // SSO configuration (when combo auth is enabled)
+  ssoConfig: {
+    authStartUrl: String,
+    postLoginUrl: String,
+    provider: String,
+    buttonSelector: String,
+    autoClick: { type: Boolean, default: true }
+  }
+}, { _id: false });
+
 const credentialSchema = new mongoose.Schema({
   // Credential type
   type: {
