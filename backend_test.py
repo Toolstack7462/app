@@ -14,7 +14,7 @@ import uuid
 class ToolStackCRMTester:
     def __init__(self):
         # Use preview URL for testing environment-agnostic configuration
-        self.gateway_url = "https://sso-form-login.preview.emergentagent.com"
+        self.gateway_url = "https://auth-bundle.preview.emergentagent.com"
         self.crm_health_url = f"{self.gateway_url}/api/crm/health"
         self.api_base = f"{self.gateway_url}/api/crm"
         
@@ -155,8 +155,8 @@ class ToolStackCRMTester:
         
         # Test with allowed preview subdomain
         test_origins = [
-            "https://sso-form-login.preview.emergentagent.com",
-            "https://sso-form-login.preview.emergentagent.com", 
+            "https://auth-bundle.preview.emergentagent.com",
+            "https://auth-bundle.preview.emergentagent.com", 
             "https://main.emergentagent.com",
             "http://localhost:3000"
         ]

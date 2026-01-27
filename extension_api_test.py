@@ -9,7 +9,7 @@ import json
 
 def test_extension_api():
     """Test extension API with unified credentials"""
-    gateway_url = "https://sso-form-login.preview.emergentagent.com"
+    gateway_url = "https://auth-bundle.preview.emergentagent.com"
     api_base = f"{gateway_url}/api/crm"
     
     print("🔌 Testing Extension API for Unified Credentials...")

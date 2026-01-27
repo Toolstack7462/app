@@ -19,7 +19,7 @@ from datetime import datetime
 class BugFixesTester:
     def __init__(self):
         # Use the configured backend URL from frontend/.env
-        self.backend_url = "https://sso-form-login.preview.emergentagent.com"
+        self.backend_url = "https://auth-bundle.preview.emergentagent.com"
         self.api_base = f"{self.backend_url}/api"
         
         # Admin credentials from review request
