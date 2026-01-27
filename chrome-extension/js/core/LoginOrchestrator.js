@@ -168,6 +168,81 @@ export class LoginOrchestrator {
   }
 
   /**
+   * Check and fetch latest session bundle from server
+   * Auto-syncs when admin updates cookies/storage
+   */
+  async checkAndFetchLatestSessionBundle(tool, options) {
+    try {
+      // Get cached version
+      const cachedVersion = await this.getCachedBundleVersion(tool.id);
+      
+      // Check current version from tool info
+      const serverVersion = tool.sessionBundle?.version || 
+                           options.sessionBundle?.version || 0;
+      
+      this.logger.info('Checking session bundle version', { 
+        toolId: tool.id,
+        cachedVersion, 
+        serverVersion 
+      });
+
+      // If server has newer version, fetch and apply
+      if (serverVersion > cachedVersion) {
+        this.logger.info('Session bundle updated! Fetching latest...', {
+          oldVersion: cachedVersion,
+          newVersion: serverVersion
+        });
+
+        // Session bundle should already be in options from credentials fetch
+        if (options.sessionBundle) {
+          // Cache the new version
+          await this.setCachedBundleVersion(tool.id, serverVersion);
+          
+          return {
+            updated: true,
+            sessionBundle: options.sessionBundle,
+            version: serverVersion
+          };
+        }
+      }
+
+      return {
+        updated: false,
+        sessionBundle: options.sessionBundle || null,
+        version: serverVersion
+      };
+    } catch (error) {
+      this.logger.error('Failed to check session bundle update', error);
+      return { updated: false, error: error.message };
+    }
+  }
+
+  /**
+   * Cache session bundle version
+   */
+  async getCachedBundleVersion(toolId) {
+    try {
+      const key = `sessionBundle_v_${toolId}`;
+      const data = await chrome.storage.local.get([key]);
+      return data[key] || 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  /**
+   * Set cached session bundle version
+   */
+  async setCachedBundleVersion(toolId, version) {
+    try {
+      const key = `sessionBundle_v_${toolId}`;
+      await chrome.storage.local.set({ [key]: version });
+    } catch (e) {
+      this.logger.warn('Failed to cache bundle version', e);
+    }
+  }
+
+  /**
    * Execute Combo Auth - Supports both Sequential and Parallel modes
    * 
    * Sequential: Primary -> Fallback (existing behavior)
@@ -189,6 +264,16 @@ export class LoginOrchestrator {
       fallbackEnabled,
       skipIfLoggedIn
     });
+
+    // AUTO-SYNC: Check for session bundle updates from admin
+    const bundleCheck = await this.checkAndFetchLatestSessionBundle(tool, options);
+    if (bundleCheck.updated) {
+      this.logger.info('Session bundle auto-synced from admin update', {
+        version: bundleCheck.version
+      });
+      // Update options with latest session bundle
+      options.sessionBundle = bundleCheck.sessionBundle;
+    }
 
     // Check if already logged in (if skipIfLoggedIn is true)
     if (skipIfLoggedIn) {
