@@ -220,6 +220,10 @@ const toolSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
+  // ========== COMBO AUTH ==========
+  // Allows configuring both SSO and Form login in one tool
+  comboAuth: comboAuthSchema,
+  
   // Extension-specific settings
   extensionSettings: {
     requirePermission: { type: Boolean, default: true },
@@ -231,6 +235,13 @@ const toolSchema = new mongoose.Schema({
     spaMode: { type: Boolean, default: false },
     retryAttempts: { type: Number, default: 2 },
     retryDelayMs: { type: Number, default: 1000 },
+    // Hidden mode settings
+    hiddenModeEnabled: { type: Boolean, default: true },
+    hiddenModeTimeout: { type: Number, default: 60000 }, // 60 seconds
+    // Auto-start settings (when ?auto=1)
+    autoStartEnabled: { type: Boolean, default: true },
+    autoStartDelay: { type: Number, default: 800 }, // delay before auto-fill
+    maxAutoAttempts: { type: Number, default: 2 },
     notes: String
   },
   createdBy: {
