@@ -121,8 +121,8 @@ const AdminToolForm = () => {
       value: 'combo', 
       label: 'Combo Auth', 
       icon: '🔀', 
-      description: 'SSO + Form Login combined',
-      hint: 'Both strategies in one tool',
+      description: 'Combine ANY two auth types',
+      hint: 'Cookies+SSO, SSO+Form, etc.',
       isCombo: true
     },
     { 
