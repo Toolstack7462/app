@@ -607,6 +607,78 @@ const AdminToolForm = () => {
                   />
                 </div>
                 
+                {/* Form Options */}
+                <div className="border-t border-toolstack-border pt-4 mt-4">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Settings size={16} className="text-blue-400" />
+                    <span className="text-sm font-medium text-white">Form Login Options</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={formOptions.multiStep}
+                        onChange={(e) => setFormOptions(prev => ({ ...prev, multiStep: e.target.checked }))}
+                        className="w-5 h-5 rounded border-toolstack-border text-toolstack-orange focus:ring-toolstack-orange"
+                      />
+                      <div>
+                        <div className="font-medium text-white text-sm">Multi-Step Login</div>
+                        <div className="text-xs text-toolstack-muted">Email first, then password (Google/Microsoft style)</div>
+                      </div>
+                    </label>
+                    
+                    <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={formOptions.rememberMe}
+                        onChange={(e) => setFormOptions(prev => ({ ...prev, rememberMe: e.target.checked }))}
+                        className="w-5 h-5 rounded border-toolstack-border text-toolstack-orange focus:ring-toolstack-orange"
+                      />
+                      <div>
+                        <div className="font-medium text-white text-sm">Remember Me</div>
+                        <div className="text-xs text-toolstack-muted">Check "remember me" if available</div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+                
+                {/* MFA Handling */}
+                <div className="border-t border-toolstack-border pt-4 mt-4">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Shield size={16} className="text-yellow-400" />
+                    <span className="text-sm font-medium text-white">MFA / 2FA Handling</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={mfaOptions.detectMFA}
+                        onChange={(e) => setMfaOptions(prev => ({ ...prev, detectMFA: e.target.checked }))}
+                        className="w-5 h-5 rounded border-toolstack-border text-toolstack-orange focus:ring-toolstack-orange"
+                      />
+                      <div>
+                        <div className="font-medium text-white text-sm">Detect MFA</div>
+                        <div className="text-xs text-toolstack-muted">Auto-detect 2FA/MFA pages</div>
+                      </div>
+                    </label>
+                    
+                    <div>
+                      <label className="block text-xs text-toolstack-muted mb-1">When MFA Detected</label>
+                      <select
+                        value={mfaOptions.action}
+                        onChange={(e) => setMfaOptions(prev => ({ ...prev, action: e.target.value }))}
+                        className="w-full px-3 py-2 bg-toolstack-bg border border-toolstack-border rounded-lg text-white text-sm focus:outline-none focus:border-toolstack-orange"
+                      >
+                        <option value="notify">Notify user to complete manually</option>
+                        <option value="wait">Wait for user to complete</option>
+                        <option value="skip">Skip MFA detection</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                
                 {/* Custom Selectors */}
                 <div className="border-t border-toolstack-border pt-4 mt-4">
                   <div className="flex items-center gap-2 mb-4">
@@ -643,6 +715,16 @@ const AdminToolForm = () => {
                         onChange={(e) => setFormSelectors(prev => ({ ...prev, submit: e.target.value }))}
                         className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white text-sm placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange"
                         placeholder='button[type="submit"]'
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-toolstack-muted mb-1">Next Button Selector (multi-step)</label>
+                      <input
+                        type="text"
+                        value={formSelectors.next}
+                        onChange={(e) => setFormSelectors(prev => ({ ...prev, next: e.target.value }))}
+                        className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white text-sm placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange"
+                        placeholder='button[class*="next"]'
                       />
                     </div>
                     <div>
