@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../../components/AdminLayout';
-import { ArrowLeft, Save, Package, Link as LinkIcon, FileText, Key, Settings, Shield, Database, LogIn, Globe, AlertCircle, CheckCircle, Info } from 'lucide-react';
+import { ArrowLeft, Save, Package, Link as LinkIcon, FileText, Key, Settings, Shield, Database, LogIn, Globe, AlertCircle, CheckCircle, Info, Zap, ToggleLeft, ToggleRight } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/Toast';
 
@@ -43,14 +43,53 @@ const AdminToolForm = () => {
       waitForNavigation: true,
       spaMode: false,
       retryAttempts: 2,
-      retryDelayMs: 1000
+      retryDelayMs: 1000,
+      hiddenModeEnabled: true,
+      hiddenModeTimeout: 60000,
+      autoStartEnabled: true,
+      autoStartDelay: 800,
+      maxAutoAttempts: 2
     }
   });
+
+  // Combo Auth state - allows both SSO + Form in one tool
+  const [comboAuth, setComboAuth] = useState({
+    enabled: false,
+    primary: 'sso',
+    fallbackEnabled: true,
+    triggerOnAuto: true,
+    formConfig: {
+      username: '',
+      password: '',
+      loginUrl: '',
+      multiStep: false,
+      rememberMe: true,
+      submitDelay: 800
+    },
+    ssoConfig: {
+      authStartUrl: '',
+      postLoginUrl: '',
+      provider: '',
+      buttonSelector: '',
+      autoClick: true
+    }
+  });
+
+  // Combo auth tab state
+  const [comboAuthTab, setComboAuthTab] = useState('sso');
 
   const CATEGORIES = ['AI', 'Academic', 'SEO', 'Productivity', 'Graphics & SEO', 'Text Humanizers', 'Career-Oriented', 'Miscellaneous', 'Other'];
   
   // Unified credential types with better descriptions
   const CREDENTIAL_TYPES = [
+    { 
+      value: 'combo', 
+      label: 'Combo Auth', 
+      icon: '🔀', 
+      description: 'SSO + Form Login combined',
+      hint: 'Both strategies in one tool',
+      isCombo: true
+    },
     { 
       value: 'form', 
       label: 'Form Login', 
@@ -179,6 +218,9 @@ const AdminToolForm = () => {
       const res = await api.get(`/admin/tools/${id}`);
       const tool = res.data.tool;
       
+      // Check if combo auth is enabled
+      const isComboEnabled = tool.comboAuth?.enabled === true;
+      
       // Load form data
       setFormData({
         name: tool.name || '',
@@ -186,7 +228,7 @@ const AdminToolForm = () => {
         targetUrl: tool.targetUrl || '',
         loginUrl: tool.loginUrl || '',
         category: tool.category || 'Other',
-        credentialType: tool.credentials?.type || tool.credentialType || 'cookies',
+        credentialType: isComboEnabled ? 'combo' : (tool.credentials?.type || tool.credentialType || 'cookies'),
         credentials: tool.credentials || { type: 'cookies', payload: {}, selectors: {}, successCheck: {} },
         cookiesEncrypted: '', // Don't show encrypted data
         tokenEncrypted: '',
@@ -203,9 +245,39 @@ const AdminToolForm = () => {
           waitForNavigation: tool.extensionSettings?.waitForNavigation ?? true,
           spaMode: tool.extensionSettings?.spaMode ?? false,
           retryAttempts: tool.extensionSettings?.retryAttempts ?? 2,
-          retryDelayMs: tool.extensionSettings?.retryDelayMs ?? 1000
+          retryDelayMs: tool.extensionSettings?.retryDelayMs ?? 1000,
+          hiddenModeEnabled: tool.extensionSettings?.hiddenModeEnabled ?? true,
+          hiddenModeTimeout: tool.extensionSettings?.hiddenModeTimeout ?? 60000,
+          autoStartEnabled: tool.extensionSettings?.autoStartEnabled ?? true,
+          autoStartDelay: tool.extensionSettings?.autoStartDelay ?? 800,
+          maxAutoAttempts: tool.extensionSettings?.maxAutoAttempts ?? 2
         }
       });
+      
+      // Load combo auth if present
+      if (tool.comboAuth) {
+        setComboAuth({
+          enabled: tool.comboAuth.enabled || false,
+          primary: tool.comboAuth.primary || 'sso',
+          fallbackEnabled: tool.comboAuth.fallbackEnabled ?? true,
+          triggerOnAuto: tool.comboAuth.triggerOnAuto ?? true,
+          formConfig: {
+            username: '', // Don't load sensitive data
+            password: '',
+            loginUrl: tool.comboAuth.formConfig?.loginUrl || '',
+            multiStep: tool.comboAuth.formConfig?.multiStep || false,
+            rememberMe: tool.comboAuth.formConfig?.rememberMe ?? true,
+            submitDelay: tool.comboAuth.formConfig?.submitDelay || 800
+          },
+          ssoConfig: {
+            authStartUrl: tool.comboAuth.ssoConfig?.authStartUrl || '',
+            postLoginUrl: tool.comboAuth.ssoConfig?.postLoginUrl || '',
+            provider: tool.comboAuth.ssoConfig?.provider || '',
+            buttonSelector: tool.comboAuth.ssoConfig?.buttonSelector || '',
+            autoClick: tool.comboAuth.ssoConfig?.autoClick ?? true
+          }
+        });
+      }
       
       // Load selectors if present
       if (tool.credentials?.selectors) {
@@ -250,20 +322,51 @@ const AdminToolForm = () => {
     try {
       setSaving(true);
       
+      // Determine if combo auth is being used
+      const isComboMode = formData.credentialType === 'combo';
+      const actualCredentialType = isComboMode ? comboAuth.primary : formData.credentialType;
+      
       const payload = {
         name: formData.name.trim(),
         description: formData.description.trim(),
         targetUrl: formData.targetUrl.trim(),
         loginUrl: formData.loginUrl.trim() || formData.targetUrl.trim(),
         category: formData.category,
-        credentialType: formData.credentialType,
+        credentialType: actualCredentialType,
         status: formData.status,
         extensionSettings: formData.extensionSettings
       };
       
+      // Build combo auth object if enabled
+      if (isComboMode) {
+        payload.comboAuth = {
+          enabled: true,
+          primary: comboAuth.primary,
+          fallbackEnabled: comboAuth.fallbackEnabled,
+          triggerOnAuto: comboAuth.triggerOnAuto,
+          formConfig: {
+            username: comboAuth.formConfig.username,
+            password: comboAuth.formConfig.password,
+            loginUrl: comboAuth.formConfig.loginUrl || formData.loginUrl,
+            multiStep: comboAuth.formConfig.multiStep,
+            rememberMe: comboAuth.formConfig.rememberMe,
+            submitDelay: comboAuth.formConfig.submitDelay
+          },
+          ssoConfig: {
+            authStartUrl: comboAuth.ssoConfig.authStartUrl,
+            postLoginUrl: comboAuth.ssoConfig.postLoginUrl || formData.targetUrl,
+            provider: comboAuth.ssoConfig.provider,
+            buttonSelector: comboAuth.ssoConfig.buttonSelector,
+            autoClick: comboAuth.ssoConfig.autoClick
+          }
+        };
+      } else {
+        payload.comboAuth = { enabled: false };
+      }
+      
       // Build unified credentials object
       const credentials = {
-        type: formData.credentialType,
+        type: actualCredentialType,
         payload: {},
         selectors: {},
         successCheck: {}
@@ -301,57 +404,59 @@ const AdminToolForm = () => {
         credentials.successCheck = cleanedSuccessCheck;
       }
       
-      // Handle credential type specific data
-      switch (formData.credentialType) {
-        case 'form':
-          if (formLoginData.username || formLoginData.password) {
-            credentials.payload = {
-              username: formLoginData.username,
-              password: formLoginData.password,
-              loginUrl: formLoginData.loginUrl || formData.loginUrl
-            };
-          }
-          break;
-          
-        case 'sso':
-          if (ssoData.authStartUrl) {
-            credentials.payload = {
-              authStartUrl: ssoData.authStartUrl,
-              postLoginUrl: ssoData.postLoginUrl || formData.targetUrl,
-              provider: ssoData.provider,
-              buttonSelector: ssoData.buttonSelector,
-              autoClick: ssoData.autoClick
-            };
-          }
-          break;
-          
-        case 'headers':
-          const validHeaders = headersData.filter(h => h.name && h.value);
-          if (validHeaders.length > 0) {
-            credentials.payload = { headers: validHeaders };
-          }
-          break;
-          
-        case 'cookies':
-          if (formData.cookiesEncrypted.trim()) {
-            payload.cookiesEncrypted = formData.cookiesEncrypted.trim();
-          }
-          break;
-          
-        case 'token':
-          payload.tokenHeader = formData.tokenHeader;
-          payload.tokenPrefix = formData.tokenPrefix;
-          if (formData.tokenEncrypted.trim()) {
-            payload.tokenEncrypted = formData.tokenEncrypted.trim();
-          }
-          break;
-          
-        case 'localStorage':
-        case 'sessionStorage':
-          if (formData.localStorageEncrypted.trim()) {
-            payload.localStorageEncrypted = formData.localStorageEncrypted.trim();
-          }
-          break;
+      // Handle credential type specific data (for non-combo mode)
+      if (!isComboMode) {
+        switch (formData.credentialType) {
+          case 'form':
+            if (formLoginData.username || formLoginData.password) {
+              credentials.payload = {
+                username: formLoginData.username,
+                password: formLoginData.password,
+                loginUrl: formLoginData.loginUrl || formData.loginUrl
+              };
+            }
+            break;
+            
+          case 'sso':
+            if (ssoData.authStartUrl) {
+              credentials.payload = {
+                authStartUrl: ssoData.authStartUrl,
+                postLoginUrl: ssoData.postLoginUrl || formData.targetUrl,
+                provider: ssoData.provider,
+                buttonSelector: ssoData.buttonSelector,
+                autoClick: ssoData.autoClick
+              };
+            }
+            break;
+            
+          case 'headers':
+            const validHeaders = headersData.filter(h => h.name && h.value);
+            if (validHeaders.length > 0) {
+              credentials.payload = { headers: validHeaders };
+            }
+            break;
+            
+          case 'cookies':
+            if (formData.cookiesEncrypted.trim()) {
+              payload.cookiesEncrypted = formData.cookiesEncrypted.trim();
+            }
+            break;
+            
+          case 'token':
+            payload.tokenHeader = formData.tokenHeader;
+            payload.tokenPrefix = formData.tokenPrefix;
+            if (formData.tokenEncrypted.trim()) {
+              payload.tokenEncrypted = formData.tokenEncrypted.trim();
+            }
+            break;
+            
+          case 'localStorage':
+          case 'sessionStorage':
+            if (formData.localStorageEncrypted.trim()) {
+              payload.localStorageEncrypted = formData.localStorageEncrypted.trim();
+            }
+            break;
+        }
       }
       
       // Add credentials to payload if it has meaningful data
@@ -390,7 +495,7 @@ const AdminToolForm = () => {
         ...prev,
         extensionSettings: {
           ...prev.extensionSettings,
-          [settingName]: type === 'checkbox' ? checked : value
+          [settingName]: type === 'checkbox' ? checked : (type === 'number' ? parseInt(value) : value)
         }
       }));
     } else {
@@ -536,28 +641,294 @@ const AdminToolForm = () => {
           <div className="bg-toolstack-card border border-toolstack-border rounded-xl p-6">
             <h2 className="flex items-center gap-2 text-lg font-semibold text-white mb-6">
               <Key size={20} className="text-toolstack-orange" />
-              Credential Type
+              Authentication Type
             </h2>
             
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
               {CREDENTIAL_TYPES.map(type => (
                 <button
                   key={type.value}
                   type="button"
                   onClick={() => setFormData(prev => ({ ...prev, credentialType: type.value }))}
-                  className={`p-4 rounded-xl border text-left transition-all ${
+                  className={`p-3 rounded-xl border text-left transition-all ${
                     formData.credentialType === type.value
-                      ? 'border-toolstack-orange bg-toolstack-orange/10'
+                      ? type.isCombo 
+                        ? 'border-purple-500 bg-purple-500/20 ring-2 ring-purple-500/50'
+                        : 'border-toolstack-orange bg-toolstack-orange/10'
                       : 'border-toolstack-border bg-white/5 hover:border-toolstack-orange/50'
                   }`}
                   data-testid={`credential-type-${type.value}`}
                 >
-                  <div className="text-2xl mb-2">{type.icon}</div>
-                  <div className="font-medium text-white text-sm">{type.label}</div>
-                  <div className="text-xs text-toolstack-muted mt-1">{type.description}</div>
+                  <div className="text-2xl mb-1">{type.icon}</div>
+                  <div className="font-medium text-white text-xs">{type.label}</div>
+                  <div className="text-xs text-toolstack-muted mt-0.5 line-clamp-2">{type.hint}</div>
                 </button>
               ))}
             </div>
+
+            {/* COMBO AUTH MODE */}
+            {formData.credentialType === 'combo' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 p-3 bg-purple-500/10 border border-purple-500/30 rounded-xl mb-4">
+                  <Zap size={18} className="text-purple-400" />
+                  <span className="font-medium text-white">Combo Auth Mode</span>
+                  <span className="text-sm text-purple-300 ml-2">Both SSO and Form Login in one tool</span>
+                </div>
+                
+                {/* Strategy Controls */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">Primary Strategy</label>
+                    <select
+                      value={comboAuth.primary}
+                      onChange={(e) => setComboAuth(prev => ({ ...prev, primary: e.target.value }))}
+                      className="w-full px-3 py-2 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:border-toolstack-orange"
+                    >
+                      <option value="sso">SSO First</option>
+                      <option value="form">Form First</option>
+                    </select>
+                  </div>
+                  
+                  <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10">
+                    <input
+                      type="checkbox"
+                      checked={comboAuth.fallbackEnabled}
+                      onChange={(e) => setComboAuth(prev => ({ ...prev, fallbackEnabled: e.target.checked }))}
+                      className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
+                    />
+                    <div>
+                      <div className="font-medium text-white text-sm">Fallback Enabled</div>
+                      <div className="text-xs text-toolstack-muted">Try other strategy if primary fails</div>
+                    </div>
+                  </label>
+                  
+                  <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10">
+                    <input
+                      type="checkbox"
+                      checked={comboAuth.triggerOnAuto}
+                      onChange={(e) => setComboAuth(prev => ({ ...prev, triggerOnAuto: e.target.checked }))}
+                      className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
+                    />
+                    <div>
+                      <div className="font-medium text-white text-sm">Auto Trigger Only</div>
+                      <div className="text-xs text-toolstack-muted">Only run when ?auto=1 in URL</div>
+                    </div>
+                  </label>
+                </div>
+                
+                {/* Tabbed Interface for SSO + Form */}
+                <div className="border border-toolstack-border rounded-xl overflow-hidden">
+                  <div className="flex border-b border-toolstack-border">
+                    <button
+                      type="button"
+                      onClick={() => setComboAuthTab('sso')}
+                      className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                        comboAuthTab === 'sso'
+                          ? 'bg-purple-500/20 text-purple-300 border-b-2 border-purple-500'
+                          : 'text-toolstack-muted hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      🔐 SSO Configuration
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setComboAuthTab('form')}
+                      className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                        comboAuthTab === 'form'
+                          ? 'bg-purple-500/20 text-purple-300 border-b-2 border-purple-500'
+                          : 'text-toolstack-muted hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      📝 Form Login Configuration
+                    </button>
+                  </div>
+                  
+                  <div className="p-4">
+                    {/* SSO Tab Content */}
+                    {comboAuthTab === 'sso' && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-white mb-2">Auth Start URL</label>
+                            <input
+                              type="url"
+                              value={comboAuth.ssoConfig.authStartUrl}
+                              onChange={(e) => setComboAuth(prev => ({ 
+                                ...prev, 
+                                ssoConfig: { ...prev.ssoConfig, authStartUrl: e.target.value }
+                              }))}
+                              className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:border-purple-500"
+                              placeholder="https://example.com/auth/sso"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-white mb-2">Post-Login URL</label>
+                            <input
+                              type="url"
+                              value={comboAuth.ssoConfig.postLoginUrl}
+                              onChange={(e) => setComboAuth(prev => ({ 
+                                ...prev, 
+                                ssoConfig: { ...prev.ssoConfig, postLoginUrl: e.target.value }
+                              }))}
+                              className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:border-purple-500"
+                              placeholder="https://example.com/dashboard"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-white mb-2">SSO Provider</label>
+                            <select
+                              value={comboAuth.ssoConfig.provider}
+                              onChange={(e) => setComboAuth(prev => ({ 
+                                ...prev, 
+                                ssoConfig: { ...prev.ssoConfig, provider: e.target.value }
+                              }))}
+                              className="w-full px-3 py-2 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:border-purple-500"
+                            >
+                              <option value="">Auto-detect</option>
+                              <option value="google">Google</option>
+                              <option value="microsoft">Microsoft / Azure AD</option>
+                              <option value="github">GitHub</option>
+                              <option value="okta">Okta</option>
+                              <option value="saml">SAML / Enterprise</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-white mb-2">Button Selector</label>
+                            <input
+                              type="text"
+                              value={comboAuth.ssoConfig.buttonSelector}
+                              onChange={(e) => setComboAuth(prev => ({ 
+                                ...prev, 
+                                ssoConfig: { ...prev.ssoConfig, buttonSelector: e.target.value }
+                              }))}
+                              className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:border-purple-500"
+                              placeholder='button[data-provider="google"]'
+                            />
+                          </div>
+                        </div>
+                        
+                        <label className="flex items-center gap-3 p-3 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10">
+                          <input
+                            type="checkbox"
+                            checked={comboAuth.ssoConfig.autoClick}
+                            onChange={(e) => setComboAuth(prev => ({ 
+                              ...prev, 
+                              ssoConfig: { ...prev.ssoConfig, autoClick: e.target.checked }
+                            }))}
+                            className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
+                          />
+                          <div>
+                            <div className="font-medium text-white text-sm">Auto-click SSO button</div>
+                            <div className="text-xs text-toolstack-muted">Automatically click the provider button</div>
+                          </div>
+                        </label>
+                      </div>
+                    )}
+                    
+                    {/* Form Tab Content */}
+                    {comboAuthTab === 'form' && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-white mb-2">Username / Email</label>
+                            <input
+                              type="text"
+                              value={comboAuth.formConfig.username}
+                              onChange={(e) => setComboAuth(prev => ({ 
+                                ...prev, 
+                                formConfig: { ...prev.formConfig, username: e.target.value }
+                              }))}
+                              className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:border-purple-500"
+                              placeholder="user@example.com"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-white mb-2">Password</label>
+                            <input
+                              type="password"
+                              value={comboAuth.formConfig.password}
+                              onChange={(e) => setComboAuth(prev => ({ 
+                                ...prev, 
+                                formConfig: { ...prev.formConfig, password: e.target.value }
+                              }))}
+                              className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:border-purple-500"
+                              placeholder="••••••••"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-white mb-2">Login URL (optional)</label>
+                          <input
+                            type="url"
+                            value={comboAuth.formConfig.loginUrl}
+                            onChange={(e) => setComboAuth(prev => ({ 
+                              ...prev, 
+                              formConfig: { ...prev.formConfig, loginUrl: e.target.value }
+                            }))}
+                            className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:border-purple-500"
+                            placeholder="https://example.com/login"
+                          />
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <label className="flex items-center gap-3 p-3 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10">
+                            <input
+                              type="checkbox"
+                              checked={comboAuth.formConfig.multiStep}
+                              onChange={(e) => setComboAuth(prev => ({ 
+                                ...prev, 
+                                formConfig: { ...prev.formConfig, multiStep: e.target.checked }
+                              }))}
+                              className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
+                            />
+                            <div>
+                              <div className="font-medium text-white text-sm">Multi-Step</div>
+                              <div className="text-xs text-toolstack-muted">Email → Next → Password</div>
+                            </div>
+                          </label>
+                          
+                          <label className="flex items-center gap-3 p-3 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10">
+                            <input
+                              type="checkbox"
+                              checked={comboAuth.formConfig.rememberMe}
+                              onChange={(e) => setComboAuth(prev => ({ 
+                                ...prev, 
+                                formConfig: { ...prev.formConfig, rememberMe: e.target.checked }
+                              }))}
+                              className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
+                            />
+                            <div>
+                              <div className="font-medium text-white text-sm">Remember Me</div>
+                              <div className="text-xs text-toolstack-muted">Check if available</div>
+                            </div>
+                          </label>
+                          
+                          <div>
+                            <label className="block text-xs text-toolstack-muted mb-1">Submit Delay (ms)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="5000"
+                              step="100"
+                              value={comboAuth.formConfig.submitDelay}
+                              onChange={(e) => setComboAuth(prev => ({ 
+                                ...prev, 
+                                formConfig: { ...prev.formConfig, submitDelay: parseInt(e.target.value) || 800 }
+                              }))}
+                              className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white focus:outline-none focus:border-purple-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Form Login Fields */}
             {formData.credentialType === 'form' && (
@@ -725,16 +1096,6 @@ const AdminToolForm = () => {
                         onChange={(e) => setFormSelectors(prev => ({ ...prev, next: e.target.value }))}
                         className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white text-sm placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange"
                         placeholder='button[class*="next"]'
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-toolstack-muted mb-1">Error Message Selector</label>
-                      <input
-                        type="text"
-                        value={formSelectors.errorMessage}
-                        onChange={(e) => setFormSelectors(prev => ({ ...prev, errorMessage: e.target.value }))}
-                        className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white text-sm placeholder-toolstack-muted focus:outline-none focus:border-toolstack-orange"
-                        placeholder='.error-message, .alert-danger'
                       />
                     </div>
                   </div>
@@ -1024,8 +1385,8 @@ const AdminToolForm = () => {
             )}
           </div>
 
-          {/* Success Check Card (shown for form, sso, headers) */}
-          {['form', 'sso', 'headers'].includes(formData.credentialType) && (
+          {/* Success Check Card (shown for form, sso, headers, combo) */}
+          {['form', 'sso', 'headers', 'combo'].includes(formData.credentialType) && (
             <div className="bg-toolstack-card border border-toolstack-border rounded-xl p-6">
               <h2 className="flex items-center gap-2 text-lg font-semibold text-white mb-6">
                 <CheckCircle size={20} className="text-green-500" />
@@ -1113,20 +1474,6 @@ const AdminToolForm = () => {
               <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
                 <input
                   type="checkbox"
-                  name="extensionSettings.injectOnPageLoad"
-                  checked={formData.extensionSettings.injectOnPageLoad}
-                  onChange={handleChange}
-                  className="w-5 h-5 rounded border-toolstack-border text-toolstack-orange focus:ring-toolstack-orange"
-                />
-                <div>
-                  <div className="font-medium text-white">Inject on page load</div>
-                  <div className="text-xs text-toolstack-muted">Inject credentials as soon as page loads</div>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
-                <input
-                  type="checkbox"
                   name="extensionSettings.reloadAfterLogin"
                   checked={formData.extensionSettings.reloadAfterLogin}
                   onChange={handleChange}
@@ -1151,23 +1498,47 @@ const AdminToolForm = () => {
                   <div className="text-xs text-toolstack-muted">Enable for React/Vue/Angular apps with client-side routing</div>
                 </div>
               </label>
-
-              <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
-                <input
-                  type="checkbox"
-                  name="extensionSettings.clearExistingCookies"
-                  checked={formData.extensionSettings.clearExistingCookies}
-                  onChange={handleChange}
-                  className="w-5 h-5 rounded border-toolstack-border text-toolstack-orange focus:ring-toolstack-orange"
-                />
-                <div>
-                  <div className="font-medium text-white">Clear existing cookies</div>
-                  <div className="text-xs text-toolstack-muted">Remove existing cookies before injecting new ones</div>
-                </div>
-              </label>
               
-              {/* Retry Settings */}
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-toolstack-border mt-4">
+              {/* Hidden Mode Settings */}
+              <div className="border-t border-toolstack-border pt-4 mt-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <Shield size={16} className="text-purple-400" />
+                  <span className="text-sm font-medium text-white">Hidden Mode & Auto-Start</span>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
+                    <input
+                      type="checkbox"
+                      name="extensionSettings.hiddenModeEnabled"
+                      checked={formData.extensionSettings.hiddenModeEnabled}
+                      onChange={handleChange}
+                      className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
+                    />
+                    <div>
+                      <div className="font-medium text-white text-sm">Hidden Mode</div>
+                      <div className="text-xs text-toolstack-muted">Run auth in hidden tab (?hidden=1)</div>
+                    </div>
+                  </label>
+                  
+                  <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
+                    <input
+                      type="checkbox"
+                      name="extensionSettings.autoStartEnabled"
+                      checked={formData.extensionSettings.autoStartEnabled}
+                      onChange={handleChange}
+                      className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
+                    />
+                    <div>
+                      <div className="font-medium text-white text-sm">Auto-Start</div>
+                      <div className="text-xs text-toolstack-muted">Start login when ?auto=1</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+              
+              {/* Timing Settings */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-toolstack-border mt-4">
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">
                     Retry Attempts
@@ -1178,13 +1549,7 @@ const AdminToolForm = () => {
                     max="5"
                     name="extensionSettings.retryAttempts"
                     value={formData.extensionSettings.retryAttempts}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      extensionSettings: {
-                        ...prev.extensionSettings,
-                        retryAttempts: parseInt(e.target.value) || 2
-                      }
-                    }))}
+                    onChange={handleChange}
                     className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors"
                   />
                 </div>
@@ -1199,13 +1564,37 @@ const AdminToolForm = () => {
                     step="500"
                     name="extensionSettings.retryDelayMs"
                     value={formData.extensionSettings.retryDelayMs}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      extensionSettings: {
-                        ...prev.extensionSettings,
-                        retryDelayMs: parseInt(e.target.value) || 1000
-                      }
-                    }))}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    Auto-Start Delay
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="5000"
+                    step="100"
+                    name="extensionSettings.autoStartDelay"
+                    value={formData.extensionSettings.autoStartDelay}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    Hidden Timeout
+                  </label>
+                  <input
+                    type="number"
+                    min="10000"
+                    max="120000"
+                    step="5000"
+                    name="extensionSettings.hiddenModeTimeout"
+                    value={formData.extensionSettings.hiddenModeTimeout}
+                    onChange={handleChange}
                     className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white focus:outline-none focus:border-toolstack-orange transition-colors"
                   />
                 </div>
