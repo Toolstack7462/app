@@ -64,7 +64,8 @@ const AdminToolForm = () => {
       loginUrl: '',
       multiStep: false,
       rememberMe: true,
-      submitDelay: 800
+      submitDelay: 800,
+      autoSubmit: true  // NEW: Auto-submit form when ?auto=1
     },
     ssoConfig: {
       authStartUrl: '',
