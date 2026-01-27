@@ -58,6 +58,106 @@
 ##
 ## agent_communication:
 ##     -agent: "main"  # or "testing" or "user"
+##     -message: "Communication message"
+##     -timestamp: "2024-01-01T12:00:00Z"
+##     -context: "Additional context"
+
+#====================================================================================================
+# END - Testing Protocol
+#====================================================================================================
+
+#====================================================================================================
+# Testing Data - Updated by agents
+#====================================================================================================
+
+user_problem_statement: |
+  Session Bundle & Parallel Combo Auth Implementation:
+  1. Session Bundle (Backend) - Store Cookies + LocalStorage + SessionStorage as ONE bundle per tool with versioning
+  2. Cookies Screen Enhancement - Add "Save as Master Session Bundle" option
+  3. Combo Auth Run Mode - Add Simultaneous/Parallel mode alongside existing Sequential mode
+  4. Parallel Mode Behavior - Prep storage in parallel, commit auth in parallel with verification
+
+backend:
+  - task: "Session Bundle Schema & API"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/models/Tool.js, /app/backend/routes/admin/toolsEnhanced.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added sessionBundle schema with cookies, localStorage, sessionStorage encryption, version auto-increment, and API endpoints"
+
+  - task: "Combo Auth Run Mode (Sequential/Parallel)"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/models/Tool.js, /app/backend/middleware/validation.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added runMode field with sequential/parallel options, parallelSettings (prepSessionFirst, parallelTimeout, commitLock, verifyAfterAuth)"
+
+  - task: "Extension API Session Bundle Support"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/routes/extension/index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Updated extension API to return sessionBundle with version info and decrypted data for auth"
+
+frontend:
+  - task: "Admin Tool Form - Run Mode UI"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/admin/AdminToolForm.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added Run Mode selector (Sequential/Parallel), skipIfLoggedIn, fallbackOnlyOnce checkboxes"
+
+  - task: "Chrome Extension Parallel Combo Auth"
+    implemented: true
+    working: "NA"
+    file: "/app/chrome-extension/js/core/LoginOrchestrator.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented executeParallelComboAuth with 4 phases: PREP, COMMIT, VERIFY, FALLBACK"
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Session Bundle Schema & API"
+    - "Combo Auth Run Mode (Sequential/Parallel)"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Implemented Session Bundle + Parallel Combo Auth. Please test: 1) POST /api/crm/admin/tools/:id/session-bundle endpoint 2) GET /api/crm/admin/tools/:id/session-bundle endpoint 3) Tool update with comboAuth.runMode field"
+    timestamp: "2025-07-15T10:00:00Z"
+    context: "Backend implementation complete, need to verify APIs work correctly"
 ##     -message: "Communication message between agents"
 
 # Protocol Guidelines for Main agent
