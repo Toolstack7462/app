@@ -1225,6 +1225,12 @@ async function checkForMFAOnTab(tabId) {
     return { hasMFA: false };
   }
 }
+
+/**
+ * Execute one-click login with hidden mode support
+ */
+async function executeOneClickLoginWithOptions(toolId, tool, options = {}) {
+  logger.info('One-click login with options', { tool: tool.name, toolId, options });
   
   try {
     // Get credentials
