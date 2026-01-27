@@ -26,6 +26,9 @@ class ToolStackCRMTester:
         self.admin_token = None
         self.test_blog_id = None
         self.test_contact_id = None
+        self.test_tool_id = None
+        self.extension_token = None
+        self.client_id = None
         
         # Results tracking - Updated for new test categories
         self.results = {
