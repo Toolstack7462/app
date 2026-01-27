@@ -209,9 +209,11 @@ const schemas = {
         username: Joi.string().allow(''),
         password: Joi.string().allow(''),
         submit: Joi.string().allow(''),
+        next: Joi.string().allow(''),
         rememberMe: Joi.string().allow(''),
         twoFactor: Joi.string().allow(''),
-        errorMessage: Joi.string().allow('')
+        errorMessage: Joi.string().allow(''),
+        ssoButton: Joi.string().allow('')
       }).allow(null),
       successCheck: Joi.object({
         urlIncludes: Joi.string().allow(''),
@@ -227,6 +229,28 @@ const schemas = {
       tokenHeader: Joi.string().allow(''),
       tokenPrefix: Joi.string().allow('')
     }).allow(null),
+    // Combo Auth - allows both SSO and Form in one tool
+    comboAuth: Joi.object({
+      enabled: Joi.boolean(),
+      primary: Joi.string().valid('sso', 'form'),
+      fallbackEnabled: Joi.boolean(),
+      triggerOnAuto: Joi.boolean(),
+      formConfig: Joi.object({
+        username: Joi.string().allow(''),
+        password: Joi.string().allow(''),
+        loginUrl: Joi.string().uri().allow('', null),
+        multiStep: Joi.boolean(),
+        rememberMe: Joi.boolean(),
+        submitDelay: Joi.number().min(0).max(5000)
+      }).allow(null),
+      ssoConfig: Joi.object({
+        authStartUrl: Joi.string().uri().allow('', null),
+        postLoginUrl: Joi.string().uri().allow('', null),
+        provider: Joi.string().allow(''),
+        buttonSelector: Joi.string().allow(''),
+        autoClick: Joi.boolean()
+      }).allow(null)
+    }).allow(null),
     // Enhanced extension settings
     extensionSettings: Joi.object({
       requirePermission: Joi.boolean(),
@@ -238,6 +262,11 @@ const schemas = {
       spaMode: Joi.boolean(),
       retryAttempts: Joi.number().min(0).max(10),
       retryDelayMs: Joi.number().min(100).max(10000),
+      hiddenModeEnabled: Joi.boolean(),
+      hiddenModeTimeout: Joi.number().min(10000).max(120000),
+      autoStartEnabled: Joi.boolean(),
+      autoStartDelay: Joi.number().min(0).max(5000),
+      maxAutoAttempts: Joi.number().min(1).max(5),
       notes: Joi.string().allow('', null)
     }),
     fileMeta: Joi.object({
