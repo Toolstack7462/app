@@ -135,13 +135,22 @@ const schemas = {
       tokenHeader: Joi.string().allow(''),
       tokenPrefix: Joi.string().allow('')
     }).allow(null),
-    // Universal Combo Auth - allows ANY two auth types combined
+    // Universal Combo Auth - allows ANY two auth types combined with parallel mode
     comboAuth: Joi.object({
       enabled: Joi.boolean().default(false),
+      runMode: Joi.string().valid('sequential', 'parallel').default('sequential'),
       primaryType: Joi.string().valid('sso', 'form', 'cookies', 'token', 'headers', 'localStorage', 'sessionStorage').default('sso'),
       secondaryType: Joi.string().valid('sso', 'form', 'cookies', 'token', 'headers', 'localStorage', 'sessionStorage').default('form'),
       fallbackEnabled: Joi.boolean().default(true),
+      fallbackOnlyOnce: Joi.boolean().default(true),
+      skipIfLoggedIn: Joi.boolean().default(true),
       triggerOnAuto: Joi.boolean().default(true),
+      parallelSettings: Joi.object({
+        prepSessionFirst: Joi.boolean().default(true),
+        parallelTimeout: Joi.number().min(5000).max(120000).default(30000),
+        commitLock: Joi.boolean().default(true),
+        verifyAfterAuth: Joi.boolean().default(true)
+      }).allow(null),
       formConfig: Joi.object({
         username: Joi.string().allow(''),
         password: Joi.string().allow(''),
@@ -170,7 +179,16 @@ const schemas = {
       }).allow(null),
       localStorageConfig: Joi.object({
         data: Joi.string().allow('')
+      }).allow(null),
+      sessionStorageConfig: Joi.object({
+        data: Joi.string().allow('')
       }).allow(null)
+    }).allow(null),
+    // Session Bundle - unified storage for cookies + localStorage + sessionStorage
+    sessionBundle: Joi.object({
+      cookiesEncrypted: Joi.string().allow('', null),
+      localStorageEncrypted: Joi.string().allow('', null),
+      sessionStorageEncrypted: Joi.string().allow('', null)
     }).allow(null),
     // Enhanced extension settings
     extensionSettings: Joi.object({
