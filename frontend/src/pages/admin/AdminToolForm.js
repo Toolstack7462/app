@@ -315,18 +315,30 @@ const AdminToolForm = () => {
       
       // Load combo auth if present
       if (tool.comboAuth) {
-        setComboAuth({
+        setComboAuth(prev => ({
+          ...prev,
           enabled: tool.comboAuth.enabled || false,
-          primary: tool.comboAuth.primary || 'sso',
+          runMode: tool.comboAuth.runMode || 'sequential',
+          primaryType: tool.comboAuth.primaryType || tool.comboAuth.primary || 'sso',
+          secondaryType: tool.comboAuth.secondaryType || 'form',
           fallbackEnabled: tool.comboAuth.fallbackEnabled ?? true,
+          fallbackOnlyOnce: tool.comboAuth.fallbackOnlyOnce ?? true,
+          skipIfLoggedIn: tool.comboAuth.skipIfLoggedIn ?? true,
           triggerOnAuto: tool.comboAuth.triggerOnAuto ?? true,
+          parallelSettings: {
+            prepSessionFirst: tool.comboAuth.parallelSettings?.prepSessionFirst ?? true,
+            parallelTimeout: tool.comboAuth.parallelSettings?.parallelTimeout ?? 30000,
+            commitLock: tool.comboAuth.parallelSettings?.commitLock ?? true,
+            verifyAfterAuth: tool.comboAuth.parallelSettings?.verifyAfterAuth ?? true
+          },
           formConfig: {
             username: '', // Don't load sensitive data
             password: '',
             loginUrl: tool.comboAuth.formConfig?.loginUrl || '',
             multiStep: tool.comboAuth.formConfig?.multiStep || false,
             rememberMe: tool.comboAuth.formConfig?.rememberMe ?? true,
-            submitDelay: tool.comboAuth.formConfig?.submitDelay || 800
+            submitDelay: tool.comboAuth.formConfig?.submitDelay || 800,
+            autoSubmit: tool.comboAuth.formConfig?.autoSubmit ?? true
           },
           ssoConfig: {
             authStartUrl: tool.comboAuth.ssoConfig?.authStartUrl || '',
@@ -334,8 +346,23 @@ const AdminToolForm = () => {
             provider: tool.comboAuth.ssoConfig?.provider || '',
             buttonSelector: tool.comboAuth.ssoConfig?.buttonSelector || '',
             autoClick: tool.comboAuth.ssoConfig?.autoClick ?? true
+          },
+          cookiesConfig: {
+            cookies: tool.comboAuth.cookiesConfig?.cookies || '',
+            injectFirst: tool.comboAuth.cookiesConfig?.injectFirst ?? true
+          },
+          localStorageConfig: {
+            data: tool.comboAuth.localStorageConfig?.data || ''
+          },
+          sessionStorageConfig: {
+            data: tool.comboAuth.sessionStorageConfig?.data || ''
           }
-        });
+        }));
+      }
+
+      // Load session bundle version if present
+      if (tool.sessionBundle) {
+        setSessionBundleVersion(tool.sessionBundle.version || null);
       }
       
       // Load selectors if present
