@@ -938,13 +938,19 @@ export class LoginOrchestrator {
 
   /**
    * Execute form fill with auto-submit (Enter key fallback)
+   * @param {number} tabId - Tab ID
+   * @param {string} username - Username/email
+   * @param {string} password - Password  
+   * @param {Object} customSelectors - Custom CSS selectors
+   * @param {boolean} multiStep - Multi-step login flow
+   * @param {boolean} autoSubmit - Whether to auto-submit (like SSO auto-click)
    */
-  async executeFormFillAutoSubmit(tabId, username, password, customSelectors = {}, multiStep = false) {
+  async executeFormFillAutoSubmit(tabId, username, password, customSelectors = {}, multiStep = false, autoSubmit = true) {
     try {
       const results = await chrome.scripting.executeScript({
         target: { tabId },
         func: this.formFillAutoSubmitScript,
-        args: [username, password, customSelectors, multiStep]
+        args: [username, password, customSelectors, multiStep, autoSubmit]
       });
 
       return results[0]?.result || { success: false, error: 'No result' };
@@ -955,12 +961,14 @@ export class LoginOrchestrator {
 
   /**
    * Form fill script with auto-submit (injected into page)
+   * Matches SSO auto-click behavior - fills form and submits automatically
    */
-  formFillAutoSubmitScript(username, password, customSelectors, multiStep) {
+  formFillAutoSubmitScript(username, password, customSelectors, multiStep, autoSubmit = true) {
     const result = {
       success: false,
       steps: [],
-      error: null
+      error: null,
+      autoSubmitted: false
     };
 
     // Selector lists
