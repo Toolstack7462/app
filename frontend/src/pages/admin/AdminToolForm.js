@@ -711,29 +711,54 @@ const AdminToolForm = () => {
               ))}
             </div>
 
-            {/* COMBO AUTH MODE */}
+            {/* UNIVERSAL COMBO AUTH MODE */}
             {formData.credentialType === 'combo' && (
               <div className="space-y-4">
                 <div className="flex items-center gap-2 p-3 bg-purple-500/10 border border-purple-500/30 rounded-xl mb-4">
                   <Zap size={18} className="text-purple-400" />
-                  <span className="font-medium text-white">Combo Auth Mode</span>
-                  <span className="text-sm text-purple-300 ml-2">Both SSO and Form Login in one tool</span>
+                  <span className="font-medium text-white">Universal Combo Auth</span>
+                  <span className="text-sm text-purple-300 ml-2">Combine ANY two auth types</span>
                 </div>
                 
-                {/* Strategy Controls */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                {/* Type Selection */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label className="block text-sm font-medium text-white mb-2">Primary Strategy</label>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Primary Auth Type <span className="text-purple-400">(Try First)</span>
+                    </label>
                     <select
-                      value={comboAuth.primary}
-                      onChange={(e) => setComboAuth(prev => ({ ...prev, primary: e.target.value }))}
-                      className="w-full px-3 py-2 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:border-toolstack-orange"
+                      value={comboAuth.primaryType}
+                      onChange={(e) => setComboAuth(prev => ({ ...prev, primaryType: e.target.value }))}
+                      className="w-full px-3 py-2 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:border-purple-500"
                     >
-                      <option value="sso">SSO First</option>
-                      <option value="form">Form First</option>
+                      {COMBO_AUTH_TYPES.map(type => (
+                        <option key={type.value} value={type.value}>
+                          {type.icon} {type.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Secondary Auth Type <span className="text-green-400">(Fallback)</span>
+                    </label>
+                    <select
+                      value={comboAuth.secondaryType}
+                      onChange={(e) => setComboAuth(prev => ({ ...prev, secondaryType: e.target.value }))}
+                      className="w-full px-3 py-2 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:border-purple-500"
+                    >
+                      {COMBO_AUTH_TYPES.filter(t => t.value !== comboAuth.primaryType).map(type => (
+                        <option key={type.value} value={type.value}>
+                          {type.icon} {type.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                
+                {/* Strategy Controls */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10">
                     <input
                       type="checkbox"
@@ -743,7 +768,7 @@ const AdminToolForm = () => {
                     />
                     <div>
                       <div className="font-medium text-white text-sm">Fallback Enabled</div>
-                      <div className="text-xs text-toolstack-muted">Try other strategy if primary fails</div>
+                      <div className="text-xs text-toolstack-muted">Try secondary if primary fails</div>
                     </div>
                   </label>
                   
@@ -761,63 +786,41 @@ const AdminToolForm = () => {
                   </label>
                 </div>
                 
-                {/* Tabbed Interface for SSO + Form */}
+                {/* Tabbed Interface - Dynamic based on selected types */}
                 <div className="border border-toolstack-border rounded-xl overflow-hidden">
                   <div className="flex border-b border-toolstack-border">
                     <button
                       type="button"
-                      onClick={() => setComboAuthTab('sso')}
+                      onClick={() => setComboAuthTab('primary')}
                       className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                        comboAuthTab === 'sso'
+                        comboAuthTab === 'primary'
                           ? 'bg-purple-500/20 text-purple-300 border-b-2 border-purple-500'
                           : 'text-toolstack-muted hover:text-white hover:bg-white/5'
                       }`}
                     >
-                      🔐 SSO Configuration
+                      {COMBO_AUTH_TYPES.find(t => t.value === comboAuth.primaryType)?.icon} {COMBO_AUTH_TYPES.find(t => t.value === comboAuth.primaryType)?.label} (Primary)
                     </button>
                     <button
                       type="button"
-                      onClick={() => setComboAuthTab('form')}
+                      onClick={() => setComboAuthTab('secondary')}
                       className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                        comboAuthTab === 'form'
-                          ? 'bg-purple-500/20 text-purple-300 border-b-2 border-purple-500'
+                        comboAuthTab === 'secondary'
+                          ? 'bg-green-500/20 text-green-300 border-b-2 border-green-500'
                           : 'text-toolstack-muted hover:text-white hover:bg-white/5'
                       }`}
                     >
-                      📝 Form Login Configuration
+                      {COMBO_AUTH_TYPES.find(t => t.value === comboAuth.secondaryType)?.icon} {COMBO_AUTH_TYPES.find(t => t.value === comboAuth.secondaryType)?.label} (Fallback)
                     </button>
                   </div>
                   
                   <div className="p-4">
-                    {/* SSO Tab Content */}
-                    {comboAuthTab === 'sso' && (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-white mb-2">Auth Start URL</label>
-                            <input
-                              type="url"
-                              value={comboAuth.ssoConfig.authStartUrl}
-                              onChange={(e) => setComboAuth(prev => ({ 
-                                ...prev, 
-                                ssoConfig: { ...prev.ssoConfig, authStartUrl: e.target.value }
-                              }))}
-                              className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:border-purple-500"
-                              placeholder="https://example.com/auth/sso"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-white mb-2">Post-Login URL</label>
-                            <input
-                              type="url"
-                              value={comboAuth.ssoConfig.postLoginUrl}
-                              onChange={(e) => setComboAuth(prev => ({ 
-                                ...prev, 
-                                ssoConfig: { ...prev.ssoConfig, postLoginUrl: e.target.value }
-                              }))}
-                              className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:border-purple-500"
-                              placeholder="https://example.com/dashboard"
-                            />
+                    {/* Render config based on active tab and selected type */}
+                    {comboAuthTab === 'primary' && renderComboTypeConfig(comboAuth.primaryType, 'primary')}
+                    {comboAuthTab === 'secondary' && renderComboTypeConfig(comboAuth.secondaryType, 'secondary')}
+                  </div>
+                </div>
+              </div>
+            )}
                           </div>
                         </div>
                         
