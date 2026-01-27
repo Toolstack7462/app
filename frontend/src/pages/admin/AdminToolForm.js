@@ -1085,7 +1085,7 @@ const AdminToolForm = () => {
                 <div className="flex items-center gap-2 p-3 bg-purple-500/10 border border-purple-500/30 rounded-xl mb-4">
                   <Zap size={18} className="text-purple-400" />
                   <span className="font-medium text-white">Universal Combo Auth</span>
-                  <span className="text-sm text-purple-300 ml-2">Combine ANY two auth types</span>
+                  <span className="text-sm text-purple-300 ml-2">Configure auth strategies</span>
                 </div>
 
                 {/* Run Mode Selection */}
@@ -1118,149 +1118,326 @@ const AdminToolForm = () => {
                     >
                       <div className="text-lg mb-1">⚡</div>
                       <div className="font-medium text-white text-sm">Parallel / Simultaneous</div>
-                      <div className="text-xs text-toolstack-muted">Run both auth types at once</div>
+                      <div className="text-xs text-toolstack-muted">Apply all session data at once</div>
                     </button>
                   </div>
                 </div>
 
-                {/* Parallel Mode Info */}
-                {comboAuth.runMode === 'parallel' && (
-                  <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-xl mb-4">
-                    <div className="text-sm text-green-200 mb-2 font-medium">⚡ Parallel Mode:</div>
-                    <ul className="text-xs text-green-300 space-y-1">
-                      <li>1. <strong>PREP:</strong> Apply cookies + localStorage + sessionStorage in parallel</li>
-                      <li>2. <strong>COMMIT:</strong> Run both auth methods simultaneously</li>
-                      <li>3. <strong>VERIFY:</strong> Check login success (commit-lock ensures single navigation)</li>
-                      <li>4. <strong>FALLBACK:</strong> If not logged in, try other method once</li>
-                    </ul>
-                  </div>
+                {/* ==================== SEQUENTIAL MODE ==================== */}
+                {comboAuth.runMode === 'sequential' && (
+                  <>
+                    {/* Sequential Mode Info */}
+                    <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl mb-4">
+                      <div className="text-sm text-blue-200 mb-1 font-medium">🔄 Sequential Mode:</div>
+                      <div className="text-xs text-blue-300">Try Primary auth first → If fails, try Fallback</div>
+                    </div>
+                
+                    {/* Type Selection for Sequential */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className="block text-sm font-medium text-white mb-2">
+                          Primary Auth Type <span className="text-purple-400">(Try First)</span>
+                        </label>
+                        <select
+                          value={comboAuth.primaryType}
+                          onChange={(e) => setComboAuth(prev => ({ ...prev, primaryType: e.target.value }))}
+                          className="w-full px-3 py-2 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:border-purple-500"
+                        >
+                          {COMBO_AUTH_TYPES.map(type => (
+                            <option key={type.value} value={type.value}>
+                              {type.icon} {type.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-white mb-2">
+                          Fallback Auth Type <span className="text-green-400">(If Primary Fails)</span>
+                        </label>
+                        <select
+                          value={comboAuth.secondaryType}
+                          onChange={(e) => setComboAuth(prev => ({ ...prev, secondaryType: e.target.value }))}
+                          className="w-full px-3 py-2 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:border-purple-500"
+                        >
+                          {COMBO_AUTH_TYPES.filter(t => t.value !== comboAuth.primaryType).map(type => (
+                            <option key={type.value} value={type.value}>
+                              {type.icon} {type.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    
+                    {/* Strategy Controls for Sequential */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+                      <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10">
+                        <input
+                          type="checkbox"
+                          checked={comboAuth.skipIfLoggedIn}
+                          onChange={(e) => setComboAuth(prev => ({ ...prev, skipIfLoggedIn: e.target.checked }))}
+                          className="w-5 h-5 rounded border-toolstack-border text-green-500 focus:ring-green-500"
+                        />
+                        <div>
+                          <div className="font-medium text-white text-sm">Skip if Logged In</div>
+                          <div className="text-xs text-toolstack-muted">Check first</div>
+                        </div>
+                      </label>
+
+                      <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10">
+                        <input
+                          type="checkbox"
+                          checked={comboAuth.fallbackEnabled}
+                          onChange={(e) => setComboAuth(prev => ({ ...prev, fallbackEnabled: e.target.checked }))}
+                          className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
+                        />
+                        <div>
+                          <div className="font-medium text-white text-sm">Fallback Enabled</div>
+                          <div className="text-xs text-toolstack-muted">Try secondary</div>
+                        </div>
+                      </label>
+                      
+                      <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10">
+                        <input
+                          type="checkbox"
+                          checked={comboAuth.triggerOnAuto}
+                          onChange={(e) => setComboAuth(prev => ({ ...prev, triggerOnAuto: e.target.checked }))}
+                          className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
+                        />
+                        <div>
+                          <div className="font-medium text-white text-sm">Auto Only</div>
+                          <div className="text-xs text-toolstack-muted">?auto=1</div>
+                        </div>
+                      </label>
+                    </div>
+                    
+                    {/* Tabbed Interface for Sequential */}
+                    <div className="border border-toolstack-border rounded-xl overflow-hidden">
+                      <div className="flex border-b border-toolstack-border">
+                        <button
+                          type="button"
+                          onClick={() => setComboAuthTab('primary')}
+                          className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                            comboAuthTab === 'primary'
+                              ? 'bg-purple-500/20 text-purple-300 border-b-2 border-purple-500'
+                              : 'text-toolstack-muted hover:text-white hover:bg-white/5'
+                          }`}
+                        >
+                          {COMBO_AUTH_TYPES.find(t => t.value === comboAuth.primaryType)?.icon} {COMBO_AUTH_TYPES.find(t => t.value === comboAuth.primaryType)?.label} (Primary)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setComboAuthTab('secondary')}
+                          className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                            comboAuthTab === 'secondary'
+                              ? 'bg-green-500/20 text-green-300 border-b-2 border-green-500'
+                              : 'text-toolstack-muted hover:text-white hover:bg-white/5'
+                          }`}
+                        >
+                          {COMBO_AUTH_TYPES.find(t => t.value === comboAuth.secondaryType)?.icon} {COMBO_AUTH_TYPES.find(t => t.value === comboAuth.secondaryType)?.label} (Fallback)
+                        </button>
+                      </div>
+                      
+                      <div className="p-4">
+                        {comboAuthTab === 'primary' && renderComboTypeConfig(comboAuth.primaryType, 'primary')}
+                        {comboAuthTab === 'secondary' && renderComboTypeConfig(comboAuth.secondaryType, 'secondary')}
+                      </div>
+                    </div>
+                  </>
                 )}
-                
-                {/* Type Selection */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-2">
-                      Primary Auth Type <span className="text-purple-400">(Try First)</span>
-                    </label>
-                    <select
-                      value={comboAuth.primaryType}
-                      onChange={(e) => setComboAuth(prev => ({ ...prev, primaryType: e.target.value }))}
-                      className="w-full px-3 py-2 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:border-purple-500"
-                    >
-                      {COMBO_AUTH_TYPES.map(type => (
-                        <option key={type.value} value={type.value}>
-                          {type.icon} {type.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-2">
-                      Secondary Auth Type <span className="text-green-400">(Fallback)</span>
-                    </label>
-                    <select
-                      value={comboAuth.secondaryType}
-                      onChange={(e) => setComboAuth(prev => ({ ...prev, secondaryType: e.target.value }))}
-                      className="w-full px-3 py-2 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:border-purple-500"
-                    >
-                      {COMBO_AUTH_TYPES.filter(t => t.value !== comboAuth.primaryType).map(type => (
-                        <option key={type.value} value={type.value}>
-                          {type.icon} {type.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                
-                {/* Strategy Controls */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                  <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10">
-                    <input
-                      type="checkbox"
-                      checked={comboAuth.skipIfLoggedIn}
-                      onChange={(e) => setComboAuth(prev => ({ ...prev, skipIfLoggedIn: e.target.checked }))}
-                      className="w-5 h-5 rounded border-toolstack-border text-green-500 focus:ring-green-500"
-                    />
-                    <div>
-                      <div className="font-medium text-white text-sm">Skip if Logged In</div>
-                      <div className="text-xs text-toolstack-muted">Check first</div>
-                    </div>
-                  </label>
 
-                  <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10">
-                    <input
-                      type="checkbox"
-                      checked={comboAuth.fallbackEnabled}
-                      onChange={(e) => setComboAuth(prev => ({ ...prev, fallbackEnabled: e.target.checked }))}
-                      className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
-                    />
-                    <div>
-                      <div className="font-medium text-white text-sm">Fallback</div>
-                      <div className="text-xs text-toolstack-muted">Try secondary</div>
+                {/* ==================== PARALLEL MODE ==================== */}
+                {comboAuth.runMode === 'parallel' && (
+                  <>
+                    {/* Parallel Mode Info */}
+                    <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-xl mb-4">
+                      <div className="text-sm text-green-200 mb-2 font-medium">⚡ Parallel / Simultaneous Mode:</div>
+                      <ul className="text-xs text-green-300 space-y-1">
+                        <li>• All session data (Cookies + LocalStorage + SessionStorage) applied <strong>simultaneously</strong></li>
+                        <li>• Then auth method (SSO or Form) runs to verify/complete login</li>
+                        <li>• Best for tools that need all session data injected at once</li>
+                      </ul>
                     </div>
-                  </label>
 
-                  <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10">
-                    <input
-                      type="checkbox"
-                      checked={comboAuth.fallbackOnlyOnce}
-                      onChange={(e) => setComboAuth(prev => ({ ...prev, fallbackOnlyOnce: e.target.checked }))}
-                      className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
-                    />
-                    <div>
-                      <div className="font-medium text-white text-sm">Once Only</div>
-                      <div className="text-xs text-toolstack-muted">No retries</div>
+                    {/* Parallel Options */}
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10">
+                        <input
+                          type="checkbox"
+                          checked={comboAuth.skipIfLoggedIn}
+                          onChange={(e) => setComboAuth(prev => ({ ...prev, skipIfLoggedIn: e.target.checked }))}
+                          className="w-5 h-5 rounded border-toolstack-border text-green-500 focus:ring-green-500"
+                        />
+                        <div>
+                          <div className="font-medium text-white text-sm">Skip if Already Logged In</div>
+                          <div className="text-xs text-toolstack-muted">Check login status first</div>
+                        </div>
+                      </label>
+                      
+                      <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10">
+                        <input
+                          type="checkbox"
+                          checked={comboAuth.triggerOnAuto}
+                          onChange={(e) => setComboAuth(prev => ({ ...prev, triggerOnAuto: e.target.checked }))}
+                          className="w-5 h-5 rounded border-toolstack-border text-green-500 focus:ring-green-500"
+                        />
+                        <div>
+                          <div className="font-medium text-white text-sm">Auto Trigger Only</div>
+                          <div className="text-xs text-toolstack-muted">Only when ?auto=1 in URL</div>
+                        </div>
+                      </label>
                     </div>
-                  </label>
-                  
-                  <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10">
-                    <input
-                      type="checkbox"
-                      checked={comboAuth.triggerOnAuto}
-                      onChange={(e) => setComboAuth(prev => ({ ...prev, triggerOnAuto: e.target.checked }))}
-                      className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
-                    />
-                    <div>
-                      <div className="font-medium text-white text-sm">Auto Only</div>
-                      <div className="text-xs text-toolstack-muted">?auto=1</div>
+
+                    {/* Auth Method for Parallel (optional, after session injection) */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-white mb-2">
+                        Auth Method <span className="text-toolstack-muted text-xs">(After session injection)</span>
+                      </label>
+                      <select
+                        value={comboAuth.primaryType}
+                        onChange={(e) => setComboAuth(prev => ({ ...prev, primaryType: e.target.value }))}
+                        className="w-full px-3 py-2 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none focus:border-green-500"
+                      >
+                        <option value="none">🔓 None (Session Only)</option>
+                        <option value="sso">🔐 SSO / OAuth</option>
+                        <option value="form">📝 Form Login</option>
+                      </select>
+                      <p className="text-xs text-toolstack-muted mt-1">Select auth method to run after injecting session bundle, or "None" for session-only login</p>
                     </div>
-                  </label>
-                </div>
-                
-                {/* Tabbed Interface - Dynamic based on selected types */}
-                <div className="border border-toolstack-border rounded-xl overflow-hidden">
-                  <div className="flex border-b border-toolstack-border">
-                    <button
-                      type="button"
-                      onClick={() => setComboAuthTab('primary')}
-                      className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                        comboAuthTab === 'primary'
-                          ? 'bg-purple-500/20 text-purple-300 border-b-2 border-purple-500'
-                          : 'text-toolstack-muted hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      {COMBO_AUTH_TYPES.find(t => t.value === comboAuth.primaryType)?.icon} {COMBO_AUTH_TYPES.find(t => t.value === comboAuth.primaryType)?.label} (Primary)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setComboAuthTab('secondary')}
-                      className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                        comboAuthTab === 'secondary'
-                          ? 'bg-green-500/20 text-green-300 border-b-2 border-green-500'
-                          : 'text-toolstack-muted hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      {COMBO_AUTH_TYPES.find(t => t.value === comboAuth.secondaryType)?.icon} {COMBO_AUTH_TYPES.find(t => t.value === comboAuth.secondaryType)?.label} (Fallback)
-                    </button>
-                  </div>
-                  
-                  <div className="p-4">
-                    {/* Render config based on active tab and selected type */}
-                    {comboAuthTab === 'primary' && renderComboTypeConfig(comboAuth.primaryType, 'primary')}
-                    {comboAuthTab === 'secondary' && renderComboTypeConfig(comboAuth.secondaryType, 'secondary')}
-                  </div>
-                </div>
+
+                    {/* Master Session Bundle */}
+                    <div className="border border-green-500/30 rounded-xl overflow-hidden">
+                      <div className="bg-green-500/10 px-4 py-3 border-b border-green-500/30">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">📦</span>
+                            <span className="font-medium text-white">Master Session Bundle</span>
+                            {sessionBundleVersion && (
+                              <span className="text-xs bg-green-500/30 text-green-300 px-2 py-0.5 rounded-full">
+                                v{sessionBundleVersion}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-xs text-green-300 mt-1">All data below will be applied simultaneously to the browser</p>
+                      </div>
+                      
+                      <div className="p-4 space-y-4">
+                        {/* Cookies */}
+                        <div>
+                          <label className="flex items-center gap-2 text-sm font-medium text-white mb-2">
+                            🍪 Cookies <span className="text-xs text-toolstack-muted">(JSON Array)</span>
+                          </label>
+                          <textarea
+                            value={comboAuth.cookiesConfig?.cookies || ''}
+                            onChange={(e) => setComboAuth(prev => ({
+                              ...prev,
+                              cookiesConfig: { ...prev.cookiesConfig, cookies: e.target.value }
+                            }))}
+                            className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-green-500 transition-colors font-mono text-sm"
+                            rows={4}
+                            placeholder='[{"name": "session", "value": "abc123", "domain": ".example.com"}]'
+                          />
+                        </div>
+
+                        {/* LocalStorage */}
+                        <div>
+                          <label className="flex items-center gap-2 text-sm font-medium text-white mb-2">
+                            💾 LocalStorage <span className="text-xs text-toolstack-muted">(JSON Object)</span>
+                          </label>
+                          <textarea
+                            value={comboAuth.localStorageConfig?.data || ''}
+                            onChange={(e) => setComboAuth(prev => ({
+                              ...prev,
+                              localStorageConfig: { ...prev.localStorageConfig, data: e.target.value }
+                            }))}
+                            className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-green-500 transition-colors font-mono text-sm"
+                            rows={4}
+                            placeholder='{"token": "eyJ...", "user": "{\"id\": 123}"}'
+                          />
+                        </div>
+
+                        {/* SessionStorage */}
+                        <div>
+                          <label className="flex items-center gap-2 text-sm font-medium text-white mb-2">
+                            📦 SessionStorage <span className="text-xs text-toolstack-muted">(JSON Object)</span>
+                          </label>
+                          <textarea
+                            value={comboAuth.sessionStorageConfig?.data || ''}
+                            onChange={(e) => setComboAuth(prev => ({
+                              ...prev,
+                              sessionStorageConfig: { ...prev.sessionStorageConfig, data: e.target.value }
+                            }))}
+                            className="w-full px-4 py-3 bg-white/5 border border-toolstack-border rounded-xl text-white placeholder-toolstack-muted focus:outline-none focus:border-green-500 transition-colors font-mono text-sm"
+                            rows={4}
+                            placeholder='{"tempState": "value", "sessionId": "xyz789"}'
+                          />
+                        </div>
+
+                        {/* Auth Method Config (if SSO or Form selected) */}
+                        {comboAuth.primaryType === 'sso' && (
+                          <div className="border-t border-toolstack-border pt-4">
+                            <label className="flex items-center gap-2 text-sm font-medium text-white mb-3">
+                              🔐 SSO Configuration
+                            </label>
+                            <div className="space-y-3">
+                              <input
+                                type="url"
+                                value={comboAuth.ssoConfig?.authStartUrl || ''}
+                                onChange={(e) => setComboAuth(prev => ({
+                                  ...prev,
+                                  ssoConfig: { ...prev.ssoConfig, authStartUrl: e.target.value }
+                                }))}
+                                className="w-full px-4 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:border-green-500"
+                                placeholder="SSO Start URL"
+                              />
+                              <input
+                                type="text"
+                                value={comboAuth.ssoConfig?.buttonSelector || ''}
+                                onChange={(e) => setComboAuth(prev => ({
+                                  ...prev,
+                                  ssoConfig: { ...prev.ssoConfig, buttonSelector: e.target.value }
+                                }))}
+                                className="w-full px-4 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:border-green-500"
+                                placeholder="SSO Button Selector (e.g., .google-login-btn)"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {comboAuth.primaryType === 'form' && (
+                          <div className="border-t border-toolstack-border pt-4">
+                            <label className="flex items-center gap-2 text-sm font-medium text-white mb-3">
+                              📝 Form Login Configuration
+                            </label>
+                            <div className="grid grid-cols-2 gap-3">
+                              <input
+                                type="text"
+                                value={comboAuth.formConfig?.username || ''}
+                                onChange={(e) => setComboAuth(prev => ({
+                                  ...prev,
+                                  formConfig: { ...prev.formConfig, username: e.target.value }
+                                }))}
+                                className="w-full px-4 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:border-green-500"
+                                placeholder="Username"
+                              />
+                              <input
+                                type="password"
+                                value={comboAuth.formConfig?.password || ''}
+                                onChange={(e) => setComboAuth(prev => ({
+                                  ...prev,
+                                  formConfig: { ...prev.formConfig, password: e.target.value }
+                                }))}
+                                className="w-full px-4 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:border-green-500"
+                                placeholder="Password"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
