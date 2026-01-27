@@ -605,9 +605,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
       
     case 'ONE_CLICK_LOGIN':
-      executeOneClickLogin(message.toolId, message.tool)
-        .then(result => sendResponse(result))
-        .catch(error => sendResponse({ success: false, error: error.message }));
+      // Check if options are provided (for hidden mode, auto mode, etc.)
+      if (message.options && (message.options.hidden || message.options.auto)) {
+        executeOneClickLoginWithOptions(message.toolId, message.tool, message.options)
+          .then(result => sendResponse(result))
+          .catch(error => sendResponse({ success: false, error: error.message }));
+      } else {
+        executeOneClickLogin(message.toolId, message.tool)
+          .then(result => sendResponse(result))
+          .catch(error => sendResponse({ success: false, error: error.message }));
+      }
       return true;
       
     case 'INJECT_COOKIES':
