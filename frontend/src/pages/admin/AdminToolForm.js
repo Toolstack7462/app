@@ -352,7 +352,8 @@ const AdminToolForm = () => {
             loginUrl: comboAuth.formConfig.loginUrl || formData.loginUrl,
             multiStep: comboAuth.formConfig.multiStep,
             rememberMe: comboAuth.formConfig.rememberMe,
-            submitDelay: comboAuth.formConfig.submitDelay
+            submitDelay: comboAuth.formConfig.submitDelay,
+            autoSubmit: comboAuth.formConfig.autoSubmit !== false  // NEW: Auto-submit like SSO
           },
           ssoConfig: {
             authStartUrl: comboAuth.ssoConfig.authStartUrl,
