@@ -445,3 +445,65 @@ agent_communication:
     message: "🎉 UNIFIED CREDENTIAL SYSTEM ENHANCEMENT TESTING COMPLETE - ALL TESTS PASSED: Conducted comprehensive testing of the unified credential system enhancement as per review request. PERFECT RESULTS: ✅ Health Check (2/2) - CRM Backend and MongoDB connection verified, ✅ Admin Login (1/1) - Successfully authenticated with existing credentials, ✅ Tool Creation (6/6 CRITICAL) - ALL 3 test scenarios passed: Form Login Tool (with username/password/selectors/successCheck), SSO Tool (with authStartUrl/provider/autoClick/successCheck), Headers Tool (with custom headers array), all created with proper unified credentials structure, ✅ Tool Retrieval (8/8) - All created tools found in list with correct unified credentials type, individual tool details include complete credentials structure, ✅ Tool Update (4/4) - Successfully changed credential type from 'form' to 'sso', unified credentials and extension settings updated correctly. CRITICAL FIXES APPLIED: (1) Updated Joi validation schema to support new credential types (form/sso/headers/sessionStorage) and unified credentials field structure, (2) Fixed ActivityLog enum to include 'SUPER_ADMIN' role, (3) Enhanced extension settings validation (retryAttempts 0-10, retryDelayMs 100-10000ms). Created 3 test tools demonstrating all credential types. Extension API verified - returns unified credentials with proper structure. The unified credential system is working exactly as intended and ready for production use. Backend integration complete and fully functional."
   - agent: "testing"
     message: "🎉 BUG FIXES TESTING COMPLETE - 3/4 CRITICAL FIXES WORKING PERFECTLY: Conducted focused testing of the 3 specific bug fixes mentioned in review request. EXCELLENT RESULTS: ✅ Extension ZIP Download (5/6) - Main endpoint /api/extension/download working perfectly with proper headers (Content-Type: application/zip, Content-Disposition: attachment; filename='ToolStack-Access.zip', Cache-Control: no-store), ZIP contains 22 files with all required extension components (manifest.json, popup.html, js/*, css/*, icons/*), in-memory generation working correctly. Minor issue: Legacy endpoint /chrome-extension.zip returns HTML due to routing - not critical since main endpoint works. ✅ Admin Login Verification (2/2) - Perfect authentication with admin@toolstack.com / Admin123!Secure, returns valid JWT token and user object (ID: 6977ca32d463f260f8040575, role: SUPER_ADMIN, status: active). ✅ Health Check (3/3) - Complete system health verified: gateway running, CRM backend ok, MongoDB connected to toolstack_crm database. ✅ Tool API Authentication (2/2) - GET /api/crm/admin/tools working with Bearer token, returns 4 tools with proper response format. All critical functionality operational. Architecture: FastAPI Gateway (8001) → CRM Backend (8002) → MongoDB (toolstack_crm) fully functional."
+
+  - agent: "main"
+    message: "🆕 COMBO AUTH & LOGIN ORCHESTRATOR ENHANCEMENT: Implemented comprehensive login orchestrator improvements as requested. Changes made: (1) Backend Model Update - Added comboAuth schema to Tool model (enabled, primary, fallbackEnabled, triggerOnAuto, formConfig, ssoConfig) and new extensionSettings (hiddenModeEnabled, hiddenModeTimeout, autoStartEnabled, autoStartDelay, maxAutoAttempts), (2) Validation Schema - Updated Joi validation for comboAuth and enhanced extensionSettings, (3) Extension API - Updated to return comboAuth config and new extensionSettings with defaults, (4) Admin Tool Form - Added Combo Auth credential type with tabbed SSO+Form config, strategy controls (primary, fallbackEnabled, triggerOnAuto), hidden mode/auto-start settings UI, (5) LoginOrchestrator - Enhanced with combo auth support (primary+fallback), auto-start mode (?auto=1), hidden mode (?hidden=1&auto=1), 'Logging in... Cancel' overlay injection, MFA detection with graceful halt, (6) Background Script - Added auto-start detection on tab navigation, hidden mode support with sourceTabId tracking, LOGIN_CANCELLED handler, (7) Content Script - Added auto-start/hidden param parsing and cancel event listener. Please test: Admin tool form combo auth creation, backend API for comboAuth data persistence."
+
+backend:
+  - task: "Combo Auth Backend Model"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/models/Tool.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added comboAuthSchema to Tool model with enabled, primary, fallbackEnabled, triggerOnAuto, formConfig (username, password, loginUrl, multiStep, rememberMe, submitDelay), ssoConfig (authStartUrl, postLoginUrl, provider, buttonSelector, autoClick). Also added new extensionSettings: hiddenModeEnabled, hiddenModeTimeout, autoStartEnabled, autoStartDelay, maxAutoAttempts."
+
+  - task: "Combo Auth Validation Schema"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/middleware/validation.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Updated Joi validation for comboAuth object with all nested fields (enabled, primary, fallbackEnabled, triggerOnAuto, formConfig, ssoConfig). Added new selectors (next, ssoButton), updated extensionSettings validation for hidden mode and auto-start settings."
+
+  - task: "Extension API Combo Auth Response"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/routes/extension/index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Updated /tools endpoint and /tools/:toolId/credentials endpoint to include comboAuth config and new extensionSettings with proper defaults. Extension will receive all combo auth configuration for both SSO and Form strategies."
+
+  - task: "Tool Creation with Combo Auth"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/routes/admin/toolsEnhanced.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added comboAuth to allowedUpdates array in tool update route. Combo auth configuration will be saved alongside other tool data."
+
+test_plan:
+  current_focus:
+    - "Combo Auth Backend Model"
+    - "Combo Auth Validation Schema"
+    - "Extension API Combo Auth Response"
+    - "Tool Creation with Combo Auth"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
