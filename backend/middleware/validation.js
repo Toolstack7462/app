@@ -262,19 +262,30 @@ const schemas = {
       tokenHeader: Joi.string().allow(''),
       tokenPrefix: Joi.string().allow('')
     }).allow(null),
-    // Combo Auth - allows both SSO and Form in one tool
+    // Combo Auth - allows both SSO and Form with parallel mode
     comboAuth: Joi.object({
       enabled: Joi.boolean(),
-      primary: Joi.string().valid('sso', 'form'),
+      runMode: Joi.string().valid('sequential', 'parallel'),
+      primaryType: Joi.string().valid('sso', 'form', 'cookies', 'token', 'headers', 'localStorage', 'sessionStorage'),
+      secondaryType: Joi.string().valid('sso', 'form', 'cookies', 'token', 'headers', 'localStorage', 'sessionStorage'),
       fallbackEnabled: Joi.boolean(),
+      fallbackOnlyOnce: Joi.boolean(),
+      skipIfLoggedIn: Joi.boolean(),
       triggerOnAuto: Joi.boolean(),
+      parallelSettings: Joi.object({
+        prepSessionFirst: Joi.boolean(),
+        parallelTimeout: Joi.number().min(5000).max(120000),
+        commitLock: Joi.boolean(),
+        verifyAfterAuth: Joi.boolean()
+      }).allow(null),
       formConfig: Joi.object({
         username: Joi.string().allow(''),
         password: Joi.string().allow(''),
         loginUrl: Joi.string().uri().allow('', null),
         multiStep: Joi.boolean(),
         rememberMe: Joi.boolean(),
-        submitDelay: Joi.number().min(0).max(5000)
+        submitDelay: Joi.number().min(0).max(5000),
+        autoSubmit: Joi.boolean()
       }).allow(null),
       ssoConfig: Joi.object({
         authStartUrl: Joi.string().uri().allow('', null),
@@ -282,7 +293,29 @@ const schemas = {
         provider: Joi.string().allow(''),
         buttonSelector: Joi.string().allow(''),
         autoClick: Joi.boolean()
+      }).allow(null),
+      cookiesConfig: Joi.object({
+        cookies: Joi.string().allow(''),
+        injectFirst: Joi.boolean()
+      }).allow(null),
+      tokenConfig: Joi.object({
+        token: Joi.string().allow(''),
+        header: Joi.string(),
+        prefix: Joi.string(),
+        storageKey: Joi.string()
+      }).allow(null),
+      localStorageConfig: Joi.object({
+        data: Joi.string().allow('')
+      }).allow(null),
+      sessionStorageConfig: Joi.object({
+        data: Joi.string().allow('')
       }).allow(null)
+    }).allow(null),
+    // Session Bundle - unified storage
+    sessionBundle: Joi.object({
+      cookiesEncrypted: Joi.string().allow('', null),
+      localStorageEncrypted: Joi.string().allow('', null),
+      sessionStorageEncrypted: Joi.string().allow('', null)
     }).allow(null),
     // Enhanced extension settings
     extensionSettings: Joi.object({
