@@ -1,332 +1,292 @@
-# ToolStack Chrome Extension
+# ToolStack Access - Chrome Extension v2.1
 
-Enterprise-grade auto-login system with intelligent strategy fallback for web tools.
+Enterprise-grade auto-login system with intelligent strategy fallback, MFA detection, and multi-step login support.
 
-## Version 2.0.0
+## 🚀 New in v2.1
 
-### New Features
+### Login Orchestrator
+- **Unified login flow** - Single entry point manages the entire login lifecycle
+- **Automatic method selection** - Chooses the best login method based on available credentials
+- **Smart fallbacks** - If one method fails, automatically tries the next
+- **Retry logic with exponential backoff** - Handles temporary failures gracefully
 
-- **Content Script Auto-Login**: Automatically detects login pages and triggers authentication
-- **Pluggable Strategy Engine**: Multiple login strategies with intelligent fallback
-- **SPA Support**: Works with React, Next.js, Vue, and Angular applications
-- **One-Click Login**: Click a tool → opens & auto-authenticates seamlessly
-- **Silent Authentication**: Minimal UX disruption, reload only when necessary
+### Enhanced Form Login
+- **MutationObserver** - Detects dynamically rendered login forms (SPAs)
+- **Multi-step login support** - Handles email-first, then password flows (Google, Microsoft style)
+- **Same-origin iframe support** - Works with login forms inside iframes
+- **MFA detection** - Stops automation when 2FA/MFA is detected, shows user-friendly message
+- **Native value setter** - Works with React, Vue, Angular controlled inputs
 
-## Architecture
+### Improved SSO/OAuth
+- **New tab/popup monitoring** - Tracks OAuth flows across browser tabs
+- **Account chooser detection** - Notifies user when account selection is needed
+- **Better provider button detection** - Finds SSO buttons by selector, text, and aria-label
+- **Session extraction** - Captures cookies/tokens after successful OAuth for future use
+
+### Better Cookie/Storage Injection
+- **Proper attribute normalization** - Correctly handles domain, sameSite, secure, path
+- **Pre-navigation injection** - Injects before page load for best reliability
+- **Reload coordination** - Automatic page reload after injection
+
+### Diagnostics
+- **Debug mode toggle** - Enable in profile to see detailed logs
+- **Structured logging** - Easy to read, categorized log entries
+- **Secret masking** - NEVER exposes passwords, tokens, or cookies in logs
+- **User-friendly errors** - Clear messages when login fails
+
+## 📁 Project Structure
 
 ```
 chrome-extension/
-├── manifest.json           # Manifest V3 configuration
-├── popup.html              # Extension popup UI
+├── manifest.json                 # Extension manifest (MV3)
+├── popup.html                    # Popup UI
 ├── css/
-│   └── popup.css           # Popup styles
-├── icons/                  # Extension icons
-└── js/
-    ├── api.js              # API client & utilities
-    ├── background.js       # Service worker (central controller)
-    ├── popup.js            # Popup UI logic
-    ├── content.js          # Content script (runs in pages)
-    ├── config/
-    │   └── toolConfigs.js  # Per-tool configurations
-    └── strategies/
-        ├── BaseStrategy.js     # Base class for strategies
-        ├── StrategyEngine.js   # Strategy orchestrator
-        ├── CookieStrategy.js   # Session/cookie injection
-        ├── TokenStrategy.js    # JWT/localStorage/sessionStorage
-        ├── FormStrategy.js     # Form auto-fill & submit
-        └── OAuthStrategy.js    # OAuth/SSO foundation
+│   └── popup.css                 # Popup styles
+├── icons/                        # Extension icons
+├── js/
+│   ├── api.js                    # API client & storage utilities
+│   ├── background.js             # Service worker (main controller)
+│   ├── content.js                # Content script (login detection)
+│   ├── popup.js                  # Popup controller
+│   ├── core/
+│   │   ├── LoginOrchestrator.js  # Unified login flow controller
+│   │   ├── SuccessDetector.js    # Login success verification
+│   │   └── Logger.js             # Structured logging system
+│   ├── strategies/
+│   │   ├── BaseStrategy.js       # Strategy base class
+│   │   ├── CookieStrategy.js     # Cookie injection
+│   │   ├── TokenStrategy.js      # localStorage/sessionStorage injection
+│   │   ├── FormStrategy.js       # Form fill & submit
+│   │   ├── SSOStrategy.js        # OAuth/SSO flows
+│   │   ├── HeadersStrategy.js    # Custom header auth
+│   │   └── StrategyEngine.js     # Strategy orchestration
+│   └── config/
+│       └── toolConfigs.js        # Tool configuration templates
 ```
 
-## Login Strategies
+## 🔧 Installation
 
-### 1. Cookie Strategy
-Injects session cookies before opening the tool tab.
+### Development (unpacked)
 
-```json
-{
-  "type": "cookies",
-  "data": [
-    {
-      "name": "session_id",
-      "value": "abc123",
-      "domain": ".example.com",
-      "path": "/",
-      "secure": true,
-      "httpOnly": true,
-      "sameSite": "lax",
-      "expirationDate": 1735689600
-    }
-  ]
-}
-```
-
-### 2. Token Strategy
-Injects tokens into localStorage or sessionStorage.
-
-```json
-{
-  "type": "localStorage",
-  "data": {
-    "auth_token": "eyJhbGc...",
-    "user_id": "12345",
-    "refresh_token": "xyz789"
-  }
-}
-```
-
-### 3. Form Strategy
-Auto-fills and submits login forms (generic + per-tool selectors).
-
-```json
-{
-  "type": "form",
-  "data": {
-    "username": "user@example.com",
-    "password": "secret123"
-  },
-  "selectors": {
-    "username": "#email-input",
-    "password": "#password-input",
-    "submit": "#login-button"
-  }
-}
-```
-
-### 4. OAuth Strategy
-Handles OAuth/SSO authentication flows.
-
-```json
-{
-  "type": "oauth",
-  "data": {
-    "provider": "google",
-    "tokens": {
-      "accessToken": "ya29...",
-      "refreshToken": "1//...",
-      "expiresAt": 1735689600
-    }
-  }
-}
-```
-
-### 5. Mixed/Multi Strategy
-Combines multiple strategies with fallback.
-
-```json
-{
-  "type": "mixed",
-  "strategies": ["cookie", "token", "form"],
-  "cookies": [...],
-  "storage": {...},
-  "formData": {...}
-}
-```
-
-## Installation
-
-### Development Installation
-
-1. Clone or download this extension folder
-2. Open Chrome and go to `chrome://extensions/`
-3. Enable "Developer mode" (toggle in top right)
+1. Clone the repository
+2. Open Chrome and navigate to `chrome://extensions/`
+3. Enable "Developer mode" (top right toggle)
 4. Click "Load unpacked"
 5. Select the `chrome-extension` folder
 
-### From ZIP
+### Production
 
-1. Download the `chrome-extension.zip` file
-2. Extract to a folder
-3. Follow steps 2-5 from Development Installation
+1. Create a ZIP of the `chrome-extension` folder
+2. Upload to Chrome Web Store (or distribute internally)
 
-## Usage
+## 🧪 How to Test
 
-### Initial Setup
+### Prerequisites
+- Chrome browser (v110+)
+- Backend API running (for credential fetching)
+- At least one tool configured with credentials
 
-1. Click the extension icon in Chrome toolbar
-2. Click "Configure API" and enter your ToolStack API URL
-3. Login with your ToolStack client credentials
+### Testing One-Click Login
 
-### One-Click Login
+1. **Install the extension** (see Installation above)
 
-1. Click on any tool in the list
-2. If prompted, grant permission for that domain
-3. The extension will:
-   - Fetch credentials from ToolStack API
-   - Execute appropriate login strategy (cookie → token → form → oauth)
-   - Open the tool website with authentication
-   - Verify login success
+2. **Configure API URL**
+   - Click the extension icon
+   - Click "Configure API" link
+   - Enter your backend API URL
+   - Click "Save"
 
-### Auto-Login (Content Script)
+3. **Login to the extension**
+   - Enter your email/password
+   - Click "Login"
 
-When you navigate to a configured tool's website:
-1. Content script detects the login page
-2. Background service worker fetches credentials
-3. Strategy engine executes appropriate login method
-4. Page is refreshed if needed to apply authentication
+4. **Grant Permissions**
+   - Click a tool card
+   - When prompted, click "Grant" to allow access to the tool's domain
 
-## Strategy Execution Flow
+5. **Test One-Click Login**
+   - Click "Open" on any tool card
+   - The extension should:
+     - Open a new tab
+     - Inject session data OR fill login form OR trigger SSO
+     - Navigate to the dashboard/post-login page
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Strategy Engine                              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  1. Pre-Execute (no tab needed)                                 │
-│     ├── Cookie Strategy ────────────► Set cookies via API      │
-│     │                                                            │
-│  2. Open Tab                                                     │
-│     ├── Create tab with tool URL                                │
-│     ├── Wait for page load                                      │
-│     └── Reload if cookies were set                              │
-│                                                                  │
-│  3. Post-Execute (tab required)                                 │
-│     ├── Token Strategy ─────────────► Inject localStorage       │
-│     ├── Form Strategy ──────────────► Auto-fill & submit        │
-│     └── OAuth Strategy ─────────────► Click OAuth button        │
-│                                                                  │
-│  4. Verify & Complete                                           │
-│     ├── Check login indicators                                  │
-│     ├── Reload if needed                                        │
-│     └── Log tool opened                                         │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+### Testing Form Login
 
-## SPA Support
+1. **Configure a tool with form credentials**:
+   ```json
+   {
+     "type": "form",
+     "payload": {
+       "username": "user@example.com",
+       "password": "***"
+     }
+   }
+   ```
 
-The extension detects and handles Single Page Applications:
+2. **Click "Open" on the tool**
 
-- **Route Change Detection**: Monitors `pushState`, `replaceState`, `popstate`, and `hashchange`
-- **Mutation Observer**: Detects when login forms are dynamically added to DOM
-- **Framework Support**: Works with React, Vue, Angular, Next.js
-- **Controlled Input Handling**: Properly sets values on React/Vue controlled inputs
+3. **Expected behavior**:
+   - Hidden tab opens with login page
+   - Form fields are filled automatically
+   - Form is submitted
+   - Tab becomes visible on success
+   - If MFA appears, tab becomes visible with message
 
-## Per-Tool Configuration
+### Testing SSO
 
-Tools can be configured with specific settings:
+1. **Configure a tool with SSO credentials**:
+   ```json
+   {
+     "type": "sso",
+     "payload": {
+       "authStartUrl": "https://app.example.com/sso/start",
+       "postLoginUrl": "https://app.example.com/dashboard",
+       "provider": "google",
+       "autoClick": true
+     }
+   }
+   ```
 
-```javascript
-{
-  id: 'tool-123',
-  name: 'My Tool',
-  domain: 'app.example.com',
-  targetUrl: 'https://app.example.com/dashboard',
-  loginUrl: 'https://app.example.com/login',
-  strategies: ['cookie', 'token', 'form'],
-  selectors: {
-    username: '#email',
-    password: '#password',
-    submit: 'button[type="submit"]'
-  },
-  options: {
-    reloadAfterLogin: true,
-    waitForNavigation: true,
-    spaMode: true
-  }
+2. **Click "Open" on the tool**
+
+3. **Expected behavior**:
+   - Tab opens with SSO start URL
+   - If `autoClick` is true, SSO button is clicked
+   - OAuth flow proceeds
+   - If account chooser appears, you'll see "Please select an account"
+   - On success, lands on post-login URL
+
+### Testing Cookie Injection
+
+1. **Configure a tool with cookie credentials**:
+   ```json
+   {
+     "type": "cookies",
+     "payload": {
+       "cookies": [
+         {
+           "name": "session_id",
+           "value": "abc123...",
+           "domain": ".example.com",
+           "path": "/",
+           "secure": true,
+           "sameSite": "lax"
+         }
+       ]
+     }
+   }
+   ```
+
+2. **Click "Open" on the tool**
+
+3. **Expected behavior**:
+   - Cookies are injected before navigation
+   - Tab opens to target URL
+   - Page loads in logged-in state
+
+### Debug Mode
+
+1. **Enable debug mode**:
+   - Click the profile icon (top right of popup)
+   - Toggle "Debug Mode" ON
+
+2. **View logs**:
+   - Open Chrome DevTools on any page
+   - Go to the "Console" tab
+   - Look for logs prefixed with `[ToolStack Content]` or `[Orchestrator]`
+
+3. **Check background logs**:
+   - Go to `chrome://extensions/`
+   - Click "Inspect views: service worker" under ToolStack Access
+   - View console output
+
+### Common Test Scenarios
+
+| Scenario | Expected Result |
+|----------|----------------|
+| Tool with valid cookies | Opens directly to dashboard |
+| Tool with form credentials | Fills and submits form, lands on dashboard |
+| Tool with expired cookies | Falls back to form login if available |
+| Multi-step login (Google style) | Fills email, clicks next, fills password, submits |
+| MFA required | Tab shows with message "MFA required - please complete manually" |
+| Invalid credentials | Error message shown, option to retry |
+| Account chooser (SSO) | Message "Please select an account" |
+
+### Troubleshooting
+
+**Login always fails**
+1. Enable debug mode and check console logs
+2. Verify credentials are correctly formatted in the API
+3. Check if the tool's domain has been granted permission
+
+**Form not detected**
+1. The form might be inside an iframe (cross-origin won't work)
+2. The form might be dynamically loaded - wait a few seconds
+3. Custom selectors might be needed in tool config
+
+**SSO stuck on account selection**
+1. This is expected - select an account manually
+2. The extension will continue monitoring and complete
+
+**Cookies not working**
+1. Check cookie domain matches the target
+2. Ensure sameSite and secure flags are correct for the site
+3. Some sites require specific cookie attributes
+
+## 🔒 Security
+
+- **No secrets in logs** - All passwords, tokens, and cookies are masked
+- **Minimal permissions** - Only requests access to domains when needed
+- **No external calls** - Only communicates with configured API URL
+- **Session isolation** - Each tool's data is kept separate
+
+## 📝 Configuration
+
+### Tool Configuration Schema
+
+```typescript
+interface ToolConfig {
+  id: string;
+  name: string;
+  domain: string;
+  targetUrl: string;           // Post-login URL
+  loginUrl?: string;           // Login page URL (for form/SSO)
+  credentialVersion?: number;  // For cache invalidation
+  
+  // Optional custom selectors
+  selectors?: {
+    username?: string;
+    password?: string;
+    submit?: string;
+    mfa?: string;
+  };
+  
+  // Optional success check overrides
+  successCheck?: {
+    urlIncludes?: string;
+    urlExcludes?: string;
+    urlPattern?: string;       // Regex
+    elementExists?: string;    // CSS selector
+    elementNotExists?: string; // CSS selector
+    cookieNames?: string[];    // Required cookies
+    storageKeys?: string[];    // Required storage keys
+  };
 }
 ```
 
-## API Endpoints
+### Credential Types
 
-The extension expects these endpoints from your ToolStack API:
+| Type | Description | Required Payload Fields |
+|------|-------------|------------------------|
+| `cookies` | Session cookies | `cookies` (array) |
+| `token` | Bearer/JWT token | `value`, optional `key` |
+| `localStorage` | Local storage data | Object with key-value pairs |
+| `sessionStorage` | Session storage data | Object with key-value pairs |
+| `form` | Login form credentials | `username`, `password` |
+| `sso` | OAuth/SSO flow | `authStartUrl`, `postLoginUrl`, optional `provider` |
+| `headers` | Custom headers | `headerName`, `value` |
 
-```
-POST /api/crm/extension/auth
-  Body: { email, password }
-  Response: { token, expiresAt, user }
+## 📞 Support
 
-GET /api/crm/extension/tools
-  Response: { tools: [...] }
-
-GET /api/crm/extension/tools/:id/credentials
-  Response: { tool, credentials }
-
-POST /api/crm/extension/tools/:id/opened
-  Response: { success: true }
-
-GET /api/crm/extension/profile
-  Response: { user, token }
-
-GET /api/crm/extension/tools/versions
-  Response: { versions: {...} }
-```
-
-## Credential Types from Backend
-
-The backend can return credentials in any of these formats:
-
-| Type | Description |
-|------|-------------|
-| `cookies` | Array of cookie objects to inject |
-| `localStorage` | Object with key-value pairs for localStorage |
-| `sessionStorage` | Object with key-value pairs for sessionStorage |
-| `token` | JWT/bearer token data |
-| `form` | Username/password with optional selectors |
-| `oauth` | OAuth tokens or provider configuration |
-| `mixed` | Combination of multiple types |
-
-## Troubleshooting
-
-### Cookies Not Being Set
-
-**SECURE_FLAG_REQUIRES_HTTPS**: Cookie has `secure: true` but URL is HTTP
-- Solution: Use HTTPS URL or set `secure: false`
-
-**SAMESITE_NONE_REQUIRES_SECURE**: `SameSite=None` requires `Secure=true`
-- Solution: Set `secure: true` or use `sameSite: "lax"`
-
-**DOMAIN_MISMATCH**: Cookie domain doesn't match target URL
-- Solution: Use compatible domain or remove domain property
-
-### Form Auto-Fill Not Working
-
-1. Check if selectors match the actual form elements
-2. Verify the form is visible (not hidden by CSS)
-3. For SPAs, wait for the form to be rendered
-4. Check console for strategy execution logs
-
-### Token Injection Failing
-
-1. Ensure the tab is fully loaded before injection
-2. Check for CSP restrictions on the target site
-3. Verify localStorage is accessible
-
-### Permission Issues
-
-If you see "Grant Access" on a tool:
-1. Click "Grant" button
-2. Approve the permission request
-3. The tool will open automatically with login
-
-## Security Considerations
-
-- Extension only requests permissions for domains you explicitly grant
-- Credentials are stored in Chrome's secure local storage
-- Cookies are set with appropriate security flags
-- Form passwords are never logged or stored beyond injection
-- All communication with backend uses secure tokens
-
-## Changelog
-
-### 2.0.0
-- Complete architecture rewrite with pluggable strategy engine
-- Added content script for automatic login detection
-- Added FormStrategy for auto-fill and submit
-- Added OAuthStrategy foundation for SSO
-- Added SPA support with route change detection
-- Added one-click login from popup
-- Added toast notifications for status feedback
-- Improved error handling and diagnostics
-
-### 1.1.0
-- Fixed cookie injection to happen BEFORE tab opens
-- Added tab reload after cookie injection
-- Added cookie verification
-- Added localStorage/sessionStorage support
-- Added subdomain support
-
-### 1.0.0
-- Initial release
-- Basic cookie injection
-- Tool synchronization
-- Permission management
+For issues or questions, please contact your IT administrator or create an issue in the repository.
