@@ -513,6 +513,174 @@ class ToolStackCRMTester:
             self.log_result("tool_creation", "Database persistence verification", False, f"HTTP {response.status_code if response else 'No response'}")
             print(f"   ❌ Failed to fetch tools for verification: HTTP {response.status_code if response else 'No response'}")
 
+    def test_chrome_extension_endpoints(self):
+        """Test Chrome Extension auto-login improvement endpoints"""
+        print("\n🔌 Testing Chrome Extension Auto-Login Endpoints...")
+        
+        if not self.admin_token:
+            self.log_result("extension_endpoints", "Extension endpoint tests", False, "No admin token available")
+            return
+        
+        # First, get a tool ID to test with
+        response = self.make_request("GET", "/admin/tools")
+        if not response or response.status_code != 200:
+            self.log_result("extension_endpoints", "Get tools for testing", False, "Failed to get tools list")
+            return
+        
+        try:
+            data = response.json()
+            if not data.get("success") or not data.get("tools") or len(data["tools"]) == 0:
+                self.log_result("extension_endpoints", "Get tools for testing", False, "No tools available for testing")
+                return
+            
+            self.test_tool_id = data["tools"][0]["_id"]
+            print(f"   Using tool ID: {self.test_tool_id}")
+            self.log_result("extension_endpoints", "Get test tool ID", True)
+        except json.JSONDecodeError:
+            self.log_result("extension_endpoints", "Get test tool ID", False, "Invalid JSON response")
+            return
+        
+        # Test 1: Extension Login Attempt Logging (requires extension token - will test endpoint structure)
+        print(f"\n   Testing Extension Login Attempt Logging...")
+        login_attempt_data = {
+            "success": True,
+            "method": "form",
+            "duration": 2500,
+            "attempts": 1,
+            "finalUrl": "https://example.com/dashboard"
+        }
+        
+        # This will fail with 401 since we don't have extension token, but we can verify endpoint exists
+        response = self.make_request("POST", f"/extension/tools/{self.test_tool_id}/login-attempt", 
+                                   login_attempt_data, auth_required=False)
+        
+        if response and response.status_code == 401:
+            try:
+                data = response.json()
+                if "Extension token required" in data.get("error", ""):
+                    self.log_result("extension_endpoints", "Extension login attempt endpoint structure", True)
+                    print(f"   ✅ Endpoint exists and requires extension token (expected)")
+                else:
+                    self.log_result("extension_endpoints", "Extension login attempt endpoint structure", False, f"Unexpected error: {data.get('error')}")
+            except json.JSONDecodeError:
+                self.log_result("extension_endpoints", "Extension login attempt endpoint structure", False, "Invalid JSON response")
+        else:
+            self.log_result("extension_endpoints", "Extension login attempt endpoint structure", False, 
+                          f"Expected 401, got {response.status_code if response else 'No response'}")
+
+    def test_admin_tool_endpoints(self):
+        """Test Admin Tool Management endpoints for Chrome Extension improvements"""
+        print("\n🛠️  Testing Admin Tool Management Endpoints...")
+        
+        if not self.admin_token:
+            self.log_result("admin_tool_endpoints", "Admin tool endpoint tests", False, "No admin token available")
+            return
+        
+        if not self.test_tool_id:
+            self.log_result("admin_tool_endpoints", "Admin tool endpoint tests", False, "No test tool ID available")
+            return
+        
+        # Test 1: Admin Credential Validation
+        print(f"\n   Testing Admin Credential Validation...")
+        print(f"   Tool ID: {self.test_tool_id}")
+        
+        response = self.make_request("POST", f"/admin/tools/{self.test_tool_id}/test-credentials")
+        
+        if response and response.status_code == 200:
+            try:
+                data = response.json()
+                if data.get("success") and "validation" in data:
+                    validation = data["validation"]
+                    self.log_result("admin_tool_endpoints", "Admin credential validation", True)
+                    print(f"   ✅ Credential validation successful")
+                    print(f"   Valid: {validation.get('valid', 'N/A')}")
+                    print(f"   Checks: {len(validation.get('checks', []))} performed")
+                    print(f"   Warnings: {len(validation.get('warnings', []))} found")
+                    
+                    # Log some check details
+                    for check in validation.get('checks', [])[:3]:  # Show first 3 checks
+                        print(f"   - {check.get('name', 'Unknown')}: {check.get('status', 'N/A')} - {check.get('message', 'No message')}")
+                else:
+                    self.log_result("admin_tool_endpoints", "Admin credential validation", False, "Missing validation data in response")
+                    print(f"   ❌ Response missing validation data")
+            except json.JSONDecodeError:
+                self.log_result("admin_tool_endpoints", "Admin credential validation", False, "Invalid JSON response")
+                print(f"   ❌ Invalid JSON response")
+        else:
+            error_msg = f"HTTP {response.status_code if response else 'No response'}"
+            if response:
+                try:
+                    error_data = response.json()
+                    error_msg += f" - {error_data.get('error', 'Unknown error')}"
+                except:
+                    error_msg += f" - {response.text[:100]}"
+            
+            self.log_result("admin_tool_endpoints", "Admin credential validation", False, error_msg)
+            print(f"   ❌ Failed: {error_msg}")
+        
+        # Test 2: Admin Login Stats
+        print(f"\n   Testing Admin Login Stats...")
+        
+        response = self.make_request("GET", f"/admin/tools/{self.test_tool_id}/login-stats")
+        
+        if response and response.status_code == 200:
+            try:
+                data = response.json()
+                if data.get("success") and "stats" in data:
+                    stats = data["stats"]
+                    self.log_result("admin_tool_endpoints", "Admin login stats", True)
+                    print(f"   ✅ Login stats retrieved successfully")
+                    print(f"   Tool: {data.get('tool', {}).get('name', 'N/A')}")
+                    print(f"   Period: {data.get('period', 'N/A')}")
+                    print(f"   Total Attempts: {stats.get('totalAttempts', 0)}")
+                    print(f"   Success Rate: {stats.get('successRate', 0)}%")
+                    print(f"   Recent Attempts: {len(data.get('recentAttempts', []))}")
+                    
+                    # Check if we have recent attempts data
+                    recent_attempts = data.get('recentAttempts', [])
+                    if recent_attempts:
+                        print(f"   Latest Attempt: {recent_attempts[0].get('action', 'N/A')} at {recent_attempts[0].get('createdAt', 'N/A')}")
+                    else:
+                        print(f"   No recent login attempts found")
+                else:
+                    self.log_result("admin_tool_endpoints", "Admin login stats", False, "Missing stats data in response")
+                    print(f"   ❌ Response missing stats data")
+            except json.JSONDecodeError:
+                self.log_result("admin_tool_endpoints", "Admin login stats", False, "Invalid JSON response")
+                print(f"   ❌ Invalid JSON response")
+        else:
+            error_msg = f"HTTP {response.status_code if response else 'No response'}"
+            if response:
+                try:
+                    error_data = response.json()
+                    error_msg += f" - {error_data.get('error', 'Unknown error')}"
+                except:
+                    error_msg += f" - {response.text[:100]}"
+            
+            self.log_result("admin_tool_endpoints", "Admin login stats", False, error_msg)
+            print(f"   ❌ Failed: {error_msg}")
+        
+        # Test 3: Verify endpoint paths are correct
+        print(f"\n   Testing endpoint path verification...")
+        
+        # Test with invalid tool ID to verify endpoint structure
+        invalid_tool_id = "507f1f77bcf86cd799439011"  # Valid ObjectId format but non-existent
+        
+        response = self.make_request("POST", f"/admin/tools/{invalid_tool_id}/test-credentials")
+        if response and response.status_code == 404:
+            try:
+                data = response.json()
+                if "Tool not found" in data.get("error", ""):
+                    self.log_result("admin_tool_endpoints", "Endpoint path verification", True)
+                    print(f"   ✅ Endpoint paths correctly structured (404 for non-existent tool)")
+                else:
+                    self.log_result("admin_tool_endpoints", "Endpoint path verification", False, f"Unexpected 404 error: {data.get('error')}")
+            except json.JSONDecodeError:
+                self.log_result("admin_tool_endpoints", "Endpoint path verification", False, "Invalid JSON in 404 response")
+        else:
+            self.log_result("admin_tool_endpoints", "Endpoint path verification", False, 
+                          f"Expected 404 for invalid tool ID, got {response.status_code if response else 'No response'}")
+
     def test_admin_dashboard_access(self):
         """Test admin dashboard access after login"""
         print("\n📊 Testing Admin Dashboard Access...")
