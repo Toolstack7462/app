@@ -1625,19 +1625,98 @@ export class LoginOrchestrator {
   }
 
   /**
-   * Create a hidden tab
+   * Create a truly hidden tab using offscreen window
+   * For hidden mode (?hidden=1), we create a minimized window so the login page doesn't flash
    */
-  async createHiddenTab(url) {
+  async createHiddenTab(url, options = {}) {
+    const { trulyHidden = false } = options;
+    
     try {
-      const tab = await chrome.tabs.create({
-        url,
-        active: false,
-        pinned: false
-      });
-      return tab;
+      if (trulyHidden) {
+        // Create a window positioned off-screen or minimized
+        // This prevents any visual flash of the login page
+        const window = await chrome.windows.create({
+          url,
+          type: 'popup',
+          state: 'minimized',
+          width: 800,
+          height: 600,
+          left: -9999,  // Position off-screen as fallback
+          top: -9999,
+          focused: false
+        });
+        
+        // Return the first tab in the new window
+        if (window && window.tabs && window.tabs.length > 0) {
+          return {
+            ...window.tabs[0],
+            _windowId: window.id,
+            _isHiddenWindow: true
+          };
+        }
+        return null;
+      } else {
+        // Regular hidden tab (inactive but visible in tab bar)
+        const tab = await chrome.tabs.create({
+          url,
+          active: false,
+          pinned: false
+        });
+        return tab;
+      }
     } catch (error) {
       this.logger.warn('Failed to create hidden tab', { error: error.message });
-      return null;
+      
+      // Fallback: try regular tab if window creation fails
+      try {
+        const tab = await chrome.tabs.create({
+          url,
+          active: false,
+          pinned: false
+        });
+        return tab;
+      } catch (fallbackError) {
+        this.logger.error('Fallback tab creation also failed', { error: fallbackError.message });
+        return null;
+      }
+    }
+  }
+
+  /**
+   * Close hidden tab and its window if applicable
+   */
+  async closeHiddenTab(tab) {
+    try {
+      if (tab._isHiddenWindow && tab._windowId) {
+        // Close the entire hidden window
+        await chrome.windows.remove(tab._windowId);
+      } else {
+        // Just close the tab
+        await chrome.tabs.remove(tab.id);
+      }
+    } catch (error) {
+      // Tab/window might already be closed
+    }
+  }
+
+  /**
+   * Make hidden tab visible (for MFA scenarios)
+   */
+  async makeTabVisible(tab) {
+    try {
+      if (tab._isHiddenWindow && tab._windowId) {
+        // Restore and focus the window
+        await chrome.windows.update(tab._windowId, {
+          state: 'normal',
+          focused: true,
+          left: 100,
+          top: 100
+        });
+      }
+      // Make tab active
+      await chrome.tabs.update(tab.id, { active: true });
+    } catch (error) {
+      this.logger.warn('Failed to make tab visible', { error: error.message });
     }
   }
 
