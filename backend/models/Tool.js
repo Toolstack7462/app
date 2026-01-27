@@ -375,6 +375,20 @@ toolSchema.pre('save', async function() {
     this.credentialVersion = (this.credentialVersion || 0) + 1;
     this.credentialUpdatedAt = new Date();
   }
+  
+  // Bump session bundle version when any bundle data changes
+  if (this.isModified('sessionBundle.cookiesEncrypted') || 
+      this.isModified('sessionBundle.localStorageEncrypted') || 
+      this.isModified('sessionBundle.sessionStorageEncrypted')) {
+    if (!this.sessionBundle) {
+      this.sessionBundle = {};
+    }
+    this.sessionBundle.version = (this.sessionBundle.version || 0) + 1;
+    this.sessionBundle.updatedAt = new Date();
+    // Also bump credential version for extension sync
+    this.credentialVersion = (this.credentialVersion || 0) + 1;
+    this.credentialUpdatedAt = new Date();
+  }
 });
 
 // Method to check if credentials are available
