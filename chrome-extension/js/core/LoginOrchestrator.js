@@ -1081,18 +1081,32 @@ export class LoginOrchestrator {
       setInputValue(passwordField.el, password);
       result.steps.push({ field: 'password', success: true });
 
-      // Auto-submit after delay
-      setTimeout(() => {
-        const submitBtn = findElement(submitSelectors);
-        if (submitBtn.el) {
-          clickElement(submitBtn.el);
-          result.steps.push({ action: 'submit_click', success: true });
-        } else {
-          // Fallback: Press Enter on password field
-          pressEnter(passwordField.el);
-          result.steps.push({ action: 'enter_key', success: true });
-        }
-      }, 200);
+      // Auto-submit if enabled (like SSO auto-click)
+      if (autoSubmit) {
+        setTimeout(() => {
+          const submitBtn = findElement(submitSelectors);
+          if (submitBtn.el) {
+            // Try requestSubmit first (better form validation), then click, then Enter
+            const form = submitBtn.el.closest('form');
+            if (form && typeof form.requestSubmit === 'function') {
+              try {
+                form.requestSubmit(submitBtn.el);
+                result.autoSubmitted = true;
+              } catch (e) {
+                clickElement(submitBtn.el);
+              }
+            } else {
+              clickElement(submitBtn.el);
+            }
+            result.steps.push({ action: 'submit_click', success: true });
+          } else {
+            // Fallback: Press Enter on password field
+            pressEnter(passwordField.el);
+            result.steps.push({ action: 'enter_key', success: true });
+          }
+          result.autoSubmitted = true;
+        }, 200);
+      }
 
       result.success = true;
       result.multiStep = false;
@@ -1115,23 +1129,38 @@ export class LoginOrchestrator {
           if (pwdField.el) {
             setInputValue(pwdField.el, password);
 
-            setTimeout(() => {
-              const finalSubmit = findElement(submitSelectors);
-              if (finalSubmit.el) {
-                clickElement(finalSubmit.el);
-              } else {
-                // Fallback: Press Enter
-                pressEnter(pwdField.el);
-              }
-            }, 200);
+            // Auto-submit second step if enabled
+            if (autoSubmit) {
+              setTimeout(() => {
+                const finalSubmit = findElement(submitSelectors);
+                if (finalSubmit.el) {
+                  // Try requestSubmit first
+                  const form = finalSubmit.el.closest('form');
+                  if (form && typeof form.requestSubmit === 'function') {
+                    try {
+                      form.requestSubmit(finalSubmit.el);
+                    } catch (e) {
+                      clickElement(finalSubmit.el);
+                    }
+                  } else {
+                    clickElement(finalSubmit.el);
+                  }
+                } else {
+                  // Fallback: Press Enter
+                  pressEnter(pwdField.el);
+                }
+              }, 200);
+            }
           }
         }, 1500);
 
         result.success = true;
       } else {
-        // No submit/next button - try Enter key on username
-        pressEnter(usernameField.el);
-        result.steps.push({ action: 'enter_key_username', success: true });
+        // No submit/next button - try Enter key on username if autoSubmit enabled
+        if (autoSubmit) {
+          pressEnter(usernameField.el);
+          result.steps.push({ action: 'enter_key_username', success: true });
+        }
         result.success = true;
       }
     }
