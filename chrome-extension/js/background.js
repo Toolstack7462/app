@@ -276,24 +276,27 @@ async function handleLoginRequired(data, sender) {
   activeLogins.set(tabId, { tool, startTime: Date.now() });
   
   try {
-    // Get credentials
-    const credentials = await getToolCredentials(tool.id);
+    // Get credentials (includes session bundle)
+    const credentialData = await getToolCredentials(tool.id);
     
-    if (!credentials) {
+    if (!credentialData || !credentialData.credentials) {
       logger.warn('No credentials for tool', { tool: tool.name });
       return;
     }
     
-    // Use orchestrator for login
-    const result = await orchestrator.executeLogin(tool, credentials, {
+    // Use orchestrator for login with session bundle
+    const result = await orchestrator.executeLogin(tool, credentialData.credentials, {
       tabId,
-      currentUrl: url
+      currentUrl: url,
+      sessionBundle: credentialData.sessionBundle,
+      toolInfo: credentialData.tool
     });
     
     logger.info('Auto-login result', { 
       tool: tool.name, 
       success: result.success, 
-      method: result.method 
+      method: result.method,
+      sessionBundleApplied: !!credentialData.sessionBundle
     });
     
   } catch (error) {
