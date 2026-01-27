@@ -741,6 +741,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
 /**
  * Handle auto-start login when ?auto=1 is detected
+ * This runs on the EXISTING tab - no need to create a new one
  */
 async function handleAutoStartLogin(tabId, tab, tool, options = {}) {
   const { auto, hidden, sourceTabId } = options;
@@ -767,22 +768,19 @@ async function handleAutoStartLogin(tabId, tab, tool, options = {}) {
     // Small delay to let page render
     await sleep(500);
     
-    // Execute login via orchestrator
-    const result = await orchestrator.executeLogin(tool, credentials, {
-      auto: true,
-      hidden: hidden || false,
-      sourceTabId: sourceTabId || null
-    });
+    // For auto-start on existing tab, we directly fill and submit the form
+    // This is different from one-click login which opens a new tab
+    const loginResult = await executeAutoLoginOnExistingTab(tabId, tool, credentials);
     
     logger.info('Auto-start login result', { 
       tool: tool.name, 
-      success: result.success, 
-      method: result.method,
-      requiresManualAction: result.requiresManualAction
+      success: loginResult.success, 
+      method: loginResult.method,
+      requiresManualAction: loginResult.requiresManualAction
     });
     
     // Log tool opened if successful
-    if (result.success) {
+    if (loginResult.success) {
       await logToolOpened(tool.id);
     }
     
@@ -795,10 +793,438 @@ async function handleAutoStartLogin(tabId, tab, tool, options = {}) {
 }
 
 /**
- * Execute one-click login with hidden mode support
+ * Execute auto-login on an EXISTING tab (user already on login page with ?auto=1)
+ * This fills the form and submits it directly - no new tab creation
  */
-async function executeOneClickLoginWithOptions(toolId, tool, options = {}) {
-  logger.info('One-click login with options', { tool: tool.name, toolId, options });
+async function executeAutoLoginOnExistingTab(tabId, tool, credentials) {
+  const credType = credentials?.type;
+  
+  logger.info('Executing auto-login on existing tab', { tabId, credType });
+  
+  // Inject "Logging in..." overlay
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (toolName) => {
+        const existing = document.getElementById('toolstack-login-overlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'toolstack-login-overlay';
+        overlay.innerHTML = `
+          <div style="
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 999999;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 1px solid rgba(255, 140, 0, 0.3);
+            border-radius: 12px;
+            padding: 16px 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          ">
+            <div style="
+              width: 24px;
+              height: 24px;
+              border: 3px solid rgba(255, 140, 0, 0.3);
+              border-top-color: #ff8c00;
+              border-radius: 50%;
+              animation: toolstack-spin 1s linear infinite;
+            "></div>
+            <div>
+              <div style="color: white; font-weight: 600; font-size: 14px;">Logging in to ${toolName}...</div>
+              <div style="color: rgba(255,255,255,0.6); font-size: 12px; margin-top: 2px;">Please wait</div>
+            </div>
+            <button id="toolstack-cancel-login" style="
+              margin-left: 16px;
+              background: transparent;
+              border: 1px solid rgba(255,255,255,0.3);
+              color: rgba(255,255,255,0.8);
+              padding: 6px 12px;
+              border-radius: 6px;
+              cursor: pointer;
+              font-size: 12px;
+            ">Cancel</button>
+          </div>
+          <style>@keyframes toolstack-spin { to { transform: rotate(360deg); } }</style>
+        `;
+        document.body.appendChild(overlay);
+      },
+      args: [tool.name]
+    });
+  } catch (e) {
+    logger.warn('Failed to inject overlay', { error: e.message });
+  }
+  
+  // Extract credentials for form fill
+  let username = null;
+  let password = null;
+  let multiStep = false;
+  let autoSubmit = true;
+  
+  // Check combo auth first
+  if (tool.comboAuth?.enabled && tool.comboAuth?.formConfig) {
+    username = tool.comboAuth.formConfig.username;
+    password = tool.comboAuth.formConfig.password;
+    multiStep = tool.comboAuth.formConfig.multiStep || false;
+    autoSubmit = tool.comboAuth.formConfig.autoSubmit !== false;
+  } else if (credType === 'form' && credentials.payload) {
+    username = credentials.payload.username;
+    password = credentials.payload.password;
+    multiStep = credentials.formOptions?.multiStep || credentials.payload?.multiStep || false;
+    autoSubmit = credentials.formOptions?.autoSubmit !== false;
+  }
+  
+  if (!username || !password) {
+    removeOverlay(tabId);
+    return { success: false, error: 'No form credentials configured' };
+  }
+  
+  // Auto-fill delay
+  const autoStartDelay = tool.extensionSettings?.autoStartDelay || 800;
+  await sleep(autoStartDelay);
+  
+  // Execute form fill with auto-submit
+  try {
+    const fillResult = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: formFillAndSubmitScript,
+      args: [username, password, credentials.selectors || {}, multiStep, autoSubmit]
+    });
+    
+    const result = fillResult[0]?.result;
+    
+    if (!result?.success) {
+      removeOverlay(tabId);
+      return { success: false, error: result?.error || 'Form fill failed' };
+    }
+    
+    // Wait for form submission to process
+    await sleep(3000);
+    
+    // Check for success (navigated away from login page)
+    const successCheck = await checkLoginSuccessOnTab(tabId, tool, credentials.successCheck);
+    
+    removeOverlay(tabId);
+    
+    if (successCheck.success) {
+      return { success: true, method: 'form_auto', finalUrl: successCheck.currentUrl };
+    }
+    
+    // Check for MFA
+    const mfaCheck = await checkForMFAOnTab(tabId);
+    if (mfaCheck.hasMFA) {
+      return { 
+        success: false, 
+        requiresManualAction: true, 
+        manualActionReason: 'MFA/2FA detected - please complete manually',
+        tabId 
+      };
+    }
+    
+    return { success: false, error: 'Login did not complete successfully' };
+    
+  } catch (error) {
+    removeOverlay(tabId);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Remove login overlay from tab
+ */
+async function removeOverlay(tabId) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const overlay = document.getElementById('toolstack-login-overlay');
+        if (overlay) overlay.remove();
+      }
+    });
+  } catch (e) {}
+}
+
+/**
+ * Form fill and submit script - injected into page
+ * Matches SSO auto-click behavior: fills form and auto-submits
+ */
+function formFillAndSubmitScript(username, password, customSelectors, multiStep, autoSubmit) {
+  const result = { success: false, steps: [], error: null, autoSubmitted: false };
+  
+  // Selector lists
+  const usernameSelectors = [
+    customSelectors?.username,
+    'input[type="email"]', 'input[name="email"]', 'input[id="email"]',
+    'input[name="username"]', 'input[id="username"]', 'input[name="login"]',
+    'input[autocomplete="email"]', 'input[autocomplete="username"]',
+    'input[placeholder*="email" i]', 'input[placeholder*="username" i]',
+    'input[name="identifier"]', 'input[name="account"]'
+  ].filter(Boolean);
+
+  const passwordSelectors = [
+    customSelectors?.password,
+    'input[type="password"]', 'input[name="password"]', 'input[id="password"]',
+    'input[autocomplete="current-password"]'
+  ].filter(Boolean);
+
+  const submitSelectors = [
+    customSelectors?.submit,
+    'button[type="submit"]', 'input[type="submit"]',
+    'button[class*="login" i]', 'button[class*="signin" i]', 'button[class*="submit" i]',
+    'button[id*="login" i]', 'button[id*="signin" i]',
+    '[role="button"][class*="login" i]', '[role="button"][class*="submit" i]',
+    'form button:not([type="button"])'
+  ].filter(Boolean);
+
+  const nextButtonSelectors = [
+    customSelectors?.next,
+    'button[class*="next" i]', 'button[id*="next" i]',
+    'button:not([type="submit"])[class*="continue" i]',
+    'input[type="button"][value*="next" i]'
+  ].filter(Boolean);
+
+  // Helper: Find visible element
+  const findElement = (selectorList) => {
+    for (const selector of selectorList) {
+      if (!selector) continue;
+      try {
+        const el = document.querySelector(selector);
+        if (el && el.offsetParent !== null) return el;
+        
+        // Check iframes
+        const iframes = document.querySelectorAll('iframe');
+        for (const iframe of iframes) {
+          try {
+            if (iframe.contentDocument) {
+              const iframeEl = iframe.contentDocument.querySelector(selector);
+              if (iframeEl && iframeEl.offsetParent !== null) return iframeEl;
+            }
+          } catch (e) {}
+        }
+      } catch (e) {}
+    }
+    return null;
+  };
+
+  // Helper: Set input value (React/Vue compatible)
+  const setInputValue = (input, value) => {
+    input.focus();
+    input.value = '';
+    
+    const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+    if (nativeSetter) {
+      nativeSetter.call(input, value);
+    } else {
+      input.value = value;
+    }
+    
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'a' }));
+  };
+
+  // Helper: Click element
+  const clickElement = (el) => {
+    el.focus();
+    el.click();
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  };
+
+  // Helper: Submit form properly
+  const submitForm = (formOrButton) => {
+    const form = formOrButton.closest ? formOrButton.closest('form') : formOrButton;
+    if (form && typeof form.requestSubmit === 'function') {
+      try {
+        form.requestSubmit();
+        return true;
+      } catch (e) {}
+    }
+    if (formOrButton.click) {
+      formOrButton.click();
+      return true;
+    }
+    return false;
+  };
+
+  // Helper: Press Enter
+  const pressEnter = (el) => {
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+    el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+  };
+
+  // STEP 1: Find and fill username
+  const usernameField = findElement(usernameSelectors);
+  if (!usernameField) {
+    result.error = 'Username field not found';
+    return result;
+  }
+
+  setInputValue(usernameField, username);
+  result.steps.push({ field: 'username', success: true });
+
+  // STEP 2: Check for password field
+  const passwordField = findElement(passwordSelectors);
+
+  if (passwordField) {
+    // Single-step login: fill password and submit
+    setInputValue(passwordField, password);
+    result.steps.push({ field: 'password', success: true });
+
+    if (autoSubmit) {
+      // Small delay before submit (like SSO auto-click)
+      setTimeout(() => {
+        const submitBtn = findElement(submitSelectors);
+        if (submitBtn) {
+          submitForm(submitBtn);
+          result.steps.push({ action: 'submit', success: true });
+        } else {
+          pressEnter(passwordField);
+          result.steps.push({ action: 'enter_key', success: true });
+        }
+        result.autoSubmitted = true;
+      }, 300);
+    }
+
+    result.success = true;
+    result.multiStep = false;
+
+  } else if (multiStep) {
+    // Multi-step login: click next, wait, then fill password
+    const nextBtn = findElement(nextButtonSelectors) || findElement(submitSelectors);
+    
+    if (nextBtn) {
+      clickElement(nextBtn);
+      result.steps.push({ action: 'next_click', success: true });
+      result.multiStep = true;
+
+      // Schedule password fill after page transition
+      setTimeout(() => {
+        const pwdField = findElement(passwordSelectors);
+        if (pwdField) {
+          setInputValue(pwdField, password);
+          
+          if (autoSubmit) {
+            setTimeout(() => {
+              const finalSubmit = findElement(submitSelectors);
+              if (finalSubmit) {
+                submitForm(finalSubmit);
+              } else {
+                pressEnter(pwdField);
+              }
+            }, 300);
+          }
+        }
+      }, 1500);
+
+      result.success = true;
+    } else {
+      result.error = 'Next/submit button not found for multi-step';
+    }
+  } else {
+    // No password field visible, try pressing Enter on username
+    if (autoSubmit) {
+      pressEnter(usernameField);
+      result.steps.push({ action: 'enter_on_username', success: true });
+    }
+    result.success = true;
+  }
+
+  return result;
+}
+
+/**
+ * Check login success on tab
+ */
+async function checkLoginSuccessOnTab(tabId, tool, successCheck) {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const currentUrl = tab.url || '';
+    
+    // Check if navigated away from login page
+    const isStillOnLogin = /\/(login|signin|auth)/i.test(currentUrl);
+    
+    // Check success indicators
+    if (successCheck?.urlIncludes && currentUrl.includes(successCheck.urlIncludes)) {
+      return { success: true, currentUrl };
+    }
+    
+    if (successCheck?.urlExcludes && currentUrl.includes(successCheck.urlExcludes)) {
+      return { success: false, currentUrl };
+    }
+    
+    // If navigated to dashboard/home, consider success
+    if (!isStillOnLogin && (currentUrl.includes('dashboard') || currentUrl.includes('home') || currentUrl === tool.targetUrl)) {
+      return { success: true, currentUrl };
+    }
+    
+    // Check for logged-in elements
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (elementSelector) => {
+        if (elementSelector) {
+          const el = document.querySelector(elementSelector);
+          if (el && el.offsetParent !== null) return { hasElement: true };
+        }
+        
+        // Check common logged-in indicators
+        const indicators = [
+          '[class*="logout"]', '[class*="signout"]', 'a[href*="logout"]',
+          '[class*="user-menu"]', '[class*="avatar"]', '[class*="profile"]'
+        ];
+        for (const sel of indicators) {
+          const el = document.querySelector(sel);
+          if (el && el.offsetParent !== null) return { hasElement: true };
+        }
+        return { hasElement: false };
+      },
+      args: [successCheck?.elementExists]
+    });
+    
+    if (results[0]?.result?.hasElement) {
+      return { success: true, currentUrl };
+    }
+    
+    return { success: !isStillOnLogin, currentUrl };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Check for MFA on tab
+ */
+async function checkForMFAOnTab(tabId) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const mfaSelectors = [
+          'input[name*="otp"]', 'input[name*="code"]', 'input[name*="2fa"]',
+          'input[name*="totp"]', 'input[placeholder*="code" i]'
+        ];
+        for (const sel of mfaSelectors) {
+          const el = document.querySelector(sel);
+          if (el && el.offsetParent !== null) return { hasMFA: true };
+        }
+        
+        const bodyText = document.body.innerText.toLowerCase();
+        if (bodyText.includes('verification code') || bodyText.includes('authenticator') || 
+            bodyText.includes('2-step') || bodyText.includes('two-factor')) {
+          return { hasMFA: true };
+        }
+        return { hasMFA: false };
+      }
+    });
+    return results[0]?.result || { hasMFA: false };
+  } catch (error) {
+    return { hasMFA: false };
+  }
+}
   
   try {
     // Get credentials
