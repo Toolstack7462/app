@@ -360,7 +360,7 @@ const AdminToolForm = () => {
       
       // Determine if combo auth is being used
       const isComboMode = formData.credentialType === 'combo';
-      const actualCredentialType = isComboMode ? comboAuth.primary : formData.credentialType;
+      const actualCredentialType = isComboMode ? comboAuth.primaryType : formData.credentialType;
       
       const payload = {
         name: formData.name.trim(),
@@ -376,7 +376,6 @@ const AdminToolForm = () => {
       // Build combo auth object if enabled
       if (isComboMode) {
         payload.comboAuth = {
-          enabled: true,
           enabled: true,
           primaryType: comboAuth.primaryType,
           secondaryType: comboAuth.secondaryType,
