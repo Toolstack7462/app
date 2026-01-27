@@ -417,6 +417,108 @@ router.post('/tools/:toolId/opened', verifyExtensionToken, async (req, res) => {
   }
 });
 
+// POST /api/crm/extension/tools/:toolId/login-attempt - Log login attempt result
+router.post('/tools/:toolId/login-attempt', verifyExtensionToken, async (req, res) => {
+  try {
+    const { toolId } = req.params;
+    const { 
+      success, 
+      method, 
+      duration, 
+      attempts, 
+      finalUrl, 
+      error,
+      errorCode,
+      mfaDetected,
+      multiStepDetected,
+      requiresManualAction
+    } = req.body;
+    
+    // Determine action based on result
+    let action = 'LOGIN_STARTED';
+    if (success) {
+      action = 'LOGIN_SUCCESS';
+    } else if (mfaDetected) {
+      action = 'LOGIN_MFA_REQUIRED';
+    } else if (requiresManualAction) {
+      action = 'LOGIN_MANUAL_REQUIRED';
+    } else if (error) {
+      action = 'LOGIN_FAILED';
+    }
+    
+    await CredentialAccessLog.log({
+      clientId: req.clientId,
+      toolId,
+      extensionTokenId: req.extensionTokenId,
+      action,
+      loginAttempt: {
+        method,
+        duration,
+        attempts,
+        finalUrl: finalUrl?.substring(0, 500), // Truncate long URLs
+        mfaDetected,
+        multiStepDetected
+      },
+      success: success || false,
+      errorMessage: error?.substring(0, 500), // Don't store too long errors
+      errorCode,
+      deviceInfo: {
+        userAgent: req.headers['user-agent'],
+        ip: req.ip,
+        extensionVersion: req.headers['x-extension-version'],
+        browser: req.body.browser,
+        os: req.body.os
+      }
+    });
+    
+    res.json({ success: true, logged: true });
+  } catch (error) {
+    console.error('Log login attempt error:', error);
+    res.status(500).json({ error: 'Failed to log login attempt' });
+  }
+});
+
+// GET /api/crm/extension/tools/:toolId/login-stats - Get login statistics for a tool
+router.get('/tools/:toolId/login-stats', verifyExtensionToken, async (req, res) => {
+  try {
+    const { toolId } = req.params;
+    const days = parseInt(req.query.days) || 30;
+    
+    const stats = await CredentialAccessLog.getToolLoginStats(toolId, days);
+    
+    res.json({
+      success: true,
+      stats,
+      period: `${days} days`
+    });
+  } catch (error) {
+    console.error('Get login stats error:', error);
+    res.status(500).json({ error: 'Failed to fetch login stats' });
+  }
+});
+
+// POST /api/crm/extension/debug-log - Submit debug logs from extension
+router.post('/debug-log', verifyExtensionToken, async (req, res) => {
+  try {
+    const { logs, context } = req.body;
+    
+    // Only log in development or if explicitly enabled
+    if (process.env.NODE_ENV === 'development' || process.env.ENABLE_EXTENSION_DEBUG_LOGS === 'true') {
+      console.log(`[Extension Debug] Client: ${req.clientId}`, {
+        context,
+        logsCount: logs?.length || 0
+      });
+      
+      // Could store in a separate collection if needed for analysis
+    }
+    
+    res.json({ success: true, received: true });
+  } catch (error) {
+    console.error('Debug log error:', error);
+    res.status(500).json({ error: 'Failed to process debug logs' });
+  }
+});
+
 // GET /api/crm/extension/domains - Get list of all tool domains for permissions
 router.get('/domains', verifyExtensionToken, async (req, res) => {
   try {
