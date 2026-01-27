@@ -320,30 +320,6 @@ class ToolStackCRMTester:
             self.log_result("input_normalization", "Invalid credentials error handling", False, f"Expected 401, got {response.status_code if response else 'No response'}")
             print(f"   ❌ Expected 401 for invalid credentials, got {response.status_code if response else 'No response'}")
 
-<<<<<<< HEAD
-    def test_admin_dashboard_access(self):
-        """Test admin dashboard access after login"""
-        print("\n📊 Testing Admin Dashboard Access...")
-        
-        if not self.admin_token:
-            self.log_result("admin_dashboard", "Admin dashboard tests", False, "No admin token available")
-            return
-        
-        # Test admin tools endpoint
-        response = self.make_request("GET", "/admin/tools")
-        if response and response.status_code == 200:
-            try:
-                data = response.json()
-                if data.get("success") is not None:
-                    self.log_result("admin_dashboard", "Admin tools access", True)
-                else:
-                    self.log_result("admin_dashboard", "Admin tools access", False, "Invalid response format")
-            except json.JSONDecodeError:
-                self.log_result("admin_dashboard", "Admin tools access", False, "Invalid JSON response")
-        else:
-            self.log_result("admin_dashboard", "Admin tools access", False, f"HTTP {response.status_code if response else 'No response'}")
-        
-=======
     def test_tool_creation_critical(self):
         """Test tool creation with input normalization - CRITICAL PRIORITY"""
         print("\n🔧 Testing Tool Creation with Input Normalization - CRITICAL TEST...")
