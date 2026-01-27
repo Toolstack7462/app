@@ -138,6 +138,34 @@ router.get('/tools', verifyExtensionToken, async (req, res) => {
       if (assignment.endDate && assignment.endDate < now) continue;
       
       const tool = assignment.toolId;
+      
+      // Build session bundle info (version only, not decrypted data)
+      const sessionBundleInfo = tool.sessionBundle ? {
+        version: tool.sessionBundle.version || 1,
+        updatedAt: tool.sessionBundle.updatedAt,
+        hasCookies: !!tool.sessionBundle.cookiesEncrypted,
+        hasLocalStorage: !!tool.sessionBundle.localStorageEncrypted,
+        hasSessionStorage: !!tool.sessionBundle.sessionStorageEncrypted
+      } : null;
+      
+      // Build comboAuth config with new parallel mode settings
+      const comboAuthConfig = tool.comboAuth ? {
+        enabled: tool.comboAuth.enabled || false,
+        runMode: tool.comboAuth.runMode || 'sequential',
+        primaryType: tool.comboAuth.primaryType || 'sso',
+        secondaryType: tool.comboAuth.secondaryType || 'form',
+        fallbackEnabled: tool.comboAuth.fallbackEnabled ?? true,
+        fallbackOnlyOnce: tool.comboAuth.fallbackOnlyOnce ?? true,
+        skipIfLoggedIn: tool.comboAuth.skipIfLoggedIn ?? true,
+        triggerOnAuto: tool.comboAuth.triggerOnAuto ?? true,
+        parallelSettings: {
+          prepSessionFirst: tool.comboAuth.parallelSettings?.prepSessionFirst ?? true,
+          parallelTimeout: tool.comboAuth.parallelSettings?.parallelTimeout ?? 30000,
+          commitLock: tool.comboAuth.parallelSettings?.commitLock ?? true,
+          verifyAfterAuth: tool.comboAuth.parallelSettings?.verifyAfterAuth ?? true
+        }
+      } : { enabled: false };
+      
       tools.push({
         id: tool._id,
         name: tool.name,
@@ -150,8 +178,10 @@ router.get('/tools', verifyExtensionToken, async (req, res) => {
         credentialVersion: tool.credentialVersion || 1,
         credentialUpdatedAt: tool.credentialUpdatedAt,
         hasCredentials: tool.hasCredentials(),
-        // Combo Auth config for SSO+Form in one tool
-        comboAuth: tool.comboAuth || { enabled: false },
+        // Session Bundle info for version checking
+        sessionBundle: sessionBundleInfo,
+        // Combo Auth config with parallel mode support
+        comboAuth: comboAuthConfig,
         extensionSettings: {
           ...tool.extensionSettings,
           // Ensure new settings have defaults
