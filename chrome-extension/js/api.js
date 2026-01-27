@@ -100,6 +100,52 @@ class ApiClient {
   async getCredentials(toolId) {
     return this.request(`/tools/${toolId}/credentials`);
   }
+
+  /**
+   * Check if session bundle has been updated for a tool
+   * Returns the latest session bundle if version changed
+   */
+  async checkSessionBundleUpdate(toolId, currentVersion) {
+    try {
+      const result = await this.getCredentials(toolId);
+      
+      if (result.sessionBundle) {
+        const latestVersion = result.sessionBundle.version || 0;
+        const hasUpdate = latestVersion > (currentVersion || 0);
+        
+        return {
+          hasUpdate,
+          currentVersion: currentVersion || 0,
+          latestVersion,
+          sessionBundle: hasUpdate ? result.sessionBundle : null,
+          credentials: result.credentials,
+          tool: result.tool
+        };
+      }
+      
+      return { hasUpdate: false, currentVersion, latestVersion: 0 };
+    } catch (error) {
+      console.error('Failed to check session bundle update:', error);
+      return { hasUpdate: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get cached session bundle version for a tool
+   */
+  async getCachedBundleVersion(toolId) {
+    const key = `sessionBundle_v_${toolId}`;
+    const data = await Storage.get([key]);
+    return data[key] || 0;
+  }
+
+  /**
+   * Cache session bundle version after applying
+   */
+  async setCachedBundleVersion(toolId, version) {
+    const key = `sessionBundle_v_${toolId}`;
+    await Storage.set({ [key]: version });
+  }
   
   async logToolOpened(toolId) {
     return this.request(`/tools/${toolId}/opened`, { method: 'POST' });
