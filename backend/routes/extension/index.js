@@ -386,13 +386,21 @@ router.get('/tools/:toolId/credentials', verifyExtensionToken, async (req, res) 
         loginUrl: tool.loginUrl || tool.targetUrl,
         domain: tool.domain,
         credentialVersion: tool.credentialVersion,
+        // Include combo auth configuration
+        comboAuth: tool.comboAuth || { enabled: false },
         extensionSettings: {
           ...tool.extensionSettings,
           reloadAfterLogin: tool.extensionSettings?.reloadAfterLogin ?? true,
           waitForNavigation: tool.extensionSettings?.waitForNavigation ?? true,
           spaMode: tool.extensionSettings?.spaMode ?? false,
           retryAttempts: tool.extensionSettings?.retryAttempts ?? 2,
-          retryDelayMs: tool.extensionSettings?.retryDelayMs ?? 1000
+          retryDelayMs: tool.extensionSettings?.retryDelayMs ?? 1000,
+          // New hidden mode and auto-start settings
+          hiddenModeEnabled: tool.extensionSettings?.hiddenModeEnabled ?? true,
+          hiddenModeTimeout: tool.extensionSettings?.hiddenModeTimeout ?? 60000,
+          autoStartEnabled: tool.extensionSettings?.autoStartEnabled ?? true,
+          autoStartDelay: tool.extensionSettings?.autoStartDelay ?? 800,
+          maxAutoAttempts: tool.extensionSettings?.maxAutoAttempts ?? 2
         }
       },
       credentials: {
