@@ -377,9 +377,12 @@ const AdminToolForm = () => {
       if (isComboMode) {
         payload.comboAuth = {
           enabled: true,
-          primary: comboAuth.primary,
+          enabled: true,
+          primaryType: comboAuth.primaryType,
+          secondaryType: comboAuth.secondaryType,
           fallbackEnabled: comboAuth.fallbackEnabled,
           triggerOnAuto: comboAuth.triggerOnAuto,
+          // Form config
           formConfig: {
             username: comboAuth.formConfig.username,
             password: comboAuth.formConfig.password,
@@ -387,14 +390,31 @@ const AdminToolForm = () => {
             multiStep: comboAuth.formConfig.multiStep,
             rememberMe: comboAuth.formConfig.rememberMe,
             submitDelay: comboAuth.formConfig.submitDelay,
-            autoSubmit: comboAuth.formConfig.autoSubmit !== false  // NEW: Auto-submit like SSO
+            autoSubmit: comboAuth.formConfig.autoSubmit !== false
           },
+          // SSO config
           ssoConfig: {
             authStartUrl: comboAuth.ssoConfig.authStartUrl,
             postLoginUrl: comboAuth.ssoConfig.postLoginUrl || formData.targetUrl,
             provider: comboAuth.ssoConfig.provider,
             buttonSelector: comboAuth.ssoConfig.buttonSelector,
             autoClick: comboAuth.ssoConfig.autoClick
+          },
+          // Cookies config
+          cookiesConfig: {
+            cookies: comboAuth.cookiesConfig.cookies,
+            injectFirst: comboAuth.cookiesConfig.injectFirst
+          },
+          // Token config
+          tokenConfig: {
+            token: comboAuth.tokenConfig.token,
+            header: comboAuth.tokenConfig.header,
+            prefix: comboAuth.tokenConfig.prefix,
+            storageKey: comboAuth.tokenConfig.storageKey
+          },
+          // LocalStorage config
+          localStorageConfig: {
+            data: comboAuth.localStorageConfig.data
           }
         };
       } else {
