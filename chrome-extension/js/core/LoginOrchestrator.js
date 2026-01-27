@@ -650,20 +650,25 @@ export class LoginOrchestrator {
 
   /**
    * Execute form login with auto-start capability
-   * Enhanced for ?auto=1 support
+   * Enhanced for ?auto=1 support with proper hidden mode
    */
   async executeFormLoginAuto(data, tool, credentials, options = {}) {
     const loginUrl = data.loginUrl || data.payload?.loginUrl || tool.loginUrl || tool.targetUrl;
     const isHiddenMode = options.hidden === true;
     const autoStartDelay = tool.extensionSettings?.autoStartDelay || ORCHESTRATOR_CONFIG.formFillDelayMs;
     const maxAttempts = tool.extensionSettings?.maxAutoAttempts || 2;
+    const autoSubmit = data.autoSubmit !== false && data.payload?.autoSubmit !== false; // Default true
     
-    this.logger.info('Executing form login (auto-start)', { loginUrl, isHiddenMode });
+    this.logger.info('Executing form login (auto-start)', { loginUrl, isHiddenMode, autoSubmit });
 
-    // Create tab for login (hidden if requested)
-    const loginTab = isHiddenMode
-      ? await this.createHiddenTab(loginUrl)
-      : await chrome.tabs.create({ url: loginUrl, active: true });
+    // Create tab for login
+    // For hidden mode, use truly hidden window (minimized/offscreen) to prevent page flash
+    let loginTab;
+    if (isHiddenMode) {
+      loginTab = await this.createHiddenTab(loginUrl, { trulyHidden: true });
+    } else {
+      loginTab = await chrome.tabs.create({ url: loginUrl, active: true });
+    }
       
     if (!loginTab) {
       return { success: false, error: 'Failed to create login tab' };
@@ -693,6 +698,21 @@ export class LoginOrchestrator {
         if (alreadyIn.success) {
           if (!isHiddenMode) {
             await this.removeLoginOverlay(loginTab.id);
+          } else {
+            // In hidden mode success, redirect source tab
+            if (options.sourceTabId) {
+              await chrome.tabs.update(options.sourceTabId, { url: alreadyIn.currentUrl || tool.targetUrl });
+              await this.closeHiddenTab(loginTab);
+              return {
+                success: true,
+                tabId: options.sourceTabId,
+                finalUrl: alreadyIn.currentUrl,
+                method: 'form',
+                note: 'Already logged in'
+              };
+            }
+            // Make hidden tab visible
+            await this.makeTabVisible(loginTab);
           }
           return {
             success: true,
@@ -703,7 +723,7 @@ export class LoginOrchestrator {
           };
         }
         
-        await chrome.tabs.remove(loginTab.id).catch(() => {});
+        await this.closeHiddenTab(loginTab);
         return { success: false, error: 'Login form not found' };
       }
 
@@ -713,7 +733,7 @@ export class LoginOrchestrator {
           await this.removeLoginOverlay(loginTab.id);
         } else {
           // Bring hidden tab to foreground for MFA
-          await chrome.tabs.update(loginTab.id, { active: true });
+          await this.makeTabVisible(loginTab);
         }
         return {
           success: false,
@@ -724,7 +744,7 @@ export class LoginOrchestrator {
         };
       }
 
-      // Execute form fill with auto-submit
+      // Execute form fill with auto-submit (matching SSO auto-click behavior)
       const username = data.username || data.payload?.username;
       const password = data.password || data.payload?.password;
       const multiStep = data.multiStep || data.payload?.multiStep;
@@ -734,14 +754,15 @@ export class LoginOrchestrator {
         username, 
         password, 
         credentials?.selectors,
-        multiStep
+        multiStep,
+        autoSubmit  // Pass autoSubmit flag
       );
 
       if (!fillResult.success) {
         if (!isHiddenMode) {
           await this.removeLoginOverlay(loginTab.id);
         }
-        await chrome.tabs.remove(loginTab.id).catch(() => {});
+        await this.closeHiddenTab(loginTab);
         return { success: false, error: fillResult.error || 'Form fill failed' };
       }
 
