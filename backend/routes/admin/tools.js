@@ -250,4 +250,209 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// GET /api/crm/admin/tools/:id/login-stats - Get login statistics for a tool
+router.get('/:id/login-stats', verifyToken, requireRole(['ADMIN', 'SUPER_ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const days = parseInt(req.query.days) || 30;
+    
+    // Verify tool exists
+    const tool = await Tool.findById(id);
+    if (!tool) {
+      return res.status(404).json({ error: 'Tool not found' });
+    }
+    
+    // Get login stats
+    const stats = await CredentialAccessLog.getToolLoginStats(id, days);
+    
+    // Get recent login attempts
+    const recentAttempts = await CredentialAccessLog.find({
+      toolId: id,
+      action: { $in: ['LOGIN_SUCCESS', 'LOGIN_FAILED', 'LOGIN_MFA_REQUIRED', 'LOGIN_MANUAL_REQUIRED'] }
+    })
+    .populate('clientId', 'fullName email')
+    .sort({ createdAt: -1 })
+    .limit(20)
+    .lean();
+    
+    res.json({
+      success: true,
+      tool: {
+        id: tool._id,
+        name: tool.name
+      },
+      stats,
+      recentAttempts: recentAttempts.map(a => ({
+        action: a.action,
+        method: a.loginAttempt?.method,
+        success: a.success,
+        duration: a.loginAttempt?.duration,
+        client: a.clientId ? {
+          name: a.clientId.fullName,
+          email: a.clientId.email
+        } : null,
+        error: a.errorMessage,
+        createdAt: a.createdAt
+      })),
+      period: `${days} days`
+    });
+  } catch (error) {
+    console.error('Get login stats error:', error);
+    res.status(500).json({ error: 'Failed to fetch login stats' });
+  }
+});
+
+// POST /api/crm/admin/tools/:id/test-credentials - Test/validate credentials
+router.post('/:id/test-credentials', verifyToken, requireRole(['ADMIN', 'SUPER_ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const tool = await Tool.findById(id);
+    if (!tool) {
+      return res.status(404).json({ error: 'Tool not found' });
+    }
+    
+    const validation = {
+      valid: true,
+      checks: [],
+      warnings: []
+    };
+    
+    const credType = tool.credentials?.type || tool.credentialType;
+    
+    // Check 1: Credential type is set
+    if (!credType || credType === 'none') {
+      validation.checks.push({ name: 'Credential Type', status: 'warning', message: 'No credentials configured' });
+      validation.warnings.push('No credentials configured for this tool');
+    } else {
+      validation.checks.push({ name: 'Credential Type', status: 'pass', message: `Type: ${credType}` });
+    }
+    
+    // Check 2: Based on credential type
+    switch (credType) {
+      case 'form':
+        const hasFormCreds = tool.credentials?.payloadEncrypted || false;
+        if (hasFormCreds) {
+          validation.checks.push({ name: 'Form Credentials', status: 'pass', message: 'Username/password set' });
+        } else {
+          validation.checks.push({ name: 'Form Credentials', status: 'fail', message: 'Missing username/password' });
+          validation.valid = false;
+        }
+        break;
+        
+      case 'sso':
+        const hasAuthUrl = tool.credentials?.payloadEncrypted;
+        if (hasAuthUrl) {
+          validation.checks.push({ name: 'SSO Config', status: 'pass', message: 'Auth URL configured' });
+        } else {
+          validation.checks.push({ name: 'SSO Config', status: 'warning', message: 'No auth URL - will use login URL' });
+          validation.warnings.push('SSO will use default login URL');
+        }
+        
+        const ssoProvider = tool.credentials?.ssoOptions?.provider;
+        if (ssoProvider) {
+          validation.checks.push({ name: 'SSO Provider', status: 'pass', message: `Provider: ${ssoProvider}` });
+        } else {
+          validation.checks.push({ name: 'SSO Provider', status: 'info', message: 'Auto-detect provider' });
+        }
+        break;
+        
+      case 'cookies':
+        if (tool.cookiesEncrypted) {
+          try {
+            const decrypted = decryptCookies(tool.cookiesEncrypted);
+            const cookies = JSON.parse(decrypted);
+            
+            // Check cookie expiration
+            const now = Date.now() / 1000;
+            const expiredCookies = cookies.filter(c => c.expirationDate && c.expirationDate < now);
+            
+            if (expiredCookies.length > 0) {
+              validation.checks.push({ 
+                name: 'Cookie Expiration', 
+                status: 'warning', 
+                message: `${expiredCookies.length} of ${cookies.length} cookies expired` 
+              });
+              validation.warnings.push(`${expiredCookies.length} cookies are expired`);
+            } else {
+              validation.checks.push({ 
+                name: 'Cookie Expiration', 
+                status: 'pass', 
+                message: `${cookies.length} cookies valid` 
+              });
+            }
+            
+            // Check for session cookies
+            const sessionCookies = cookies.filter(c => 
+              c.name.toLowerCase().includes('session') || 
+              c.name.toLowerCase().includes('auth')
+            );
+            if (sessionCookies.length > 0) {
+              validation.checks.push({ name: 'Session Cookies', status: 'pass', message: `${sessionCookies.length} session cookies found` });
+            }
+          } catch (e) {
+            validation.checks.push({ name: 'Cookie Data', status: 'fail', message: 'Failed to decrypt/parse cookies' });
+            validation.valid = false;
+          }
+        } else {
+          validation.checks.push({ name: 'Cookie Data', status: 'fail', message: 'No cookies configured' });
+          validation.valid = false;
+        }
+        break;
+        
+      case 'token':
+        if (tool.tokenEncrypted) {
+          validation.checks.push({ name: 'Token', status: 'pass', message: 'Token configured' });
+          validation.checks.push({ name: 'Token Header', status: 'info', message: `Header: ${tool.tokenHeader || 'Authorization'}` });
+        } else {
+          validation.checks.push({ name: 'Token', status: 'fail', message: 'No token configured' });
+          validation.valid = false;
+        }
+        break;
+        
+      case 'localStorage':
+      case 'sessionStorage':
+        if (tool.localStorageEncrypted) {
+          validation.checks.push({ name: 'Storage Data', status: 'pass', message: 'Storage data configured' });
+        } else {
+          validation.checks.push({ name: 'Storage Data', status: 'fail', message: 'No storage data configured' });
+          validation.valid = false;
+        }
+        break;
+    }
+    
+    // Check 3: URLs configured
+    if (tool.targetUrl) {
+      validation.checks.push({ name: 'Target URL', status: 'pass', message: tool.targetUrl });
+    } else {
+      validation.checks.push({ name: 'Target URL', status: 'fail', message: 'Missing target URL' });
+      validation.valid = false;
+    }
+    
+    if (tool.loginUrl) {
+      validation.checks.push({ name: 'Login URL', status: 'pass', message: tool.loginUrl });
+    } else if (['form', 'sso'].includes(credType)) {
+      validation.checks.push({ name: 'Login URL', status: 'info', message: 'Using target URL as login URL' });
+    }
+    
+    // Check 4: Success validation configured
+    const hasSuccessCheck = tool.credentials?.successCheck && 
+      Object.values(tool.credentials.successCheck).some(v => v && (Array.isArray(v) ? v.length > 0 : true));
+    
+    if (hasSuccessCheck) {
+      validation.checks.push({ name: 'Success Validation', status: 'pass', message: 'Configured' });
+    } else {
+      validation.checks.push({ name: 'Success Validation', status: 'info', message: 'Using default detection' });
+    }
+    
+    res.json({
+      success: true,
+      validation
+    });
+  } catch (error) {
+    console.error('Test credentials error:', error);
+    res.status(500).json({ error: 'Failed to test credentials' });
+  }
+});
+
 module.exports = router;
