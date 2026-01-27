@@ -122,6 +122,17 @@ function init() {
   
   log('log', 'Initializing on ' + window.location.hostname);
   
+  // Parse URL params for auto-start mode
+  const urlParams = new URLSearchParams(window.location.search);
+  const isAutoMode = urlParams.get('auto') === '1' || urlParams.get('auto') === 'true';
+  const isHiddenMode = urlParams.get('hidden') === '1' || urlParams.get('hidden') === 'true';
+  
+  if (isAutoMode) {
+    log('log', 'Auto-start mode detected', { isHiddenMode });
+    // Background will handle auto-login, just set up cancel listener
+    setupCancelListener();
+  }
+  
   // Check login state on load
   checkAndTriggerLogin();
   
@@ -136,6 +147,20 @@ function init() {
   
   // Listen for messages from background
   setupMessageListener();
+}
+
+/**
+ * Setup listener for login cancel event (from overlay)
+ */
+function setupCancelListener() {
+  window.addEventListener('toolstack-login-cancelled', () => {
+    log('log', 'Login cancelled by user');
+    // Notify background to cancel the login flow
+    notifyBackground('LOGIN_CANCELLED', {
+      hostname: window.location.hostname,
+      url: window.location.href
+    });
+  });
 }
 
 // ============================================================================
