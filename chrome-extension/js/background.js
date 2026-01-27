@@ -321,14 +321,20 @@ async function getToolCredentials(toolId) {
     logger.debug('Fetching credentials from API', { toolId });
     const result = await apiRequest(`/tools/${toolId}/credentials`);
     
+    // Cache credentials and session bundle together
+    const cacheData = {
+      credentials: result.credentials,
+      sessionBundle: result.sessionBundle || null,
+      tool: result.tool || null,
+      timestamp: Date.now()
+    };
+    
     if (result.credentials) {
-      toolCredentialsCache.set(toolId, {
-        credentials: result.credentials,
-        timestamp: Date.now()
-      });
+      toolCredentialsCache.set(toolId, cacheData);
     }
     
-    return result.credentials;
+    // Return full result for session bundle access
+    return cacheData;
   } catch (error) {
     logger.error('Failed to fetch credentials', { error: error.message });
     return null;
@@ -346,10 +352,10 @@ async function executeOneClickLogin(toolId, tool) {
   logger.info('One-click login started', { tool: tool.name, toolId });
   
   try {
-    // Get credentials
-    const credentials = await getToolCredentials(toolId);
+    // Get credentials (includes session bundle)
+    const credentialData = await getToolCredentials(toolId);
     
-    if (!credentials) {
+    if (!credentialData || !credentialData.credentials) {
       return { 
         success: false, 
         error: 'No credentials available for this tool',
@@ -357,8 +363,11 @@ async function executeOneClickLogin(toolId, tool) {
       };
     }
     
-    // Execute login via orchestrator
-    const result = await orchestrator.executeLogin(tool, credentials);
+    // Execute login via orchestrator with session bundle
+    const result = await orchestrator.executeLogin(tool, credentialData.credentials, {
+      sessionBundle: credentialData.sessionBundle,
+      toolInfo: credentialData.tool
+    });
     
     // Log tool opened if successful
     if (result.success) {
@@ -369,7 +378,8 @@ async function executeOneClickLogin(toolId, tool) {
       tool: tool.name,
       success: result.success,
       method: result.method,
-      requiresManualAction: result.requiresManualAction
+      requiresManualAction: result.requiresManualAction,
+      sessionBundleApplied: !!credentialData.sessionBundle
     });
     
     return result;
