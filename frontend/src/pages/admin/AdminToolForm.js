@@ -548,6 +548,277 @@ const AdminToolForm = () => {
     }
   };
 
+  // Render config panel for each combo auth type
+  const renderComboTypeConfig = (type, role) => {
+    const isHighlighted = role === 'primary' ? 'purple' : 'green';
+    
+    switch (type) {
+      case 'sso':
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">Auth Start URL</label>
+                <input
+                  type="url"
+                  value={comboAuth.ssoConfig.authStartUrl}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, ssoConfig: { ...prev.ssoConfig, authStartUrl: e.target.value }}))}
+                  className={`w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:border-${isHighlighted}-500`}
+                  placeholder="https://example.com/auth/sso"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">Post-Login URL</label>
+                <input
+                  type="url"
+                  value={comboAuth.ssoConfig.postLoginUrl}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, ssoConfig: { ...prev.ssoConfig, postLoginUrl: e.target.value }}))}
+                  className={`w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:border-${isHighlighted}-500`}
+                  placeholder="https://example.com/dashboard"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">SSO Provider</label>
+                <select
+                  value={comboAuth.ssoConfig.provider}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, ssoConfig: { ...prev.ssoConfig, provider: e.target.value }}))}
+                  className="w-full px-3 py-2 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none"
+                >
+                  <option value="">Auto-detect</option>
+                  <option value="google">Google</option>
+                  <option value="microsoft">Microsoft / Azure AD</option>
+                  <option value="github">GitHub</option>
+                  <option value="okta">Okta</option>
+                  <option value="saml">SAML / Enterprise</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">Button Selector</label>
+                <input
+                  type="text"
+                  value={comboAuth.ssoConfig.buttonSelector}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, ssoConfig: { ...prev.ssoConfig, buttonSelector: e.target.value }}))}
+                  className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none"
+                  placeholder='button[data-provider="google"]'
+                />
+              </div>
+            </div>
+            <label className="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/30 rounded-lg cursor-pointer hover:bg-green-500/20">
+              <input
+                type="checkbox"
+                checked={comboAuth.ssoConfig.autoClick}
+                onChange={(e) => setComboAuth(prev => ({ ...prev, ssoConfig: { ...prev.ssoConfig, autoClick: e.target.checked }}))}
+                className="w-5 h-5 rounded border-toolstack-border text-green-500 focus:ring-green-500"
+              />
+              <div>
+                <div className="font-medium text-white text-sm">Auto-Click SSO Button</div>
+                <div className="text-xs text-green-300">Automatically click when ?auto=1</div>
+              </div>
+            </label>
+          </div>
+        );
+        
+      case 'form':
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">Username / Email</label>
+                <input
+                  type="text"
+                  value={comboAuth.formConfig.username}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...prev.formConfig, username: e.target.value }}))}
+                  className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none"
+                  placeholder="user@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">Password</label>
+                <input
+                  type="password"
+                  value={comboAuth.formConfig.password}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...prev.formConfig, password: e.target.value }}))}
+                  className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none"
+                  placeholder="••••••••"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">Login URL (optional)</label>
+              <input
+                type="url"
+                value={comboAuth.formConfig.loginUrl}
+                onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...prev.formConfig, loginUrl: e.target.value }}))}
+                className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none"
+                placeholder="https://example.com/login"
+              />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <label className="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/30 rounded-lg cursor-pointer hover:bg-green-500/20">
+                <input
+                  type="checkbox"
+                  checked={comboAuth.formConfig.autoSubmit !== false}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...prev.formConfig, autoSubmit: e.target.checked }}))}
+                  className="w-5 h-5 rounded border-toolstack-border text-green-500 focus:ring-green-500"
+                />
+                <div>
+                  <div className="font-medium text-white text-sm">Auto-Submit</div>
+                  <div className="text-xs text-green-300">Like SSO auto-click</div>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-3 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10">
+                <input
+                  type="checkbox"
+                  checked={comboAuth.formConfig.multiStep}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...prev.formConfig, multiStep: e.target.checked }}))}
+                  className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
+                />
+                <div>
+                  <div className="font-medium text-white text-sm">Multi-Step</div>
+                  <div className="text-xs text-toolstack-muted">Email → Next → Pass</div>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-3 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10">
+                <input
+                  type="checkbox"
+                  checked={comboAuth.formConfig.rememberMe}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...prev.formConfig, rememberMe: e.target.checked }}))}
+                  className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
+                />
+                <div>
+                  <div className="font-medium text-white text-sm">Remember</div>
+                  <div className="text-xs text-toolstack-muted">Check if avail</div>
+                </div>
+              </label>
+              <div>
+                <label className="block text-xs text-toolstack-muted mb-1">Delay (ms)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="5000"
+                  step="100"
+                  value={comboAuth.formConfig.submitDelay}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...prev.formConfig, submitDelay: parseInt(e.target.value) || 800 }}))}
+                  className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+        );
+        
+      case 'cookies':
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">Cookies JSON</label>
+              <textarea
+                value={comboAuth.cookiesConfig.cookies}
+                onChange={(e) => setComboAuth(prev => ({ ...prev, cookiesConfig: { ...prev.cookiesConfig, cookies: e.target.value }}))}
+                rows={5}
+                className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none font-mono text-sm"
+                placeholder='[{"name": "session", "value": "abc123", "domain": ".example.com"}]'
+              />
+              <p className="mt-1 text-xs text-toolstack-muted">Paste cookies as JSON array. Export from DevTools.</p>
+            </div>
+            <label className="flex items-center gap-3 p-3 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10">
+              <input
+                type="checkbox"
+                checked={comboAuth.cookiesConfig.injectFirst}
+                onChange={(e) => setComboAuth(prev => ({ ...prev, cookiesConfig: { ...prev.cookiesConfig, injectFirst: e.target.checked }}))}
+                className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
+              />
+              <div>
+                <div className="font-medium text-white text-sm">Inject Cookies First</div>
+                <div className="text-xs text-toolstack-muted">Inject cookies before trying other auth</div>
+              </div>
+            </label>
+          </div>
+        );
+        
+      case 'token':
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">Header Name</label>
+                <input
+                  type="text"
+                  value={comboAuth.tokenConfig.header}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, tokenConfig: { ...prev.tokenConfig, header: e.target.value }}))}
+                  className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white"
+                  placeholder="Authorization"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">Prefix</label>
+                <input
+                  type="text"
+                  value={comboAuth.tokenConfig.prefix}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, tokenConfig: { ...prev.tokenConfig, prefix: e.target.value }}))}
+                  className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white"
+                  placeholder="Bearer "
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">Storage Key</label>
+                <input
+                  type="text"
+                  value={comboAuth.tokenConfig.storageKey}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, tokenConfig: { ...prev.tokenConfig, storageKey: e.target.value }}))}
+                  className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white"
+                  placeholder="access_token"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">Token Value</label>
+              <input
+                type="password"
+                value={comboAuth.tokenConfig.token}
+                onChange={(e) => setComboAuth(prev => ({ ...prev, tokenConfig: { ...prev.tokenConfig, token: e.target.value }}))}
+                className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted font-mono"
+                placeholder="Enter token value..."
+              />
+            </div>
+          </div>
+        );
+        
+      case 'headers':
+        return (
+          <div className="space-y-4">
+            <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+              <p className="text-sm text-yellow-200">
+                <strong>Note:</strong> MV3 extensions cannot modify request headers. Headers will be converted to cookies/storage where possible.
+              </p>
+            </div>
+            <p className="text-sm text-toolstack-muted">Configure custom headers (limited support in MV3)</p>
+          </div>
+        );
+        
+      case 'localStorage':
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">LocalStorage Data (JSON)</label>
+              <textarea
+                value={comboAuth.localStorageConfig.data}
+                onChange={(e) => setComboAuth(prev => ({ ...prev, localStorageConfig: { ...prev.localStorageConfig, data: e.target.value }}))}
+                rows={5}
+                className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none font-mono text-sm"
+                placeholder='{"key1": "value1", "token": "abc123"}'
+              />
+              <p className="mt-1 text-xs text-toolstack-muted">JSON object with key-value pairs to inject into localStorage</p>
+            </div>
+          </div>
+        );
+        
+      default:
+        return <p className="text-toolstack-muted">Select an auth type to configure</p>;
+    }
+  };
+
   if (loading) {
     return (
       <AdminLayout>
