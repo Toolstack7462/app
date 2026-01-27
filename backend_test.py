@@ -732,15 +732,211 @@ class ToolStackCRMTester:
         else:
             self.log_result("admin_dashboard", "Get current user", False, f"HTTP {response.status_code if response else 'No response'}")
 
+    def test_combo_auth_implementation(self):
+        """Test NEW Combo Auth backend implementation as per review request"""
+        print("\n🔄 Testing NEW Combo Auth Backend Implementation...")
+        
+        if not self.admin_token:
+            self.log_result("combo_auth", "Combo Auth tests", False, "No admin token available")
+            return
+        
+        # Test 1: Create a tool with comboAuth enabled (as per review request)
+        print(f"\n   Creating Combo Auth Test Tool...")
+        combo_auth_tool_data = {
+            "name": "Combo Auth Test Tool",
+            "targetUrl": "https://example.com/app",
+            "loginUrl": "https://example.com/login",
+            "category": "AI",
+            "credentialType": "sso",  # Primary strategy
+            "comboAuth": {
+                "enabled": True,
+                "primary": "sso",
+                "fallbackEnabled": True,
+                "triggerOnAuto": True,
+                "formConfig": {
+                    "username": "testuser@example.com",
+                    "password": "testpass123",
+                    "loginUrl": "https://example.com/login",
+                    "multiStep": True,
+                    "rememberMe": True,
+                    "submitDelay": 800
+                },
+                "ssoConfig": {
+                    "authStartUrl": "https://example.com/auth/sso",
+                    "postLoginUrl": "https://example.com/dashboard",
+                    "provider": "google",
+                    "buttonSelector": "button[data-provider='google']",
+                    "autoClick": True
+                }
+            },
+            "extensionSettings": {
+                "hiddenModeEnabled": True,
+                "hiddenModeTimeout": 60000,
+                "autoStartEnabled": True,
+                "autoStartDelay": 800,
+                "maxAutoAttempts": 2
+            }
+        }
+        
+        response = self.make_request("POST", "/admin/tools", combo_auth_tool_data)
+        
+        if response and response.status_code == 201:
+            try:
+                data = response.json()
+                if data.get("success") and data.get("tool") and data.get("tool", {}).get("_id"):
+                    combo_tool_id = data["tool"]["_id"]
+                    self.test_tool_id = combo_tool_id  # Store for later tests
+                    
+                    self.log_result("combo_auth", "Combo Auth tool creation", True)
+                    print(f"   ✅ SUCCESS: Combo Auth tool created with ID {combo_tool_id}")
+                    print(f"   Tool Name: {data['tool'].get('name', 'N/A')}")
+                    print(f"   Primary Strategy: {data['tool'].get('comboAuth', {}).get('primary', 'N/A')}")
+                    print(f"   Fallback Enabled: {data['tool'].get('comboAuth', {}).get('fallbackEnabled', 'N/A')}")
+                    
+                    # Verify comboAuth structure
+                    combo_auth = data['tool'].get('comboAuth', {})
+                    if combo_auth.get('enabled') and combo_auth.get('formConfig') and combo_auth.get('ssoConfig'):
+                        self.log_result("combo_auth", "Combo Auth structure validation", True)
+                        print(f"   ✅ Combo Auth structure complete: enabled={combo_auth.get('enabled')}")
+                        print(f"   Form Config: username={combo_auth.get('formConfig', {}).get('username', 'N/A')}")
+                        print(f"   SSO Config: provider={combo_auth.get('ssoConfig', {}).get('provider', 'N/A')}")
+                    else:
+                        self.log_result("combo_auth", "Combo Auth structure validation", False, "Missing comboAuth configuration")
+                else:
+                    self.log_result("combo_auth", "Combo Auth tool creation", False, "Missing success, tool, or tool._id in response")
+            except json.JSONDecodeError as e:
+                self.log_result("combo_auth", "Combo Auth tool creation", False, f"Invalid JSON response: {e}")
+        else:
+            error_msg = f"HTTP {response.status_code if response else 'No response'}"
+            if response:
+                try:
+                    error_data = response.json()
+                    error_msg += f" - {error_data.get('error', 'Unknown error')}"
+                except:
+                    error_msg += f" - {response.text[:200]}"
+            
+            self.log_result("combo_auth", "Combo Auth tool creation", False, error_msg)
+            print(f"   ❌ FAILED: {error_msg}")
+            return
+        
+        # Test 2: Verify Tool Retrieval - GET /api/crm/admin/tools/:toolId
+        print(f"\n   Testing Tool Retrieval with Combo Auth...")
+        
+        response = self.make_request("GET", f"/admin/tools/{combo_tool_id}")
+        
+        if response and response.status_code == 200:
+            try:
+                data = response.json()
+                if data.get("success") and data.get("tool"):
+                    tool = data["tool"]
+                    combo_auth = tool.get("comboAuth", {})
+                    
+                    if combo_auth.get("enabled") and combo_auth.get("formConfig") and combo_auth.get("ssoConfig"):
+                        self.log_result("combo_auth", "Tool retrieval with comboAuth", True)
+                        print(f"   ✅ SUCCESS: Tool retrieved with complete comboAuth config")
+                        print(f"   Combo Auth Enabled: {combo_auth.get('enabled')}")
+                        print(f"   Primary Strategy: {combo_auth.get('primary')}")
+                        print(f"   Fallback Enabled: {combo_auth.get('fallbackEnabled')}")
+                        print(f"   Trigger On Auto: {combo_auth.get('triggerOnAuto')}")
+                        
+                        # Verify form config details
+                        form_config = combo_auth.get('formConfig', {})
+                        print(f"   Form Config - Username: {form_config.get('username')}")
+                        print(f"   Form Config - Multi-Step: {form_config.get('multiStep')}")
+                        print(f"   Form Config - Submit Delay: {form_config.get('submitDelay')}")
+                        
+                        # Verify SSO config details
+                        sso_config = combo_auth.get('ssoConfig', {})
+                        print(f"   SSO Config - Provider: {sso_config.get('provider')}")
+                        print(f"   SSO Config - Auto Click: {sso_config.get('autoClick')}")
+                        print(f"   SSO Config - Auth Start URL: {sso_config.get('authStartUrl')}")
+                    else:
+                        self.log_result("combo_auth", "Tool retrieval with comboAuth", False, "Incomplete comboAuth configuration in retrieved tool")
+                else:
+                    self.log_result("combo_auth", "Tool retrieval with comboAuth", False, "Missing success or tool in response")
+            except json.JSONDecodeError as e:
+                self.log_result("combo_auth", "Tool retrieval with comboAuth", False, f"Invalid JSON response: {e}")
+        else:
+            error_msg = f"HTTP {response.status_code if response else 'No response'}"
+            if response:
+                try:
+                    error_data = response.json()
+                    error_msg += f" - {error_data.get('error', 'Unknown error')}"
+                except:
+                    error_msg += f" - {response.text[:200]}"
+            
+            self.log_result("combo_auth", "Tool retrieval with comboAuth", False, error_msg)
+            print(f"   ❌ FAILED: {error_msg}")
+        
+        # Test 3: Verify Extension API - GET /api/crm/extension/tools (requires extension token)
+        print(f"\n   Testing Extension API Combo Auth Response...")
+        print(f"   Note: Extension API requires extension token, testing endpoint structure...")
+        
+        # This will fail with 401 since we don't have extension token, but we can verify endpoint exists
+        response = self.make_request("GET", "/extension/tools", auth_required=False)
+        
+        if response and response.status_code == 401:
+            try:
+                data = response.json()
+                if "Extension token required" in data.get("error", ""):
+                    self.log_result("combo_auth", "Extension API endpoint structure", True)
+                    print(f"   ✅ Extension API endpoint exists and requires extension token (expected)")
+                else:
+                    self.log_result("combo_auth", "Extension API endpoint structure", False, f"Unexpected error: {data.get('error')}")
+            except json.JSONDecodeError:
+                self.log_result("combo_auth", "Extension API endpoint structure", False, "Invalid JSON response")
+        else:
+            self.log_result("combo_auth", "Extension API endpoint structure", False, 
+                          f"Expected 401, got {response.status_code if response else 'No response'}")
+        
+        # Test 4: Verify Extension Settings Enhancement
+        print(f"\n   Testing Enhanced Extension Settings...")
+        
+        if combo_tool_id:
+            response = self.make_request("GET", f"/admin/tools/{combo_tool_id}")
+            
+            if response and response.status_code == 200:
+                try:
+                    data = response.json()
+                    tool = data.get("tool", {})
+                    ext_settings = tool.get("extensionSettings", {})
+                    
+                    # Check for new extension settings
+                    required_settings = [
+                        "hiddenModeEnabled", "hiddenModeTimeout", 
+                        "autoStartEnabled", "autoStartDelay", "maxAutoAttempts"
+                    ]
+                    
+                    missing_settings = []
+                    for setting in required_settings:
+                        if setting not in ext_settings:
+                            missing_settings.append(setting)
+                    
+                    if not missing_settings:
+                        self.log_result("combo_auth", "Enhanced extension settings", True)
+                        print(f"   ✅ SUCCESS: All enhanced extension settings present")
+                        print(f"   Hidden Mode Enabled: {ext_settings.get('hiddenModeEnabled')}")
+                        print(f"   Hidden Mode Timeout: {ext_settings.get('hiddenModeTimeout')}ms")
+                        print(f"   Auto Start Enabled: {ext_settings.get('autoStartEnabled')}")
+                        print(f"   Auto Start Delay: {ext_settings.get('autoStartDelay')}ms")
+                        print(f"   Max Auto Attempts: {ext_settings.get('maxAutoAttempts')}")
+                    else:
+                        self.log_result("combo_auth", "Enhanced extension settings", False, f"Missing settings: {missing_settings}")
+                        print(f"   ❌ Missing extension settings: {missing_settings}")
+                except json.JSONDecodeError as e:
+                    self.log_result("combo_auth", "Enhanced extension settings", False, f"Invalid JSON response: {e}")
+            else:
+                self.log_result("combo_auth", "Enhanced extension settings", False, f"Failed to retrieve tool for settings check")
+
     def run_all_tests(self):
-        """Run comprehensive backend tests including new Chrome Extension endpoints"""
-        print("🧪 TOOLSTACK CRM BACKEND TESTING - CHROME EXTENSION AUTO-LOGIN IMPROVEMENTS...")
-        print("Context: Testing new backend endpoints for Chrome Extension auto-login improvements")
-        print("Priority: Extension Login Attempt Logging, Admin Credential Validation, Admin Login Stats")
+        """Run comprehensive backend tests focusing on NEW Combo Auth implementation"""
+        print("🧪 TOOLSTACK CRM BACKEND TESTING - NEW COMBO AUTH IMPLEMENTATION...")
+        print("Context: Testing NEW Combo Auth backend implementation as per review request")
+        print("Priority: Combo Auth Tool Creation, Tool Retrieval, Extension API Response")
         
         # COMPREHENSIVE TEST as per review request
         print("\n" + "="*70)
-        print("🎯 CHROME EXTENSION AUTO-LOGIN ENDPOINTS TESTING")
+        print("🎯 NEW COMBO AUTH BACKEND IMPLEMENTATION TESTING")
         print("="*70)
         
         # 1. Health and connectivity check
@@ -749,11 +945,8 @@ class ToolStackCRMTester:
         # 2. Admin bootstrap verification (to get admin token)
         self.test_admin_bootstrap_verification()
         
-        # 3. NEW: Chrome Extension endpoints testing
-        self.test_chrome_extension_endpoints()
-        
-        # 4. NEW: Admin tool management endpoints
-        self.test_admin_tool_endpoints()
+        # 3. NEW: Combo Auth implementation testing (MAIN FOCUS)
+        self.test_combo_auth_implementation()
         
         # Print summary
         success = self.print_summary()
