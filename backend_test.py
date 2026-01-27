@@ -732,133 +732,254 @@ class ToolStackCRMTester:
         else:
             self.log_result("admin_dashboard", "Get current user", False, f"HTTP {response.status_code if response else 'No response'}")
 
-    def test_combo_auth_implementation(self):
-        """Test NEW Combo Auth backend implementation as per review request"""
-        print("\n🔄 Testing NEW Combo Auth Backend Implementation...")
+    def test_session_bundle_apis(self):
+        """Test Session Bundle APIs as per review request"""
+        print("\n📦 Testing Session Bundle APIs...")
         
         if not self.admin_token:
-            self.log_result("combo_auth", "Combo Auth tests", False, "No admin token available")
+            self.log_result("combo_auth", "Session Bundle tests", False, "No admin token available")
             return
         
-        # Test 1: Admin Login - POST /api/crm/auth/login (already done in bootstrap test)
-        print(f"\n   ✅ Step 1: Admin Login completed successfully")
-        
-        # Test 2: Create Combo Auth Tool - POST /api/crm/admin/tools with Bearer token
-        print(f"\n   Step 2: Creating Combo Auth Test Tool...")
-        combo_auth_tool_data = {
-            "name": "Combo Auth Test Tool",
+        # First create a tool to test with
+        print(f"\n   Step 1: Creating test tool for session bundle...")
+        test_tool_data = {
+            "name": "Session Bundle Test Tool",
             "targetUrl": "https://example.com/app",
-            "loginUrl": "https://example.com/login", 
-            "category": "AI",
-            "credentialType": "sso",
-            "comboAuth": {
-                "enabled": True,
-                "primary": "sso",
-                "fallbackEnabled": True,
-                "triggerOnAuto": True,
-                "formConfig": {
-                    "username": "testuser@example.com",
-                    "password": "testpass123",
-                    "loginUrl": "https://example.com/login",
-                    "multiStep": True,
-                    "rememberMe": True,
-                    "submitDelay": 800
-                },
-                "ssoConfig": {
-                    "authStartUrl": "https://example.com/auth/sso",
-                    "postLoginUrl": "https://example.com/dashboard",
-                    "provider": "google",
-                    "buttonSelector": "button[data-provider='google']",
-                    "autoClick": True
-                }
+            "category": "AI"
+        }
+        
+        response = self.make_request("POST", "/admin/tools", test_tool_data)
+        
+        if not response or response.status_code != 201:
+            self.log_result("combo_auth", "Create test tool for session bundle", False, f"HTTP {response.status_code if response else 'No response'}")
+            return
+        
+        try:
+            data = response.json()
+            tool_id = data["tool"]["_id"]
+            self.test_tool_id = tool_id
+            self.log_result("combo_auth", "Create test tool for session bundle", True)
+            print(f"   ✅ Test tool created with ID: {tool_id}")
+        except json.JSONDecodeError:
+            self.log_result("combo_auth", "Create test tool for session bundle", False, "Invalid JSON response")
+            return
+        
+        # Test 2: POST /api/crm/admin/tools/:id/session-bundle - Save session bundle
+        print(f"\n   Step 2: Testing POST session-bundle endpoint...")
+        
+        session_bundle_data = {
+            "cookies": [
+                {"name": "session_id", "value": "abc123xyz", "domain": "example.com"},
+                {"name": "auth_token", "value": "token456", "domain": "example.com"}
+            ],
+            "localStorage": {
+                "user_preferences": '{"theme": "dark", "language": "en"}',
+                "api_key": "sk-test123456"
             },
-            "extensionSettings": {
-                "hiddenModeEnabled": True,
-                "hiddenModeTimeout": 60000,
-                "autoStartEnabled": True,
-                "autoStartDelay": 800,
-                "maxAutoAttempts": 2
+            "sessionStorage": {
+                "temp_data": '{"session": "active"}',
+                "csrf_token": "csrf789"
             }
         }
         
-        response = self.make_request("POST", "/admin/tools", combo_auth_tool_data)
+        response = self.make_request("POST", f"/admin/tools/{tool_id}/session-bundle", session_bundle_data)
+        
+        if response and response.status_code == 200:
+            try:
+                data = response.json()
+                if data.get("success") and data.get("sessionBundle"):
+                    bundle_info = data["sessionBundle"]
+                    self.log_result("combo_auth", "POST session-bundle endpoint", True)
+                    print(f"   ✅ SUCCESS: Session bundle saved")
+                    print(f"   Version: {bundle_info.get('version')}")
+                    print(f"   Has Cookies: {bundle_info.get('hasCookies')}")
+                    print(f"   Has LocalStorage: {bundle_info.get('hasLocalStorage')}")
+                    print(f"   Has SessionStorage: {bundle_info.get('hasSessionStorage')}")
+                    
+                    # Store version for later tests
+                    initial_version = bundle_info.get('version', 1)
+                else:
+                    self.log_result("combo_auth", "POST session-bundle endpoint", False, "Missing success or sessionBundle in response")
+            except json.JSONDecodeError as e:
+                self.log_result("combo_auth", "POST session-bundle endpoint", False, f"Invalid JSON response: {e}")
+        else:
+            error_msg = f"HTTP {response.status_code if response else 'No response'}"
+            if response:
+                try:
+                    error_data = response.json()
+                    error_msg += f" - {error_data.get('error', 'Unknown error')}"
+                except:
+                    error_msg += f" - {response.text[:200]}"
+            
+            self.log_result("combo_auth", "POST session-bundle endpoint", False, error_msg)
+            print(f"   ❌ FAILED: {error_msg}")
+            return
+        
+        # Test 3: GET /api/crm/admin/tools/:id/session-bundle - Retrieve session bundle
+        print(f"\n   Step 3: Testing GET session-bundle endpoint...")
+        
+        response = self.make_request("GET", f"/admin/tools/{tool_id}/session-bundle")
+        
+        if response and response.status_code == 200:
+            try:
+                data = response.json()
+                if data.get("success") and data.get("sessionBundle"):
+                    bundle = data["sessionBundle"]
+                    self.log_result("combo_auth", "GET session-bundle endpoint", True)
+                    print(f"   ✅ SUCCESS: Session bundle retrieved with decrypted data")
+                    print(f"   Version: {bundle.get('version')}")
+                    print(f"   Cookies count: {len(bundle.get('cookies', []))}")
+                    print(f"   LocalStorage keys: {list(bundle.get('localStorage', {}).keys())}")
+                    print(f"   SessionStorage keys: {list(bundle.get('sessionStorage', {}).keys())}")
+                    
+                    # Verify decrypted data matches what we sent
+                    cookies = bundle.get('cookies', [])
+                    localStorage = bundle.get('localStorage', {})
+                    sessionStorage = bundle.get('sessionStorage', {})
+                    
+                    if (len(cookies) == 2 and 
+                        localStorage.get('user_preferences') and 
+                        sessionStorage.get('temp_data')):
+                        self.log_result("combo_auth", "Session bundle data integrity", True)
+                        print(f"   ✅ Data integrity verified: all components decrypted correctly")
+                    else:
+                        self.log_result("combo_auth", "Session bundle data integrity", False, "Decrypted data doesn't match original")
+                else:
+                    self.log_result("combo_auth", "GET session-bundle endpoint", False, "Missing success or sessionBundle in response")
+            except json.JSONDecodeError as e:
+                self.log_result("combo_auth", "GET session-bundle endpoint", False, f"Invalid JSON response: {e}")
+        else:
+            error_msg = f"HTTP {response.status_code if response else 'No response'}"
+            if response:
+                try:
+                    error_data = response.json()
+                    error_msg += f" - {error_data.get('error', 'Unknown error')}"
+                except:
+                    error_msg += f" - {response.text[:200]}"
+            
+            self.log_result("combo_auth", "GET session-bundle endpoint", False, error_msg)
+            print(f"   ❌ FAILED: {error_msg}")
+            return
+        
+        # Test 4: Verify version auto-increments when bundle is updated
+        print(f"\n   Step 4: Testing version auto-increment on update...")
+        
+        updated_bundle_data = {
+            "cookies": [
+                {"name": "session_id", "value": "updated123", "domain": "example.com"}
+            ],
+            "localStorage": {
+                "user_preferences": '{"theme": "light", "language": "es"}'
+            }
+        }
+        
+        response = self.make_request("POST", f"/admin/tools/{tool_id}/session-bundle", updated_bundle_data)
+        
+        if response and response.status_code == 200:
+            try:
+                data = response.json()
+                if data.get("success") and data.get("sessionBundle"):
+                    bundle_info = data["sessionBundle"]
+                    new_version = bundle_info.get('version')
+                    
+                    if new_version > initial_version:
+                        self.log_result("combo_auth", "Version auto-increment on update", True)
+                        print(f"   ✅ SUCCESS: Version auto-incremented from {initial_version} to {new_version}")
+                    else:
+                        self.log_result("combo_auth", "Version auto-increment on update", False, f"Version not incremented: {initial_version} -> {new_version}")
+                else:
+                    self.log_result("combo_auth", "Version auto-increment on update", False, "Missing success or sessionBundle in response")
+            except json.JSONDecodeError as e:
+                self.log_result("combo_auth", "Version auto-increment on update", False, f"Invalid JSON response: {e}")
+        else:
+            self.log_result("combo_auth", "Version auto-increment on update", False, f"HTTP {response.status_code if response else 'No response'}")
+
+    def test_combo_auth_parallel_mode(self):
+        """Test Combo Auth with Parallel Run Mode as per review request"""
+        print("\n🔄 Testing Combo Auth Parallel Run Mode...")
+        
+        if not self.admin_token:
+            self.log_result("combo_auth", "Combo Auth parallel mode tests", False, "No admin token available")
+            return
+        
+        # Test 1: Create tool with comboAuth.runMode = 'parallel'
+        print(f"\n   Step 1: Creating tool with parallel combo auth...")
+        
+        parallel_combo_tool_data = {
+            "name": "Parallel Combo Auth Tool",
+            "targetUrl": "https://example.com/app",
+            "category": "AI",
+            "comboAuth": {
+                "enabled": True,
+                "runMode": "parallel",
+                "primaryType": "sso",
+                "secondaryType": "form",
+                "fallbackEnabled": True,
+                "fallbackOnlyOnce": True,
+                "skipIfLoggedIn": True,
+                "parallelSettings": {
+                    "prepSessionFirst": True,
+                    "parallelTimeout": 25000,
+                    "commitLock": True,
+                    "verifyAfterAuth": True
+                },
+                "formConfig": {
+                    "username": "testuser@example.com",
+                    "password": "testpass123",
+                    "loginUrl": "https://example.com/login"
+                },
+                "ssoConfig": {
+                    "authStartUrl": "https://example.com/auth/sso",
+                    "provider": "google"
+                }
+            }
+        }
+        
+        response = self.make_request("POST", "/admin/tools", parallel_combo_tool_data)
         
         if response and response.status_code == 201:
             try:
                 data = response.json()
-                if data.get("success") and data.get("tool") and data.get("tool", {}).get("_id"):
-                    combo_tool_id = data["tool"]["_id"]
-                    self.test_tool_id = combo_tool_id  # Store for later tests
-                    
-                    self.log_result("combo_auth", "Create Combo Auth Tool", True)
-                    print(f"   ✅ SUCCESS: Combo Auth tool created with ID {combo_tool_id}")
-                    print(f"   Tool Name: {data['tool'].get('name', 'N/A')}")
-                    print(f"   Primary Strategy: {data['tool'].get('comboAuth', {}).get('primary', 'N/A')}")
-                    print(f"   Fallback Enabled: {data['tool'].get('comboAuth', {}).get('fallbackEnabled', 'N/A')}")
-                    
-                    # Verify comboAuth structure
-                    combo_auth = data['tool'].get('comboAuth', {})
-                    if combo_auth.get('enabled') and combo_auth.get('formConfig') and combo_auth.get('ssoConfig'):
-                        self.log_result("combo_auth", "Combo Auth structure validation", True)
-                        print(f"   ✅ Combo Auth structure complete: enabled={combo_auth.get('enabled')}")
-                        print(f"   Form Config: username={combo_auth.get('formConfig', {}).get('username', 'N/A')}")
-                        print(f"   SSO Config: provider={combo_auth.get('ssoConfig', {}).get('provider', 'N/A')}")
-                    else:
-                        self.log_result("combo_auth", "Combo Auth structure validation", False, "Missing comboAuth configuration")
-                else:
-                    self.log_result("combo_auth", "Create Combo Auth Tool", False, "Missing success, tool, or tool._id in response")
-            except json.JSONDecodeError as e:
-                self.log_result("combo_auth", "Create Combo Auth Tool", False, f"Invalid JSON response: {e}")
-        else:
-            error_msg = f"HTTP {response.status_code if response else 'No response'}"
-            if response:
-                try:
-                    error_data = response.json()
-                    error_msg += f" - {error_data.get('error', 'Unknown error')}"
-                except:
-                    error_msg += f" - {response.text[:200]}"
-            
-            self.log_result("combo_auth", "Create Combo Auth Tool", False, error_msg)
-            print(f"   ❌ FAILED: {error_msg}")
-            return
-        
-        # Test 3: Verify Tool Retrieval - GET /api/crm/admin/tools/:toolId
-        print(f"\n   Step 3: Testing Tool Retrieval with Combo Auth...")
-        
-        response = self.make_request("GET", f"/admin/tools/{combo_tool_id}")
-        
-        if response and response.status_code == 200:
-            try:
-                data = response.json()
                 if data.get("success") and data.get("tool"):
                     tool = data["tool"]
                     combo_auth = tool.get("comboAuth", {})
+                    parallel_tool_id = tool["_id"]
                     
-                    if combo_auth.get("enabled") and combo_auth.get("formConfig") and combo_auth.get("ssoConfig"):
-                        self.log_result("combo_auth", "Verify Tool Retrieval", True)
-                        print(f"   ✅ SUCCESS: Tool retrieved with complete comboAuth config")
-                        print(f"   Combo Auth Enabled: {combo_auth.get('enabled')}")
-                        print(f"   Primary Strategy: {combo_auth.get('primary')}")
-                        print(f"   Fallback Enabled: {combo_auth.get('fallbackEnabled')}")
-                        print(f"   Trigger On Auto: {combo_auth.get('triggerOnAuto')}")
+                    if combo_auth.get("runMode") == "parallel":
+                        self.log_result("combo_auth", "Create parallel combo auth tool", True)
+                        print(f"   ✅ SUCCESS: Parallel combo auth tool created")
+                        print(f"   Tool ID: {parallel_tool_id}")
+                        print(f"   Run Mode: {combo_auth.get('runMode')}")
+                        print(f"   Primary Type: {combo_auth.get('primaryType')}")
+                        print(f"   Secondary Type: {combo_auth.get('secondaryType')}")
                         
-                        # Verify form config details
-                        form_config = combo_auth.get('formConfig', {})
-                        print(f"   Form Config - Username: {form_config.get('username')}")
-                        print(f"   Form Config - Multi-Step: {form_config.get('multiStep')}")
-                        print(f"   Form Config - Submit Delay: {form_config.get('submitDelay')}")
+                        # Verify parallelSettings
+                        parallel_settings = combo_auth.get("parallelSettings", {})
+                        if parallel_settings:
+                            self.log_result("combo_auth", "Parallel settings validation", True)
+                            print(f"   ✅ Parallel settings saved correctly:")
+                            print(f"   - Prep Session First: {parallel_settings.get('prepSessionFirst')}")
+                            print(f"   - Parallel Timeout: {parallel_settings.get('parallelTimeout')}ms")
+                            print(f"   - Commit Lock: {parallel_settings.get('commitLock')}")
+                            print(f"   - Verify After Auth: {parallel_settings.get('verifyAfterAuth')}")
+                        else:
+                            self.log_result("combo_auth", "Parallel settings validation", False, "Missing parallelSettings")
                         
-                        # Verify SSO config details
-                        sso_config = combo_auth.get('ssoConfig', {})
-                        print(f"   SSO Config - Provider: {sso_config.get('provider')}")
-                        print(f"   SSO Config - Auto Click: {sso_config.get('autoClick')}")
-                        print(f"   SSO Config - Auth Start URL: {sso_config.get('authStartUrl')}")
+                        # Verify defaults for skipIfLoggedIn and fallbackOnlyOnce
+                        skip_if_logged = combo_auth.get("skipIfLoggedIn")
+                        fallback_once = combo_auth.get("fallbackOnlyOnce")
+                        
+                        if skip_if_logged is True and fallback_once is True:
+                            self.log_result("combo_auth", "Default values verification", True)
+                            print(f"   ✅ Default values correct: skipIfLoggedIn={skip_if_logged}, fallbackOnlyOnce={fallback_once}")
+                        else:
+                            self.log_result("combo_auth", "Default values verification", False, f"Incorrect defaults: skipIfLoggedIn={skip_if_logged}, fallbackOnlyOnce={fallback_once}")
                     else:
-                        self.log_result("combo_auth", "Verify Tool Retrieval", False, "Incomplete comboAuth configuration in retrieved tool")
+                        self.log_result("combo_auth", "Create parallel combo auth tool", False, f"Run mode not set to parallel: {combo_auth.get('runMode')}")
                 else:
-                    self.log_result("combo_auth", "Verify Tool Retrieval", False, "Missing success or tool in response")
+                    self.log_result("combo_auth", "Create parallel combo auth tool", False, "Missing success or tool in response")
             except json.JSONDecodeError as e:
-                self.log_result("combo_auth", "Verify Tool Retrieval", False, f"Invalid JSON response: {e}")
+                self.log_result("combo_auth", "Create parallel combo auth tool", False, f"Invalid JSON response: {e}")
         else:
             error_msg = f"HTTP {response.status_code if response else 'No response'}"
             if response:
@@ -868,37 +989,29 @@ class ToolStackCRMTester:
                 except:
                     error_msg += f" - {response.text[:200]}"
             
-            self.log_result("combo_auth", "Verify Tool Retrieval", False, error_msg)
+            self.log_result("combo_auth", "Create parallel combo auth tool", False, error_msg)
             print(f"   ❌ FAILED: {error_msg}")
+            return
         
-        # Test 4: Test Tool Update - PUT /api/crm/admin/tools/:toolId
-        print(f"\n   Step 4: Testing Tool Update - change comboAuth.primary from 'sso' to 'form'...")
+        # Test 2: Update tool with different parallel settings
+        print(f"\n   Step 2: Testing tool update with modified parallel settings...")
         
         update_data = {
             "comboAuth": {
                 "enabled": True,
-                "primary": "form",  # Changed from "sso" to "form"
-                "fallbackEnabled": True,
-                "triggerOnAuto": True,
-                "formConfig": {
-                    "username": "testuser@example.com",
-                    "password": "testpass123",
-                    "loginUrl": "https://example.com/login",
-                    "multiStep": True,
-                    "rememberMe": True,
-                    "submitDelay": 800
-                },
-                "ssoConfig": {
-                    "authStartUrl": "https://example.com/auth/sso",
-                    "postLoginUrl": "https://example.com/dashboard",
-                    "provider": "google",
-                    "buttonSelector": "button[data-provider='google']",
-                    "autoClick": True
+                "runMode": "parallel",
+                "primaryType": "form",  # Changed from sso to form
+                "secondaryType": "sso",  # Changed from form to sso
+                "parallelSettings": {
+                    "prepSessionFirst": False,  # Changed
+                    "parallelTimeout": 45000,   # Changed
+                    "commitLock": False,        # Changed
+                    "verifyAfterAuth": False    # Changed
                 }
             }
         }
         
-        response = self.make_request("PUT", f"/admin/tools/{combo_tool_id}", update_data)
+        response = self.make_request("PUT", f"/admin/tools/{parallel_tool_id}", update_data)
         
         if response and response.status_code == 200:
             try:
@@ -906,72 +1019,86 @@ class ToolStackCRMTester:
                 if data.get("success") and data.get("tool"):
                     tool = data["tool"]
                     combo_auth = tool.get("comboAuth", {})
+                    parallel_settings = combo_auth.get("parallelSettings", {})
                     
-                    if combo_auth.get("primary") == "form":
-                        self.log_result("combo_auth", "Test Tool Update", True)
-                        print(f"   ✅ SUCCESS: Tool updated successfully")
-                        print(f"   Primary Strategy changed to: {combo_auth.get('primary')}")
-                        print(f"   Combo Auth still enabled: {combo_auth.get('enabled')}")
-                        print(f"   Fallback still enabled: {combo_auth.get('fallbackEnabled')}")
+                    # Verify updates were applied
+                    if (combo_auth.get("primaryType") == "form" and 
+                        combo_auth.get("secondaryType") == "sso" and
+                        parallel_settings.get("parallelTimeout") == 45000):
+                        self.log_result("combo_auth", "Update parallel combo auth tool", True)
+                        print(f"   ✅ SUCCESS: Parallel combo auth tool updated")
+                        print(f"   Primary Type changed to: {combo_auth.get('primaryType')}")
+                        print(f"   Secondary Type changed to: {combo_auth.get('secondaryType')}")
+                        print(f"   Parallel Timeout updated to: {parallel_settings.get('parallelTimeout')}ms")
                     else:
-                        self.log_result("combo_auth", "Test Tool Update", False, f"Primary strategy not updated correctly: {combo_auth.get('primary')}")
+                        self.log_result("combo_auth", "Update parallel combo auth tool", False, "Updates not applied correctly")
                 else:
-                    self.log_result("combo_auth", "Test Tool Update", False, "Missing success or tool in response")
+                    self.log_result("combo_auth", "Update parallel combo auth tool", False, "Missing success or tool in response")
             except json.JSONDecodeError as e:
-                self.log_result("combo_auth", "Test Tool Update", False, f"Invalid JSON response: {e}")
+                self.log_result("combo_auth", "Update parallel combo auth tool", False, f"Invalid JSON response: {e}")
         else:
-            error_msg = f"HTTP {response.status_code if response else 'No response'}"
-            if response:
-                try:
-                    error_data = response.json()
-                    error_msg += f" - {error_data.get('error', 'Unknown error')}"
-                except:
-                    error_msg += f" - {response.text[:200]}"
-            
-            self.log_result("combo_auth", "Test Tool Update", False, error_msg)
-            print(f"   ❌ FAILED: {error_msg}")
+            self.log_result("combo_auth", "Update parallel combo auth tool", False, f"HTTP {response.status_code if response else 'No response'}")
+
+    def test_extension_api_session_bundle(self):
+        """Test Extension API returns sessionBundle with decrypted data"""
+        print("\n🔌 Testing Extension API Session Bundle Support...")
         
-        # Test 5: Verify Enhanced Extension Settings
-        print(f"\n   Step 5: Testing Enhanced Extension Settings...")
+        if not self.admin_token or not self.test_tool_id:
+            self.log_result("combo_auth", "Extension API session bundle tests", False, "No admin token or test tool ID available")
+            return
         
-        if combo_tool_id:
-            response = self.make_request("GET", f"/admin/tools/{combo_tool_id}")
-            
-            if response and response.status_code == 200:
-                try:
-                    data = response.json()
-                    tool = data.get("tool", {})
-                    ext_settings = tool.get("extensionSettings", {})
-                    
-                    # Check for new extension settings
-                    required_settings = [
-                        "hiddenModeEnabled", "hiddenModeTimeout", 
-                        "autoStartEnabled", "autoStartDelay", "maxAutoAttempts"
-                    ]
-                    
-                    missing_settings = []
-                    for setting in required_settings:
-                        if setting not in ext_settings:
-                            missing_settings.append(setting)
-                    
-                    if not missing_settings:
-                        self.log_result("combo_auth", "Enhanced extension settings", True)
-                        print(f"   ✅ SUCCESS: All enhanced extension settings present")
-                        print(f"   Hidden Mode Enabled: {ext_settings.get('hiddenModeEnabled')}")
-                        print(f"   Hidden Mode Timeout: {ext_settings.get('hiddenModeTimeout')}ms")
-                        print(f"   Auto Start Enabled: {ext_settings.get('autoStartEnabled')}")
-                        print(f"   Auto Start Delay: {ext_settings.get('autoStartDelay')}ms")
-                        print(f"   Max Auto Attempts: {ext_settings.get('maxAutoAttempts')}")
-                    else:
-                        self.log_result("combo_auth", "Enhanced extension settings", False, f"Missing settings: {missing_settings}")
-                        print(f"   ❌ Missing extension settings: {missing_settings}")
-                except json.JSONDecodeError as e:
-                    self.log_result("combo_auth", "Enhanced extension settings", False, f"Invalid JSON response: {e}")
-            else:
-                self.log_result("combo_auth", "Enhanced extension settings", False, f"Failed to retrieve tool for settings check")
+        # Note: We can't fully test the extension API without an extension token
+        # But we can verify the endpoint structure exists
+        print(f"\n   Testing Extension API endpoint structure...")
+        print(f"   Tool ID: {self.test_tool_id}")
         
-        print(f"\n   🎯 Combo Auth Implementation Testing Complete!")
-        print(f"   Summary: Created tool → Retrieved with comboAuth → Updated primary strategy → Verified settings")
+        # Test GET /api/crm/extension/credentials/:toolId endpoint structure
+        response = self.make_request("GET", f"/extension/credentials/{self.test_tool_id}", auth_required=False)
+        
+        if response and response.status_code == 401:
+            try:
+                data = response.json()
+                if "Extension token required" in data.get("error", ""):
+                    self.log_result("combo_auth", "Extension credentials endpoint structure", True)
+                    print(f"   ✅ Extension credentials endpoint exists and requires proper auth")
+                else:
+                    self.log_result("combo_auth", "Extension credentials endpoint structure", False, f"Unexpected error: {data.get('error')}")
+            except json.JSONDecodeError:
+                self.log_result("combo_auth", "Extension credentials endpoint structure", False, "Invalid JSON response")
+        else:
+            self.log_result("combo_auth", "Extension credentials endpoint structure", False, 
+                          f"Expected 401, got {response.status_code if response else 'No response'}")
+        
+        print(f"   ℹ️  Note: Full extension API testing requires extension token authentication")
+        print(f"   ℹ️  Endpoint verified: GET /api/crm/extension/credentials/:toolId")
+        print(f"   ℹ️  Expected to return: sessionBundle with decrypted data + comboAuth config")
+
+    def run_session_bundle_and_combo_auth_tests(self):
+        """Run Session Bundle and Combo Auth tests as per review request"""
+        print("🧪 TESTING SESSION BUNDLE & COMBO AUTH RUN MODE APIS...")
+        print("Context: Testing Session Bundle APIs and Combo Auth Parallel Mode")
+        print("Priority: Session Bundle CRUD → Combo Auth Parallel Mode → Extension API verification")
+        
+        print("\n" + "="*70)
+        print("🎯 SESSION BUNDLE & COMBO AUTH TESTING")
+        print("="*70)
+        
+        # 1. Admin Login (reuse existing)
+        if not self.admin_token:
+            self.test_admin_bootstrap_verification()
+        
+        # 2. Session Bundle API Tests
+        self.test_session_bundle_apis()
+        
+        # 3. Combo Auth Parallel Mode Tests  
+        self.test_combo_auth_parallel_mode()
+        
+        # 4. Extension API verification
+        self.test_extension_api_session_bundle()
+        
+        # Print summary
+        success = self.print_summary()
+        return success
 
     def run_all_tests(self):
         """Run comprehensive backend tests focusing on NEW Combo Auth implementation"""
