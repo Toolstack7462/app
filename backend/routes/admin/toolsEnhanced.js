@@ -191,7 +191,7 @@ router.put('/:id', normalizeStringInputs, validate(schemas.updateTool), async (r
       'name', 'description', 'targetUrl', 'loginUrl', 'category', 'status', 
       'cookiesEncrypted', 'tokenEncrypted', 'tokenHeader', 'tokenPrefix',
       'localStorageEncrypted', 'credentialType', 'extensionSettings', 'fileMeta',
-      'credentials', 'comboAuth' // New unified credentials and combo auth fields
+      'credentials', 'comboAuth', 'sessionBundle' // New unified credentials, combo auth, and session bundle fields
     ];
     
     allowedUpdates.forEach(field => {
