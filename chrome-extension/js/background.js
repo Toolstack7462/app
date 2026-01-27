@@ -673,20 +673,160 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url) {
     try {
-      const hostname = new URL(tab.url).hostname;
+      const urlObj = new URL(tab.url);
+      const hostname = urlObj.hostname;
       const tool = domainToolMap.get(hostname);
       
       if (tool) {
         logger.debug('Tab navigated to tool domain', { hostname, tabId });
         
-        // Inject content script dynamically
-        await injectContentScript(tabId, tab.url);
+        // Check for auto-start and hidden mode params
+        const autoParam = urlObj.searchParams.get('auto');
+        const hiddenParam = urlObj.searchParams.get('hidden');
+        const isAutoMode = autoParam === '1' || autoParam === 'true';
+        const isHiddenMode = hiddenParam === '1' || hiddenParam === 'true';
+        
+        // Check if this is a login page
+        const isLoginPage = /\/(login|signin|auth|sso)/i.test(urlObj.pathname) || 
+                           urlObj.pathname.includes('login') ||
+                           tab.url.includes(tool.loginUrl || '');
+        
+        logger.debug('Page analysis', { isAutoMode, isHiddenMode, isLoginPage });
+        
+        // Handle auto-start mode with ?auto=1
+        if (isAutoMode && isLoginPage) {
+          logger.info('Auto-start mode triggered', { tool: tool.name, hidden: isHiddenMode });
+          
+          // Check if tool has auto-start enabled
+          const autoStartEnabled = tool.extensionSettings?.autoStartEnabled !== false;
+          const comboTriggerOnAuto = !tool.comboAuth?.enabled || tool.comboAuth?.triggerOnAuto !== false;
+          
+          if (autoStartEnabled && comboTriggerOnAuto) {
+            // Execute auto-login
+            handleAutoStartLogin(tabId, tab, tool, { auto: true, hidden: isHiddenMode });
+          }
+        } else {
+          // Inject content script dynamically for regular flow
+          await injectContentScript(tabId, tab.url);
+        }
       }
     } catch (e) {
       // Invalid URL or injection failed
+      logger.warn('Tab update handler error', { error: e.message });
     }
   }
 });
+
+/**
+ * Handle auto-start login when ?auto=1 is detected
+ */
+async function handleAutoStartLogin(tabId, tab, tool, options = {}) {
+  const { auto, hidden, sourceTabId } = options;
+  
+  // Check if we're already processing login for this tab
+  if (activeLogins.has(tabId)) {
+    logger.debug('Login already in progress for tab', { tabId });
+    return;
+  }
+  
+  // Mark login as active
+  activeLogins.set(tabId, { tool, startTime: Date.now(), autoMode: true });
+  
+  try {
+    // Get credentials
+    const credentials = await getToolCredentials(tool.id);
+    
+    if (!credentials) {
+      logger.warn('No credentials for auto-start', { tool: tool.name });
+      activeLogins.delete(tabId);
+      return;
+    }
+    
+    // Small delay to let page render
+    await sleep(500);
+    
+    // Execute login via orchestrator
+    const result = await orchestrator.executeLogin(tool, credentials, {
+      auto: true,
+      hidden: hidden || false,
+      sourceTabId: sourceTabId || null
+    });
+    
+    logger.info('Auto-start login result', { 
+      tool: tool.name, 
+      success: result.success, 
+      method: result.method,
+      requiresManualAction: result.requiresManualAction
+    });
+    
+    // Log tool opened if successful
+    if (result.success) {
+      await logToolOpened(tool.id);
+    }
+    
+  } catch (error) {
+    logger.error('Auto-start login failed', { error: error.message });
+  } finally {
+    // Clear active login
+    activeLogins.delete(tabId);
+  }
+}
+
+/**
+ * Execute one-click login with hidden mode support
+ */
+async function executeOneClickLoginWithOptions(toolId, tool, options = {}) {
+  logger.info('One-click login with options', { tool: tool.name, toolId, options });
+  
+  try {
+    // Get credentials
+    const credentials = await getToolCredentials(toolId);
+    
+    if (!credentials) {
+      return { 
+        success: false, 
+        error: 'No credentials available for this tool',
+        actionableError: 'Credentials not found. Please contact your administrator to configure access.'
+      };
+    }
+    
+    // Get current tab if hidden mode requested
+    let sourceTabId = null;
+    if (options.hidden) {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      sourceTabId = activeTab?.id;
+    }
+    
+    // Execute login via orchestrator
+    const result = await orchestrator.executeLogin(tool, credentials, {
+      auto: options.auto || false,
+      hidden: options.hidden || false,
+      sourceTabId
+    });
+    
+    // Log tool opened if successful
+    if (result.success) {
+      await logToolOpened(toolId);
+    }
+    
+    logger.info('One-click login completed', {
+      tool: tool.name,
+      success: result.success,
+      method: result.method,
+      requiresManualAction: result.requiresManualAction
+    });
+    
+    return result;
+    
+  } catch (error) {
+    logger.error('One-click login error', { error: error.message });
+    return { 
+      success: false, 
+      error: error.message,
+      actionableError: 'Login failed unexpectedly. Please try again or contact support.'
+    };
+  }
+}
 
 /**
  * Inject content script into a tab
