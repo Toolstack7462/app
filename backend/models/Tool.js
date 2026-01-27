@@ -307,6 +307,11 @@ const toolSchema = new mongoose.Schema({
   // Allows configuring both SSO and Form login in one tool
   comboAuth: comboAuthSchema,
   
+  // ========== SESSION BUNDLE ==========
+  // Unified bundle for Cookies + LocalStorage + SessionStorage
+  // Auto-synced to extension with versioning
+  sessionBundle: sessionBundleSchema,
+  
   // Extension-specific settings
   extensionSettings: {
     requirePermission: { type: Boolean, default: true },
