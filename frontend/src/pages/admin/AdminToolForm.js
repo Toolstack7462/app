@@ -986,7 +986,20 @@ const AdminToolForm = () => {
                     <span className="text-sm font-medium text-white">Form Login Options</span>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={formOptions.autoSubmit}
+                        onChange={(e) => setFormOptions(prev => ({ ...prev, autoSubmit: e.target.checked }))}
+                        className="w-5 h-5 rounded border-toolstack-border text-green-500 focus:ring-green-500"
+                      />
+                      <div>
+                        <div className="font-medium text-white text-sm">Auto-Submit Form</div>
+                        <div className="text-xs text-toolstack-muted">Auto-submit when ?auto=1 (like SSO)</div>
+                      </div>
+                    </label>
+                    
                     <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
                       <input
                         type="checkbox"
