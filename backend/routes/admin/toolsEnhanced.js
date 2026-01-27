@@ -271,4 +271,148 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// POST /api/crm/admin/tools/:id/session-bundle - Save/Update Session Bundle
+// Unified endpoint to save cookies + localStorage + sessionStorage as one bundle
+router.post('/:id/session-bundle', async (req, res) => {
+  try {
+    const { encryptCookies } = require('../../utils/encryption');
+    
+    const tool = await Tool.findById(req.params.id);
+    
+    if (!tool) {
+      return res.status(404).json({ error: 'Tool not found' });
+    }
+    
+    const { cookies, localStorage, sessionStorage } = req.body;
+    
+    // Initialize session bundle if not exists
+    if (!tool.sessionBundle) {
+      tool.sessionBundle = {
+        version: 0,
+        updatedAt: new Date()
+      };
+    }
+    
+    // Encrypt and save each component if provided
+    if (cookies !== undefined) {
+      if (cookies && (Array.isArray(cookies) ? cookies.length > 0 : Object.keys(cookies).length > 0)) {
+        tool.sessionBundle.cookiesEncrypted = encryptCookies(JSON.stringify(cookies));
+      } else {
+        tool.sessionBundle.cookiesEncrypted = null;
+      }
+    }
+    
+    if (localStorage !== undefined) {
+      if (localStorage && Object.keys(localStorage).length > 0) {
+        tool.sessionBundle.localStorageEncrypted = encryptCookies(JSON.stringify(localStorage));
+      } else {
+        tool.sessionBundle.localStorageEncrypted = null;
+      }
+    }
+    
+    if (sessionStorage !== undefined) {
+      if (sessionStorage && Object.keys(sessionStorage).length > 0) {
+        tool.sessionBundle.sessionStorageEncrypted = encryptCookies(JSON.stringify(sessionStorage));
+      } else {
+        tool.sessionBundle.sessionStorageEncrypted = null;
+      }
+    }
+    
+    // Version and timestamp are updated by pre-save hook
+    tool.sessionBundle.updatedBy = req.userId;
+    
+    // Manually trigger version bump since we're modifying nested fields
+    tool.sessionBundle.version = (tool.sessionBundle.version || 0) + 1;
+    tool.sessionBundle.updatedAt = new Date();
+    tool.credentialVersion = (tool.credentialVersion || 0) + 1;
+    tool.credentialUpdatedAt = new Date();
+    
+    await tool.save();
+    
+    const ipAddress = getClientIp(req);
+    
+    await ActivityLog.log('ADMIN', req.userId, 'TOOL_SESSION_BUNDLE_UPDATED', {
+      toolId: tool._id,
+      toolName: tool.name,
+      bundleVersion: tool.sessionBundle.version,
+      hasCookies: !!tool.sessionBundle.cookiesEncrypted,
+      hasLocalStorage: !!tool.sessionBundle.localStorageEncrypted,
+      hasSessionStorage: !!tool.sessionBundle.sessionStorageEncrypted,
+      ipAddress
+    });
+    
+    res.json({
+      success: true,
+      message: 'Session bundle saved successfully',
+      sessionBundle: {
+        version: tool.sessionBundle.version,
+        updatedAt: tool.sessionBundle.updatedAt,
+        hasCookies: !!tool.sessionBundle.cookiesEncrypted,
+        hasLocalStorage: !!tool.sessionBundle.localStorageEncrypted,
+        hasSessionStorage: !!tool.sessionBundle.sessionStorageEncrypted
+      }
+    });
+  } catch (error) {
+    console.error('Save session bundle error:', error);
+    res.status(500).json({ error: 'Failed to save session bundle' });
+  }
+});
+
+// GET /api/crm/admin/tools/:id/session-bundle - Get Session Bundle (decrypted for admin)
+router.get('/:id/session-bundle', async (req, res) => {
+  try {
+    const { decryptCookies } = require('../../utils/encryption');
+    
+    const tool = await Tool.findById(req.params.id);
+    
+    if (!tool) {
+      return res.status(404).json({ error: 'Tool not found' });
+    }
+    
+    const sessionBundle = {
+      version: tool.sessionBundle?.version || 0,
+      updatedAt: tool.sessionBundle?.updatedAt,
+      cookies: null,
+      localStorage: null,
+      sessionStorage: null
+    };
+    
+    // Decrypt session bundle components
+    if (tool.sessionBundle?.cookiesEncrypted) {
+      try {
+        const cookiesJson = decryptCookies(tool.sessionBundle.cookiesEncrypted);
+        sessionBundle.cookies = JSON.parse(cookiesJson);
+      } catch (e) {
+        console.error('Failed to decrypt cookies:', e);
+      }
+    }
+    
+    if (tool.sessionBundle?.localStorageEncrypted) {
+      try {
+        const localStorageJson = decryptCookies(tool.sessionBundle.localStorageEncrypted);
+        sessionBundle.localStorage = JSON.parse(localStorageJson);
+      } catch (e) {
+        console.error('Failed to decrypt localStorage:', e);
+      }
+    }
+    
+    if (tool.sessionBundle?.sessionStorageEncrypted) {
+      try {
+        const sessionStorageJson = decryptCookies(tool.sessionBundle.sessionStorageEncrypted);
+        sessionBundle.sessionStorage = JSON.parse(sessionStorageJson);
+      } catch (e) {
+        console.error('Failed to decrypt sessionStorage:', e);
+      }
+    }
+    
+    res.json({
+      success: true,
+      sessionBundle
+    });
+  } catch (error) {
+    console.error('Get session bundle error:', error);
+    res.status(500).json({ error: 'Failed to get session bundle' });
+  }
+});
+
 module.exports = router;
