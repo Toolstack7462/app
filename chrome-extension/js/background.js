@@ -133,36 +133,105 @@ async function setupSyncAlarm() {
 
 async function checkForUpdates() {
   try {
-    const stored = await getStorage(['toolVersions', 'extensionToken']);
+    const stored = await getStorage(['toolVersions', 'sessionBundleVersions', 'extensionToken']);
     
     if (!stored.extensionToken) {
       logger.debug('Not authenticated, skipping sync');
       return;
     }
     
-    const result = await apiRequest('/tools/versions');
-    const newVersions = result.versions;
+    const result = await apiRequest('/tools');
+    const tools = result.tools || [];
     const oldVersions = stored.toolVersions || {};
+    const oldBundleVersions = stored.sessionBundleVersions || {};
     
-    // Check for updates
-    const updates = [];
-    for (const [toolId, info] of Object.entries(newVersions)) {
+    // Build new versions map
+    const newVersions = {};
+    const newBundleVersions = {};
+    const credentialUpdates = [];
+    const sessionBundleUpdates = [];
+    
+    for (const tool of tools) {
+      const toolId = tool.id;
+      
+      // Track credential versions
+      newVersions[toolId] = {
+        version: tool.credentialVersion || 1,
+        updatedAt: tool.credentialUpdatedAt
+      };
+      
+      // Track session bundle versions
+      if (tool.sessionBundle) {
+        newBundleVersions[toolId] = {
+          version: tool.sessionBundle.version || 1,
+          updatedAt: tool.sessionBundle.updatedAt,
+          hasCookies: tool.sessionBundle.hasCookies,
+          hasLocalStorage: tool.sessionBundle.hasLocalStorage,
+          hasSessionStorage: tool.sessionBundle.hasSessionStorage
+        };
+      }
+      
+      // Check for credential updates
       const oldVersion = oldVersions[toolId]?.version || oldVersions[toolId] || 0;
-      if (info.version > oldVersion) {
-        updates.push(toolId);
+      if (newVersions[toolId].version > oldVersion) {
+        credentialUpdates.push({ toolId, name: tool.name });
         // Clear cached credentials for updated tools
         toolCredentialsCache.delete(toolId);
       }
+      
+      // Check for session bundle updates
+      const oldBundleVersion = oldBundleVersions[toolId]?.version || 0;
+      if (newBundleVersions[toolId]?.version > oldBundleVersion) {
+        sessionBundleUpdates.push({ 
+          toolId, 
+          name: tool.name,
+          oldVersion: oldBundleVersion,
+          newVersion: newBundleVersions[toolId].version
+        });
+        logger.info('Session bundle updated by admin', {
+          tool: tool.name,
+          oldVersion: oldBundleVersion,
+          newVersion: newBundleVersions[toolId].version
+        });
+      }
     }
     
-    if (updates.length > 0) {
-      logger.info('Updates available', { count: updates.length });
-      chrome.action.setBadgeText({ text: String(updates.length) });
-      chrome.action.setBadgeBackgroundColor({ color: '#f97316' });
-      await setStorage({ toolVersions: newVersions });
+    // Combine all updates
+    const totalUpdates = credentialUpdates.length + sessionBundleUpdates.length;
+    
+    if (totalUpdates > 0) {
+      logger.info('Updates available', { 
+        credentials: credentialUpdates.length,
+        sessionBundles: sessionBundleUpdates.length
+      });
+      
+      // Show badge for updates
+      chrome.action.setBadgeText({ text: String(totalUpdates) });
+      chrome.action.setBadgeBackgroundColor({ color: '#22c55e' }); // Green for session updates
+      
+      // Store updated versions
+      await setStorage({ 
+        toolVersions: newVersions,
+        sessionBundleVersions: newBundleVersions,
+        tools: tools // Cache full tool list
+      });
+      
+      // Notify about session bundle updates (important for user)
+      if (sessionBundleUpdates.length > 0) {
+        const toolNames = sessionBundleUpdates.map(u => u.name).join(', ');
+        chrome.notifications.create({
+          type: 'basic',
+          iconUrl: 'icons/icon128.png',
+          title: 'Session Data Updated',
+          message: `Admin updated session data for: ${toolNames}. Changes will apply automatically on next login.`
+        });
+      }
     } else {
       chrome.action.setBadgeText({ text: '' });
     }
+    
+    // Update cached tool mappings
+    await loadCachedData();
     
     await setStorage({ lastSync: new Date().toISOString() });
     
