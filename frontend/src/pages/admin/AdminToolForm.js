@@ -122,6 +122,7 @@ const AdminToolForm = () => {
     sessionStorage: ''
   });
   const [sessionBundleVersion, setSessionBundleVersion] = useState(null);
+  const [savingBundle, setSavingBundle] = useState(false);
 
   // Combo auth tab state - dynamically set based on selected types
   const [comboAuthTab, setComboAuthTab] = useState('primary');
@@ -133,7 +134,8 @@ const AdminToolForm = () => {
     { value: 'cookies', label: 'Cookies', icon: '🍪' },
     { value: 'token', label: 'Bearer Token', icon: '🔑' },
     { value: 'headers', label: 'Custom Headers', icon: '📋' },
-    { value: 'localStorage', label: 'Local Storage', icon: '💾' }
+    { value: 'localStorage', label: 'Local Storage', icon: '💾' },
+    { value: 'sessionStorage', label: 'Session Storage', icon: '📦' }
   ];
 
   const CATEGORIES = ['AI', 'Academic', 'SEO', 'Productivity', 'Graphics & SEO', 'Text Humanizers', 'Career-Oriented', 'Miscellaneous', 'Other'];
