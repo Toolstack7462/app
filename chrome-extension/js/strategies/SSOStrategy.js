@@ -1,459 +1,671 @@
 /**
- * SSO Strategy
- * Handles one-click SSO/OAuth authentication flows
+ * SSO/OAuth Strategy v2.1
  * 
- * Flow:
- * 1. Open authStartUrl
- * 2. Detect OAuth provider button and click (if autoClick)
- * 3. Wait for redirect to postLoginUrl
- * 4. Verify success using successCheck rules
+ * Enhanced with:
+ * - Support for provider button click + redirect monitoring
+ * - New tab/popup OAuth flow support
+ * - Account chooser detection
+ * - Better provider button detection
+ * - Redirect chain tracking
+ * - Session extraction after successful OAuth
  */
-import { BaseStrategy } from './BaseStrategy.js';
-import { TIMEOUTS } from '../config/toolConfigs.js';
 
-export class SSOStrategy extends BaseStrategy {
+import BaseStrategy from './BaseStrategy.js';
+
+// Provider configurations
+const PROVIDERS = {
+  google: {
+    name: 'Google',
+    buttonSelectors: [
+      '[data-provider="google"]', 'button[class*="google"]', 'a[class*="google"]',
+      'a[href*="google.com/o/oauth"]', 'a[href*="accounts.google.com"]',
+      '[aria-label*="Google"]', '.google-login', '#google-signin',
+      'button[id*="google"]', 'a[id*="google"]', '[class*="google-button"]',
+      '[data-testid*="google"]'
+    ],
+    accountChooserPatterns: [
+      'accounts.google.com/accountchooser',
+      'accounts.google.com/signin/selectaccount',
+      'accounts.google.com/o/oauth2/v2/auth'
+    ]
+  },
+  microsoft: {
+    name: 'Microsoft',
+    buttonSelectors: [
+      '[data-provider="microsoft"]', 'button[class*="microsoft"]', 'a[class*="microsoft"]',
+      'a[href*="microsoft"]', 'a[href*="login.microsoftonline.com"]',
+      '[aria-label*="Microsoft"]', '.microsoft-login', '[class*="azure"]',
+      '[data-testid*="microsoft"]'
+    ],
+    accountChooserPatterns: [
+      'login.microsoftonline.com',
+      'login.windows.net'
+    ]
+  },
+  github: {
+    name: 'GitHub',
+    buttonSelectors: [
+      '[data-provider="github"]', 'button[class*="github"]', 'a[class*="github"]',
+      'a[href*="github.com/login/oauth"]', '[aria-label*="GitHub"]',
+      '.github-login', '[data-testid*="github"]'
+    ],
+    accountChooserPatterns: []
+  },
+  okta: {
+    name: 'Okta',
+    buttonSelectors: [
+      '[data-provider="okta"]', 'button[class*="okta"]', 'a[href*="okta"]',
+      '[class*="okta-button"]', '[data-testid*="okta"]'
+    ],
+    accountChooserPatterns: ['okta.com']
+  },
+  saml: {
+    name: 'SAML/SSO',
+    buttonSelectors: [
+      '[data-provider="sso"]', '[data-provider="saml"]', '[data-provider="enterprise"]',
+      'button[class*="sso"]', 'a[href*="sso"]', '.sso-login', '.enterprise-login',
+      '[class*="single-sign-on"]', 'button[class*="enterprise"]',
+      '[data-testid*="sso"]', '[data-testid*="enterprise"]'
+    ],
+    accountChooserPatterns: []
+  }
+};
+
+// Generic SSO button selectors
+const GENERIC_SSO_SELECTORS = [
+  '[class*="social-login"]', '[class*="oauth-button"]', '[class*="sso"]',
+  '[class*="identity-provider"]', '[class*="idp-button"]'
+];
+
+class SSOStrategy extends BaseStrategy {
   constructor() {
-    super('SSO');
-    
-    // Common SSO/OAuth provider button selectors
-    this.providerSelectors = {
-      google: [
-        '[data-provider="google"]',
-        'button[class*="google"]',
-        'a[href*="google.com/o/oauth"]',
-        '[aria-label*="Google"]',
-        '.google-login',
-        '#google-signin',
-        'button:has(svg[data-icon="google"])'
-      ],
-      microsoft: [
-        '[data-provider="microsoft"]',
-        'button[class*="microsoft"]',
-        'a[href*="microsoft"]',
-        '[aria-label*="Microsoft"]',
-        '.microsoft-login'
-      ],
-      github: [
-        '[data-provider="github"]',
-        'button[class*="github"]',
-        'a[href*="github.com/login/oauth"]',
-        '[aria-label*="GitHub"]',
-        '.github-login'
-      ],
-      okta: [
-        '[data-provider="okta"]',
-        'button[class*="okta"]',
-        'a[href*="okta"]',
-        '.okta-login'
-      ],
-      auth0: [
-        '[data-provider="auth0"]',
-        'a[href*="auth0.com"]',
-        '.auth0-login'
-      ],
-      azure: [
-        '[data-provider="azure"]',
-        'a[href*="login.microsoftonline.com"]',
-        '.azure-login'
-      ],
-      saml: [
-        '[data-provider="sso"]',
-        '[data-provider="saml"]',
-        'button[class*="sso"]',
-        'a[href*="sso"]',
-        '.sso-login',
-        'button[class*="enterprise"]',
-        'a[href*="saml"]'
-      ]
-    };
+    super('sso');
+    this.timeout = 30000;
+    this.pollInterval = 500;
   }
-  
+
   /**
-   * Check if this strategy can handle the config
+   * Execute SSO/OAuth login strategy
    */
-  canHandle(config) {
-    return config.ssoConfig && config.ssoConfig.authStartUrl;
-  }
-  
-  /**
-   * Execute SSO authentication flow
-   */
-  async execute(config, context) {
-    this.log('Executing SSO strategy', { 
-      domain: config.domain,
-      authStartUrl: config.ssoConfig?.authStartUrl,
-      postLoginUrl: config.ssoConfig?.postLoginUrl
+  async execute(credentials, tool, tabId) {
+    this.log('info', 'Executing SSO login', { 
+      tool: tool.name,
+      provider: credentials.payload?.provider 
     });
     
-    const ssoConfig = config.ssoConfig || config.oauth;
-    
-    if (!ssoConfig) {
-      return { success: false, strategy: this.name, error: 'No SSO configuration' };
-    }
-    
-    // If we have pre-authenticated session data, inject it
-    if (ssoConfig.sessionData) {
-      return this.injectSessionData(config, context);
-    }
-    
-    // If we have pre-authenticated tokens, inject them
-    if (ssoConfig.tokens) {
-      return this.injectTokens(config, context);
-    }
-    
-    // One-click flow: redirect to auth URL and monitor for success
-    if (ssoConfig.authStartUrl) {
-      return this.executeOneClickFlow(config, context);
-    }
-    
-    return { success: false, strategy: this.name, error: 'No valid SSO configuration' };
-  }
-  
-  /**
-   * Execute one-click SSO flow
-   */
-  async executeOneClickFlow(config, context) {
-    const ssoConfig = config.ssoConfig;
-    const tabId = context.tabId;
-    
-    if (!tabId) {
-      return { success: false, strategy: this.name, error: 'No tab ID for SSO flow' };
-    }
-    
-    this.log('Starting one-click SSO flow');
-    
+    const result = {
+      success: false,
+      method: 'sso',
+      tabId,
+      error: null,
+      requiresManualAction: false,
+      manualActionReason: null
+    };
+
     try {
-      // Navigate to auth start URL
-      await chrome.tabs.update(tabId, { url: ssoConfig.authStartUrl });
-      
-      // Wait for page to load
-      await this.waitForTabLoad(tabId);
-      
-      // If autoClick is enabled and we have a provider, try to click the button
-      if (ssoConfig.autoClick && ssoConfig.provider) {
-        await this.clickProviderButton(tabId, ssoConfig.provider, ssoConfig.buttonSelector);
+      const payload = credentials.payload;
+      const provider = payload?.provider;
+      const authStartUrl = payload?.authStartUrl || tool.loginUrl;
+      const postLoginUrl = payload?.postLoginUrl || tool.targetUrl;
+      const autoClick = payload?.autoClick !== false;
+      const buttonSelector = payload?.buttonSelector;
+
+      // Create tab for SSO
+      let ssoTab;
+      if (tabId) {
+        // Use existing tab
+        await chrome.tabs.update(tabId, { url: authStartUrl, active: true });
+        ssoTab = await chrome.tabs.get(tabId);
+      } else {
+        // Create new tab
+        ssoTab = await chrome.tabs.create({ url: authStartUrl, active: true });
       }
-      
-      // Monitor for redirect to postLoginUrl
-      const success = await this.monitorForSuccess(tabId, ssoConfig, config.successCheck);
-      
-      return {
-        success,
-        strategy: this.name,
-        type: 'one_click_flow',
-        needsReload: false // SSO flow handles navigation
-      };
+
+      // Wait for page to load
+      await this.waitForTabLoad(ssoTab.id);
+      await this.sleep(1000);
+
+      // Try to click SSO provider button if autoClick is enabled
+      if (autoClick && (provider || buttonSelector)) {
+        const clickResult = await this.clickProviderButton(
+          ssoTab.id, 
+          provider, 
+          buttonSelector
+        );
+        
+        if (clickResult.clicked) {
+          this.log('debug', 'Clicked SSO provider button', { selector: clickResult.selector });
+        } else {
+          this.log('warn', 'Could not find SSO provider button');
+        }
+      }
+
+      // Wait a moment for redirect/popup
+      await this.sleep(1500);
+
+      // Check for account chooser
+      const accountChooser = await this.detectAccountChooser(ssoTab.id, provider);
+      if (accountChooser.detected) {
+        result.requiresManualAction = true;
+        result.manualActionReason = 'Please select an account to continue';
+        result.tabId = ssoTab.id;
+        return result;
+      }
+
+      // Monitor for SSO completion
+      const ssoResult = await this.monitorSSOCompletion(
+        ssoTab.id,
+        postLoginUrl,
+        tool,
+        this.timeout
+      );
+
+      if (ssoResult.success) {
+        result.success = true;
+        result.tabId = ssoTab.id;
+        result.finalUrl = ssoResult.currentUrl;
+
+        // Extract session data for future use
+        if (ssoResult.sessionData) {
+          result.sessionData = ssoResult.sessionData;
+        }
+      } else if (ssoResult.requiresManualAction) {
+        result.requiresManualAction = true;
+        result.manualActionReason = ssoResult.reason || 'SSO requires manual completion';
+        result.tabId = ssoTab.id;
+      } else {
+        result.error = ssoResult.error || 'SSO authentication failed';
+        // Close tab on failure
+        await chrome.tabs.remove(ssoTab.id).catch(() => {});
+      }
+
     } catch (error) {
-      this.logError('One-click SSO flow failed', error);
-      return { success: false, strategy: this.name, error: error.message };
+      this.log('error', 'SSO login error', { error: error.message });
+      result.error = error.message;
     }
+
+    return result;
   }
-  
+
   /**
-   * Click provider button on login page
+   * Click SSO provider button
    */
   async clickProviderButton(tabId, provider, customSelector) {
-    const selectors = customSelector 
-      ? [customSelector]
-      : (this.providerSelectors[provider] || []);
+    const providerConfig = provider ? PROVIDERS[provider.toLowerCase()] : null;
     
-    if (selectors.length === 0) {
-      this.log(`No selectors for provider: ${provider}`);
-      return false;
+    // Build selector list
+    const selectors = [];
+    
+    if (customSelector) {
+      selectors.push(customSelector);
     }
     
+    if (providerConfig) {
+      selectors.push(...providerConfig.buttonSelectors);
+    }
+    
+    // Add generic SSO selectors as fallback
+    selectors.push(...GENERIC_SSO_SELECTORS);
+
     try {
       const results = await chrome.scripting.executeScript({
         target: { tabId },
-        func: (selectorList) => {
+        func: (selectorList, providerName) => {
+          // Helper to click element
+          const clickEl = (el) => {
+            el.focus();
+            el.click();
+            el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            return true;
+          };
+
+          // Try exact selectors first
           for (const selector of selectorList) {
+            if (!selector) continue;
             try {
-              const button = document.querySelector(selector);
-              if (button && button.offsetParent !== null) {
-                button.click();
-                return { success: true, selector, clicked: true };
+              const btn = document.querySelector(selector);
+              if (btn && btn.offsetParent !== null) {
+                clickEl(btn);
+                return { clicked: true, selector };
               }
-            } catch (e) {
-              // Invalid selector, continue
+            } catch (e) {}
+          }
+
+          // Try to find by text content if provider name is given
+          if (providerName) {
+            const buttons = document.querySelectorAll('button, a, [role="button"]');
+            for (const btn of buttons) {
+              if (btn.offsetParent !== null) {
+                const text = btn.textContent.toLowerCase();
+                const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
+                if (text.includes(providerName.toLowerCase()) || 
+                    ariaLabel.includes(providerName.toLowerCase())) {
+                  clickEl(btn);
+                  return { clicked: true, selector: 'text_match', text: btn.textContent };
+                }
+              }
             }
           }
-          return { success: false, error: 'No provider button found' };
+
+          // Try to find any button with SSO-related text
+          const ssoTexts = ['sign in with', 'login with', 'continue with', 'sso', 'single sign-on'];
+          const buttons = document.querySelectorAll('button, a, [role="button"]');
+          for (const btn of buttons) {
+            if (btn.offsetParent !== null) {
+              const text = btn.textContent.toLowerCase();
+              if (ssoTexts.some(t => text.includes(t))) {
+                clickEl(btn);
+                return { clicked: true, selector: 'sso_text_match', text: btn.textContent };
+              }
+            }
+          }
+
+          return { clicked: false };
         },
-        args: [selectors]
+        args: [selectors, providerConfig?.name]
       });
-      
-      const result = results[0]?.result;
-      if (result?.clicked) {
-        this.log(`Clicked provider button: ${result.selector}`);
-      }
-      return result?.success || false;
+
+      return results[0]?.result || { clicked: false };
     } catch (error) {
-      this.logError('Failed to click provider button', error);
-      return false;
+      return { clicked: false, error: error.message };
     }
   }
-  
+
   /**
-   * Monitor for successful SSO completion
+   * Detect account chooser/selection page
    */
-  async monitorForSuccess(tabId, ssoConfig, successCheck) {
+  async detectAccountChooser(tabId, provider) {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      const currentUrl = tab.url.toLowerCase();
+
+      // Check URL patterns
+      const providerConfig = provider ? PROVIDERS[provider.toLowerCase()] : null;
+      let urlPatterns = [];
+      
+      if (providerConfig) {
+        urlPatterns = providerConfig.accountChooserPatterns;
+      }
+
+      // Add generic patterns
+      urlPatterns = urlPatterns.concat([
+        'accountchooser', 'account_chooser', 'select_account',
+        'selectaccount', 'pick_account'
+      ]);
+
+      for (const pattern of urlPatterns) {
+        if (currentUrl.includes(pattern)) {
+          return { detected: true, type: 'url', pattern };
+        }
+      }
+
+      // Check page content
+      const results = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => {
+          const bodyText = document.body.innerText.toLowerCase();
+          
+          const textIndicators = [
+            'choose an account', 'select an account', 'pick an account',
+            'which account', 'sign in with', 'use another account',
+            'multiple accounts'
+          ];
+
+          for (const text of textIndicators) {
+            if (bodyText.includes(text)) {
+              return { detected: true, type: 'text', indicator: text };
+            }
+          }
+
+          // Check for multiple account elements
+          const accountElements = document.querySelectorAll(
+            '[data-identifier], [data-email], .account-list li, [class*="account-picker"] > *'
+          );
+          
+          if (accountElements.length > 1) {
+            return { detected: true, type: 'multiple_accounts', count: accountElements.length };
+          }
+
+          return { detected: false };
+        }
+      });
+
+      return results[0]?.result || { detected: false };
+    } catch (error) {
+      return { detected: false };
+    }
+  }
+
+  /**
+   * Monitor for SSO completion
+   */
+  async monitorSSOCompletion(tabId, postLoginUrl, tool, timeout) {
     const startTime = Date.now();
-    const timeout = TIMEOUTS.ssoCallback || 30000;
-    const postLoginUrl = ssoConfig.postLoginUrl;
-    
+    let lastUrl = '';
+
     while (Date.now() - startTime < timeout) {
       try {
         const tab = await chrome.tabs.get(tabId);
         const currentUrl = tab.url;
-        
-        // Check if redirected to post-login URL
-        if (postLoginUrl && currentUrl.includes(postLoginUrl)) {
-          this.log('Detected redirect to post-login URL');
-          return true;
+
+        // Log URL changes
+        if (currentUrl !== lastUrl) {
+          this.log('debug', 'SSO URL change', { url: currentUrl.substring(0, 100) });
+          lastUrl = currentUrl;
         }
-        
-        // Check success rules
-        if (successCheck) {
-          const isSuccess = await this.checkSuccess(tabId, successCheck);
-          if (isSuccess) {
-            this.log('Success check passed');
-            return true;
+
+        // Check if we've reached post-login URL
+        if (postLoginUrl && this.urlMatches(currentUrl, postLoginUrl)) {
+          return {
+            success: true,
+            currentUrl,
+            sessionData: await this.extractSessionData(tabId)
+          };
+        }
+
+        // Check if we're no longer on auth/login page
+        const isAuthPage = this.isAuthPage(currentUrl);
+        if (!isAuthPage) {
+          // Verify we're actually logged in
+          const loggedInCheck = await this.checkLoggedIn(tabId);
+          if (loggedInCheck.loggedIn) {
+            return {
+              success: true,
+              currentUrl,
+              sessionData: await this.extractSessionData(tabId)
+            };
           }
         }
-        
-        // Check if we're no longer on login/auth pages
-        const isLoginPage = /\/(login|signin|auth|oauth)/i.test(currentUrl);
-        if (!isLoginPage && currentUrl !== ssoConfig.authStartUrl) {
-          this.log('No longer on login page, assuming success');
-          return true;
+
+        // Check for account chooser
+        const accountChooser = await this.detectAccountChooser(tabId);
+        if (accountChooser.detected) {
+          return {
+            success: false,
+            requiresManualAction: true,
+            reason: 'Please select an account'
+          };
         }
-        
+
+        // Check for MFA
+        const mfaCheck = await this.checkForMFA(tabId);
+        if (mfaCheck.hasMFA) {
+          return {
+            success: false,
+            requiresManualAction: true,
+            reason: 'MFA/2FA required - please complete verification'
+          };
+        }
+
+        // Check for consent page
+        const consentCheck = await this.checkForConsent(tabId);
+        if (consentCheck.hasConsent) {
+          return {
+            success: false,
+            requiresManualAction: true,
+            reason: 'Please approve the permission request'
+          };
+        }
+
       } catch (error) {
-        // Tab might have been closed or navigated
         if (error.message.includes('No tab with id')) {
-          return false;
+          return { success: false, error: 'Tab was closed' };
         }
       }
-      
-      await new Promise(resolve => setTimeout(resolve, 500));
+
+      await this.sleep(this.pollInterval);
     }
-    
-    this.log('SSO flow timed out');
-    return false;
+
+    return { success: false, error: 'SSO timeout' };
   }
-  
+
   /**
-   * Check success conditions
+   * Check if URL matches target
    */
-  async checkSuccess(tabId, successCheck) {
-    if (!successCheck || Object.keys(successCheck).length === 0) {
-      return false;
+  urlMatches(currentUrl, targetUrl) {
+    try {
+      const current = new URL(currentUrl);
+      const target = new URL(targetUrl);
+      
+      // Same domain and not on login/auth path
+      return current.hostname === target.hostname && 
+             !this.isAuthPage(currentUrl);
+    } catch (e) {
+      return currentUrl.includes(targetUrl);
     }
-    
+  }
+
+  /**
+   * Check if URL is an auth page
+   */
+  isAuthPage(url) {
+    const authPatterns = [
+      /\/login/i, /\/signin/i, /\/sign-in/i, /\/auth/i,
+      /\/oauth/i, /\/sso/i, /\/saml/i,
+      /accounts\.google\.com/i, /login\.microsoftonline\.com/i,
+      /github\.com\/login/i, /auth0\.com/i, /okta\.com/i
+    ];
+
+    return authPatterns.some(pattern => pattern.test(url));
+  }
+
+  /**
+   * Check if user is logged in
+   */
+  async checkLoggedIn(tabId) {
     try {
       const results = await chrome.scripting.executeScript({
         target: { tabId },
-        func: (checks) => {
-          const url = window.location.href;
-          
-          // URL checks
-          if (checks.urlIncludes && !url.includes(checks.urlIncludes)) {
-            return false;
-          }
-          if (checks.urlExcludes && url.includes(checks.urlExcludes)) {
-            return false;
-          }
-          if (checks.urlPattern) {
-            const regex = new RegExp(checks.urlPattern);
-            if (!regex.test(url)) return false;
-          }
-          
-          // Element checks
-          if (checks.elementExists) {
-            const el = document.querySelector(checks.elementExists);
-            if (!el || el.offsetParent === null) return false;
-          }
-          if (checks.elementNotExists) {
-            const el = document.querySelector(checks.elementNotExists);
-            if (el && el.offsetParent !== null) return false;
-          }
-          
-          // Storage checks
-          if (checks.storageKeys) {
-            for (const key of checks.storageKeys) {
-              if (!localStorage.getItem(key)) return false;
+        func: () => {
+          // Check for logged-in indicators
+          const loggedInSelectors = [
+            '[class*="logout"]', '[class*="signout"]', 'a[href*="logout"]',
+            '[class*="user-menu"]', '[class*="user-avatar"]', '[class*="profile-menu"]',
+            '[data-testid*="user"]', '[data-testid*="avatar"]'
+          ];
+
+          for (const selector of loggedInSelectors) {
+            const el = document.querySelector(selector);
+            if (el && el.offsetParent !== null) {
+              return { loggedIn: true, indicator: selector };
             }
           }
-          
-          return true;
-        },
-        args: [successCheck]
+
+          // Check localStorage for auth tokens
+          const authKeys = ['token', 'auth_token', 'access_token', 'jwt', 'session'];
+          for (const key of authKeys) {
+            const value = localStorage.getItem(key);
+            if (value && value.length > 10) {
+              return { loggedIn: true, indicator: `localStorage:${key}` };
+            }
+          }
+
+          // Check for login form (should not exist if logged in)
+          const hasLoginForm = document.querySelector('input[type="password"]');
+          if (hasLoginForm && hasLoginForm.offsetParent !== null) {
+            return { loggedIn: false };
+          }
+
+          return { loggedIn: false };
+        }
       });
-      
-      return results[0]?.result || false;
+
+      return results[0]?.result || { loggedIn: false };
     } catch (error) {
-      return false;
+      return { loggedIn: false };
     }
   }
-  
+
   /**
-   * Inject pre-authenticated session data (cookies + storage)
+   * Check for MFA page
    */
-  async injectSessionData(config, context) {
-    const sessionData = config.ssoConfig?.sessionData || config.oauth?.sessionData;
-    
-    if (!sessionData) {
-      return { success: false, strategy: this.name, error: 'No session data' };
-    }
-    
-    const results = { cookies: null, storage: null };
-    
-    // Inject cookies
-    if (sessionData.cookies && sessionData.cookies.length > 0) {
-      results.cookies = await this.injectCookies(config.targetUrl, sessionData.cookies);
-    }
-    
-    // Inject storage
-    if (sessionData.storage && context.tabId) {
-      results.storage = await this.injectStorage(
-        context.tabId,
-        sessionData.storage,
-        sessionData.storageType || 'localStorage'
-      );
-    }
-    
-    const success = (results.cookies?.success || !sessionData.cookies) &&
-                    (results.storage?.success || !sessionData.storage);
-    
-    return {
-      success,
-      strategy: this.name,
-      type: 'session_bootstrap',
-      results,
-      needsReload: success
-    };
-  }
-  
-  /**
-   * Inject pre-authenticated tokens
-   */
-  async injectTokens(config, context) {
-    if (!context.tabId) {
-      return { success: false, strategy: this.name, error: 'No tab ID' };
-    }
-    
-    const tokens = config.ssoConfig?.tokens || config.oauth?.tokens;
-    
-    if (!tokens) {
-      return { success: false, strategy: this.name, error: 'No tokens' };
-    }
-    
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId: context.tabId },
-        func: (tokenData) => {
-          if (tokenData.accessToken) {
-            localStorage.setItem('access_token', tokenData.accessToken);
-            localStorage.setItem('token', tokenData.accessToken);
-          }
-          if (tokenData.refreshToken) {
-            localStorage.setItem('refresh_token', tokenData.refreshToken);
-          }
-          if (tokenData.idToken) {
-            localStorage.setItem('id_token', tokenData.idToken);
-          }
-          if (tokenData.expiresAt) {
-            localStorage.setItem('token_expires_at', String(tokenData.expiresAt));
-          }
-          localStorage.setItem('auth', JSON.stringify(tokenData));
-        },
-        args: [tokens]
-      });
-      
-      return {
-        success: true,
-        strategy: this.name,
-        type: 'token_injection',
-        needsReload: true
-      };
-    } catch (error) {
-      return { success: false, strategy: this.name, error: error.message };
-    }
-  }
-  
-  /**
-   * Inject cookies
-   */
-  async injectCookies(targetUrl, cookies) {
-    const domain = new URL(targetUrl).hostname;
-    const isHttps = targetUrl.startsWith('https');
-    let setCount = 0;
-    
-    for (const cookie of cookies) {
-      try {
-        const protocol = isHttps ? 'https' : 'http';
-        const cleanDomain = cookie.domain?.startsWith('.') 
-          ? cookie.domain.substring(1) 
-          : (cookie.domain || domain);
-        
-        await chrome.cookies.set({
-          url: `${protocol}://${cleanDomain}/`,
-          name: cookie.name,
-          value: cookie.value,
-          domain: cookie.domain,
-          path: cookie.path || '/',
-          secure: cookie.secure !== false,
-          httpOnly: cookie.httpOnly || false,
-          sameSite: cookie.sameSite || 'lax',
-          expirationDate: cookie.expirationDate || (Date.now() / 1000 + 86400 * 30)
-        });
-        setCount++;
-      } catch (e) {
-        this.logError(`Failed to set cookie: ${cookie.name}`, e);
-      }
-    }
-    
-    return { success: setCount > 0, set: setCount, total: cookies.length };
-  }
-  
-  /**
-   * Inject storage data
-   */
-  async injectStorage(tabId, data, storageType) {
+  async checkForMFA(tabId) {
     try {
       const results = await chrome.scripting.executeScript({
         target: { tabId },
-        func: (storageData, type) => {
-          const storage = type === 'sessionStorage' ? sessionStorage : localStorage;
-          let setCount = 0;
-          for (const [key, value] of Object.entries(storageData)) {
-            storage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
-            setCount++;
+        func: () => {
+          const mfaSelectors = [
+            'input[name*="otp"]', 'input[name*="code"]', 'input[name*="2fa"]',
+            'input[name*="totp"]', 'input[name*="mfa"]', '[class*="mfa"]',
+            '[class*="two-factor"]', '[class*="verification"]'
+          ];
+
+          for (const selector of mfaSelectors) {
+            const el = document.querySelector(selector);
+            if (el && el.offsetParent !== null) {
+              return { hasMFA: true };
+            }
           }
-          return { success: true, set: setCount };
-        },
-        args: [data, storageType]
+
+          const bodyText = document.body.innerText.toLowerCase();
+          const mfaTexts = ['verification code', 'authenticator', '2-step', 'enter code'];
+          for (const text of mfaTexts) {
+            if (bodyText.includes(text)) {
+              return { hasMFA: true };
+            }
+          }
+
+          return { hasMFA: false };
+        }
       });
-      return results[0]?.result || { success: false };
-    } catch (e) {
-      return { success: false, error: e.message };
+
+      return results[0]?.result || { hasMFA: false };
+    } catch (error) {
+      return { hasMFA: false };
     }
   }
-  
+
   /**
-   * Wait for tab to finish loading
+   * Check for consent/permission page
    */
-  waitForTabLoad(tabId, timeout = 10000) {
+  async checkForConsent(tabId) {
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => {
+          const consentSelectors = [
+            '[class*="consent"]', '[class*="permission"]', '[class*="authorize"]',
+            '[id*="consent"]', '[id*="permission"]'
+          ];
+
+          for (const selector of consentSelectors) {
+            const el = document.querySelector(selector);
+            if (el && el.offsetParent !== null) {
+              return { hasConsent: true };
+            }
+          }
+
+          const bodyText = document.body.innerText.toLowerCase();
+          const consentTexts = ['wants to access', 'requesting access', 'allow', 'grant permission'];
+          for (const text of consentTexts) {
+            if (bodyText.includes(text)) {
+              return { hasConsent: true };
+            }
+          }
+
+          return { hasConsent: false };
+        }
+      });
+
+      return results[0]?.result || { hasConsent: false };
+    } catch (error) {
+      return { hasConsent: false };
+    }
+  }
+
+  /**
+   * Extract session data after successful login
+   */
+  async extractSessionData(tabId) {
+    try {
+      // Get cookies
+      const tab = await chrome.tabs.get(tabId);
+      const domain = new URL(tab.url).hostname;
+      const cookies = await chrome.cookies.getAll({ domain });
+
+      // Get localStorage/sessionStorage
+      const storageResults = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => {
+          const localData = {};
+          const sessionData = {};
+          
+          const authKeys = [
+            'token', 'auth_token', 'access_token', 'jwt', 'user',
+            'session', 'id_token', 'refresh_token'
+          ];
+
+          for (const key of authKeys) {
+            const localValue = localStorage.getItem(key);
+            if (localValue) {
+              localData[key] = localValue;
+            }
+            const sessionValue = sessionStorage.getItem(key);
+            if (sessionValue) {
+              sessionData[key] = sessionValue;
+            }
+          }
+
+          return { localStorage: localData, sessionStorage: sessionData };
+        }
+      });
+
+      const storage = storageResults[0]?.result || {};
+
+      return {
+        cookies: cookies.map(c => ({
+          name: c.name,
+          value: c.value,
+          domain: c.domain,
+          path: c.path,
+          secure: c.secure,
+          httpOnly: c.httpOnly,
+          sameSite: c.sameSite,
+          expirationDate: c.expirationDate
+        })),
+        localStorage: storage.localStorage || {},
+        sessionStorage: storage.sessionStorage || {}
+      };
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Validate SSO credentials
+   */
+  async validate(credentials, tool) {
+    const payload = credentials?.payload;
+    
+    if (!payload) {
+      return { valid: false, error: 'No SSO configuration' };
+    }
+
+    // Need either authStartUrl or a provider configured
+    if (!payload.authStartUrl && !payload.provider && !tool.loginUrl) {
+      return { 
+        valid: false, 
+        error: 'Missing authStartUrl or provider' 
+      };
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Wait for tab to load
+   */
+  waitForTabLoad(tabId, timeout = 15000) {
     return new Promise((resolve, reject) => {
       const startTime = Date.now();
-      
+
       const checkTab = () => {
         chrome.tabs.get(tabId, (tab) => {
           if (chrome.runtime.lastError) {
             reject(new Error(chrome.runtime.lastError.message));
             return;
           }
-          
+
           if (tab.status === 'complete') {
             resolve(tab);
           } else if (Date.now() - startTime > timeout) {
@@ -463,48 +675,16 @@ export class SSOStrategy extends BaseStrategy {
           }
         });
       };
-      
+
       checkTab();
     });
   }
-  
+
   /**
-   * Detect available SSO providers on page
+   * Sleep utility
    */
-  async detectProviders(tabId) {
-    try {
-      const results = await chrome.scripting.executeScript({
-        target: { tabId },
-        func: (providers) => {
-          const found = [];
-          
-          for (const [name, selectors] of Object.entries(providers)) {
-            for (const selector of selectors) {
-              try {
-                const el = document.querySelector(selector);
-                if (el && el.offsetParent !== null) {
-                  found.push({
-                    provider: name,
-                    selector,
-                    text: el.textContent?.trim()
-                  });
-                  break;
-                }
-              } catch (e) {
-                // Invalid selector
-              }
-            }
-          }
-          
-          return found;
-        },
-        args: [this.providerSelectors]
-      });
-      
-      return results[0]?.result || [];
-    } catch (error) {
-      return [];
-    }
+  sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
 
