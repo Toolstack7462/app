@@ -143,13 +143,24 @@ router.get('/tools', verifyExtensionToken, async (req, res) => {
         name: tool.name,
         description: tool.description,
         targetUrl: tool.targetUrl,
+        loginUrl: tool.loginUrl,
         domain: tool.domain,
         category: tool.category,
         credentialType: tool.credentialType || 'cookies',
         credentialVersion: tool.credentialVersion || 1,
         credentialUpdatedAt: tool.credentialUpdatedAt,
         hasCredentials: tool.hasCredentials(),
-        extensionSettings: tool.extensionSettings || {},
+        // Combo Auth config for SSO+Form in one tool
+        comboAuth: tool.comboAuth || { enabled: false },
+        extensionSettings: {
+          ...tool.extensionSettings,
+          // Ensure new settings have defaults
+          hiddenModeEnabled: tool.extensionSettings?.hiddenModeEnabled ?? true,
+          hiddenModeTimeout: tool.extensionSettings?.hiddenModeTimeout ?? 60000,
+          autoStartEnabled: tool.extensionSettings?.autoStartEnabled ?? true,
+          autoStartDelay: tool.extensionSettings?.autoStartDelay ?? 800,
+          maxAutoAttempts: tool.extensionSettings?.maxAutoAttempts ?? 2
+        },
         assignment: {
           id: assignment._id,
           startDate: assignment.startDate,
