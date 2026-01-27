@@ -14,31 +14,82 @@ const mongoose = require('mongoose');
  */
 
 /**
+ * Session Bundle Schema - Unified storage for Cookies + LocalStorage + SessionStorage
+ * Single bundle per tool with versioning for auto-sync
+ */
+const sessionBundleSchema = new mongoose.Schema({
+  // Encrypted cookies JSON array
+  cookiesEncrypted: { type: String },
+  
+  // Encrypted localStorage JSON object
+  localStorageEncrypted: { type: String },
+  
+  // Encrypted sessionStorage JSON object  
+  sessionStorageEncrypted: { type: String },
+  
+  // Auto-incrementing version for sync
+  version: { type: Number, default: 1 },
+  
+  // Last update timestamp
+  updatedAt: { type: Date, default: Date.now },
+  
+  // Who last updated
+  updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+}, { _id: false });
+
+/**
  * Universal Combo Auth Schema - Allows ANY two auth types combined
+ * Enhanced with parallel/simultaneous execution mode
  */
 const comboAuthSchema = new mongoose.Schema({
   // Enable combo auth mode
   enabled: { type: Boolean, default: false },
   
-  // Primary auth type to try first
+  // Run mode: 'sequential' (default) or 'parallel' (simultaneous)
+  runMode: { 
+    type: String, 
+    enum: ['sequential', 'parallel'], 
+    default: 'sequential' 
+  },
+  
+  // Primary auth type to try first (or run in parallel)
   primaryType: { 
     type: String, 
     enum: ['sso', 'form', 'cookies', 'token', 'headers', 'localStorage', 'sessionStorage'], 
     default: 'sso' 
   },
   
-  // Secondary auth type (fallback)
+  // Secondary auth type (fallback or parallel)
   secondaryType: { 
     type: String, 
     enum: ['sso', 'form', 'cookies', 'token', 'headers', 'localStorage', 'sessionStorage'], 
     default: 'form' 
   },
   
-  // Whether to try fallback strategy if primary fails
+  // Whether to try fallback strategy if primary fails (sequential mode)
+  // In parallel mode: whether to try the other method if both fail
   fallbackEnabled: { type: Boolean, default: true },
+  
+  // Fallback only once (don't retry indefinitely)
+  fallbackOnlyOnce: { type: Boolean, default: true },
+  
+  // Skip auth if already logged in (check before running)
+  skipIfLoggedIn: { type: Boolean, default: true },
   
   // Only trigger auto-login when ?auto=1 in URL
   triggerOnAuto: { type: Boolean, default: true },
+  
+  // Parallel mode specific settings
+  parallelSettings: {
+    // Apply session bundle before auth (cookies + localStorage + sessionStorage)
+    prepSessionFirst: { type: Boolean, default: true },
+    // Timeout for parallel auth execution (ms)
+    parallelTimeout: { type: Number, default: 30000 },
+    // Commit lock - ensure only one navigation happens
+    commitLock: { type: Boolean, default: true },
+    // Verify login after parallel auth
+    verifyAfterAuth: { type: Boolean, default: true }
+  },
   
   // Form login configuration
   formConfig: {
@@ -76,6 +127,11 @@ const comboAuthSchema = new mongoose.Schema({
   
   // LocalStorage configuration
   localStorageConfig: {
+    data: String // JSON object
+  },
+  
+  // SessionStorage configuration (new)
+  sessionStorageConfig: {
     data: String // JSON object
   }
 }, { _id: false });
