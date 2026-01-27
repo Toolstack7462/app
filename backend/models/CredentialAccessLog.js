@@ -82,4 +82,47 @@ credentialAccessLogSchema.statics.log = async function(data) {
   }
 };
 
+// Get login statistics for a tool
+credentialAccessLogSchema.statics.getToolLoginStats = async function(toolId, days = 30) {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  
+  const stats = await this.aggregate([
+    {
+      $match: {
+        toolId: new mongoose.Types.ObjectId(toolId),
+        action: { $in: ['LOGIN_SUCCESS', 'LOGIN_FAILED', 'LOGIN_MFA_REQUIRED'] },
+        createdAt: { $gte: startDate }
+      }
+    },
+    {
+      $group: {
+        _id: '$action',
+        count: { $sum: 1 },
+        avgDuration: { $avg: '$loginAttempt.duration' }
+      }
+    }
+  ]);
+  
+  return {
+    total: stats.reduce((sum, s) => sum + s.count, 0),
+    success: stats.find(s => s._id === 'LOGIN_SUCCESS')?.count || 0,
+    failed: stats.find(s => s._id === 'LOGIN_FAILED')?.count || 0,
+    mfaRequired: stats.find(s => s._id === 'LOGIN_MFA_REQUIRED')?.count || 0,
+    avgDuration: stats.find(s => s._id === 'LOGIN_SUCCESS')?.avgDuration || null
+  };
+};
+
+// Get client login history
+credentialAccessLogSchema.statics.getClientLoginHistory = async function(clientId, limit = 50) {
+  return this.find({
+    clientId,
+    action: { $in: ['LOGIN_SUCCESS', 'LOGIN_FAILED', 'LOGIN_MFA_REQUIRED', 'LOGIN_MANUAL_REQUIRED'] }
+  })
+  .populate('toolId', 'name domain')
+  .sort({ createdAt: -1 })
+  .limit(limit)
+  .lean();
+};
+
 module.exports = mongoose.model('CredentialAccessLog', credentialAccessLogSchema);
