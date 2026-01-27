@@ -8,8 +8,7 @@ const credentialAccessLogSchema = new mongoose.Schema({
   },
   toolId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Tool',
-    required: true
+    ref: 'Tool'
   },
   extensionTokenId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -17,16 +16,41 @@ const credentialAccessLogSchema = new mongoose.Schema({
   },
   action: {
     type: String,
-    enum: ['CREDENTIALS_FETCHED', 'TOOL_OPENED', 'VERSION_CHECK', 'SYNC_TRIGGERED'],
+    enum: [
+      'CREDENTIALS_FETCHED', 
+      'TOOL_OPENED', 
+      'VERSION_CHECK', 
+      'SYNC_TRIGGERED',
+      // New login attempt tracking actions
+      'LOGIN_STARTED',
+      'LOGIN_SUCCESS',
+      'LOGIN_FAILED',
+      'LOGIN_MFA_REQUIRED',
+      'LOGIN_MANUAL_REQUIRED'
+    ],
     required: true
   },
   credentialVersion: {
     type: Number
   },
+  // Login attempt details
+  loginAttempt: {
+    method: {
+      type: String,
+      enum: ['session', 'form', 'sso', 'cookies', 'token', 'storage', null]
+    },
+    duration: Number,        // Time to complete in ms
+    attempts: Number,        // Number of retry attempts
+    finalUrl: String,        // URL after login attempt
+    mfaDetected: Boolean,
+    multiStepDetected: Boolean
+  },
   deviceInfo: {
     userAgent: String,
     ip: String,
-    extensionVersion: String
+    extensionVersion: String,
+    browser: String,
+    os: String
   },
   success: {
     type: Boolean,
@@ -34,6 +58,9 @@ const credentialAccessLogSchema = new mongoose.Schema({
   },
   errorMessage: {
     type: String
+  },
+  errorCode: {
+    type: String  // Structured error codes for analytics
   }
 }, {
   timestamps: true
