@@ -159,7 +159,8 @@ const AdminToolForm = () => {
     multiStep: false,
     rememberMe: true,
     clearFieldsFirst: true,
-    submitDelay: 200
+    submitDelay: 200,
+    autoSubmit: true  // NEW: Auto-submit form when ?auto=1
   });
   
   const [formSelectors, setFormSelectors] = useState({
