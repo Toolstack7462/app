@@ -384,7 +384,25 @@ router.get('/tools/:toolId/credentials', verifyExtensionToken, async (req, res) 
           retryDelayMs: tool.extensionSettings?.retryDelayMs ?? 1000
         }
       },
-      credentials,
+      credentials: {
+        ...credentials,
+        // Include additional options from the tool schema
+        formOptions: tool.credentials?.formOptions || {
+          multiStep: false,
+          rememberMe: true,
+          clearFieldsFirst: true,
+          submitDelay: 200
+        },
+        ssoOptions: tool.credentials?.ssoOptions || {
+          flowType: 'redirect',
+          autoClickProvider: true,
+          waitForAccountChooser: true
+        },
+        mfaOptions: tool.credentials?.mfaOptions || {
+          detectMFA: true,
+          action: 'notify'
+        }
+      },
       fetchedAt: new Date().toISOString()
     });
   } catch (error) {
