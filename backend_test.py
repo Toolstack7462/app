@@ -14,7 +14,7 @@ import uuid
 class ToolStackCRMTester:
     def __init__(self):
         # Use preview URL for testing environment-agnostic configuration
-        self.gateway_url = "https://passportal-9.preview.emergentagent.com"
+        self.gateway_url = "https://auth-orchestrator.preview.emergentagent.com"
         self.crm_health_url = f"{self.gateway_url}/api/crm/health"
         self.api_base = f"{self.gateway_url}/api/crm"
         
@@ -149,8 +149,8 @@ class ToolStackCRMTester:
         
         # Test with allowed preview subdomain
         test_origins = [
-            "https://passportal-9.preview.emergentagent.com",
-            "https://passportal-9.preview.emergentagent.com", 
+            "https://auth-orchestrator.preview.emergentagent.com",
+            "https://auth-orchestrator.preview.emergentagent.com", 
             "https://main.emergentagent.com",
             "http://localhost:3000"
         ]

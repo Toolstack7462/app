@@ -14,7 +14,7 @@ import uuid
 class UnifiedCredentialTester:
     def __init__(self):
         # Use environment URL for testing
-        self.gateway_url = "https://passportal-9.preview.emergentagent.com"
+        self.gateway_url = "https://auth-orchestrator.preview.emergentagent.com"
         self.api_base = f"{self.gateway_url}/api/crm"
         
         # Admin credentials from review request

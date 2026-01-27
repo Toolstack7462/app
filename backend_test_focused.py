@@ -16,7 +16,7 @@ from datetime import datetime
 class EnvironmentAgnosticTester:
     def __init__(self):
         # Use preview URL from frontend .env for environment-agnostic testing
-        self.gateway_url = "https://passportal-9.preview.emergentagent.com"
+        self.gateway_url = "https://auth-orchestrator.preview.emergentagent.com"
         
         # Test endpoints as specified in review request
         self.health_endpoint = f"{self.gateway_url}/api/health"
@@ -116,8 +116,8 @@ class EnvironmentAgnosticTester:
         
         # Test origins that should be allowed based on the dynamic CORS configuration
         test_origins = [
-            "https://passportal-9.preview.emergentagent.com",  # Current preview URL
-            "https://another-app.preview.emergentagent.com",   # Different preview subdomain
+            "https://auth-orchestrator.preview.emergentagent.com",  # Current preview URL
+            "https://auth-orchestrator.preview.emergentagent.com",   # Different preview subdomain
             "https://main.emergentagent.com",                  # Main domain
             "http://localhost:3000"                            # Local development
         ]
