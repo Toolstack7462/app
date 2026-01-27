@@ -135,10 +135,11 @@ const schemas = {
       tokenHeader: Joi.string().allow(''),
       tokenPrefix: Joi.string().allow('')
     }).allow(null),
-    // Combo Auth - allows both SSO and Form in one tool
+    // Universal Combo Auth - allows ANY two auth types combined
     comboAuth: Joi.object({
       enabled: Joi.boolean().default(false),
-      primary: Joi.string().valid('sso', 'form').default('sso'),
+      primaryType: Joi.string().valid('sso', 'form', 'cookies', 'token', 'headers', 'localStorage', 'sessionStorage').default('sso'),
+      secondaryType: Joi.string().valid('sso', 'form', 'cookies', 'token', 'headers', 'localStorage', 'sessionStorage').default('form'),
       fallbackEnabled: Joi.boolean().default(true),
       triggerOnAuto: Joi.boolean().default(true),
       formConfig: Joi.object({
@@ -148,7 +149,7 @@ const schemas = {
         multiStep: Joi.boolean().default(false),
         rememberMe: Joi.boolean().default(true),
         submitDelay: Joi.number().min(0).max(5000).default(800),
-        autoSubmit: Joi.boolean().default(true)  // Auto-submit like SSO auto-click
+        autoSubmit: Joi.boolean().default(true)
       }).allow(null),
       ssoConfig: Joi.object({
         authStartUrl: Joi.string().uri().allow('', null),
@@ -156,6 +157,19 @@ const schemas = {
         provider: Joi.string().allow(''),
         buttonSelector: Joi.string().allow(''),
         autoClick: Joi.boolean().default(true)
+      }).allow(null),
+      cookiesConfig: Joi.object({
+        cookies: Joi.string().allow(''),
+        injectFirst: Joi.boolean().default(true)
+      }).allow(null),
+      tokenConfig: Joi.object({
+        token: Joi.string().allow(''),
+        header: Joi.string().default('Authorization'),
+        prefix: Joi.string().default('Bearer '),
+        storageKey: Joi.string().default('access_token')
+      }).allow(null),
+      localStorageConfig: Joi.object({
+        data: Joi.string().allow('')
       }).allow(null)
     }).allow(null),
     // Enhanced extension settings
