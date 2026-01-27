@@ -40,7 +40,8 @@ const comboAuthSchema = new mongoose.Schema({
     loginUrl: String,
     multiStep: { type: Boolean, default: false },
     rememberMe: { type: Boolean, default: true },
-    submitDelay: { type: Number, default: 800 }
+    submitDelay: { type: Number, default: 800 },
+    autoSubmit: { type: Boolean, default: true }  // Auto-submit like SSO auto-click
   },
   
   // SSO configuration (when combo auth is enabled)
