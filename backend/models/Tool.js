@@ -21,8 +21,8 @@ const credentialSchema = new mongoose.Schema({
   },
   
   // Type-specific payload (encrypted JSON string)
-  // Form: { username, password, loginUrl? }
-  // SSO: { authStartUrl, postLoginUrl, provider? }
+  // Form: { username, password, loginUrl?, multiStep?, rememberMe? }
+  // SSO: { authStartUrl, postLoginUrl, provider?, buttonSelector?, autoClick?, flowType? }
   // Headers: { headers: [{name, value, prefix?}] }
   // Cookies: Array of cookie objects
   // Token: { value, storageKey?, injectToStorage? }
@@ -36,9 +36,11 @@ const credentialSchema = new mongoose.Schema({
     username: String,      // CSS selector for username/email field
     password: String,      // CSS selector for password field
     submit: String,        // CSS selector for submit button
+    next: String,          // CSS selector for "next" button (multi-step)
     rememberMe: String,    // CSS selector for "remember me" checkbox
     twoFactor: String,     // CSS selector for 2FA input
-    errorMessage: String   // CSS selector to detect login errors
+    errorMessage: String,  // CSS selector to detect login errors
+    ssoButton: String      // CSS selector for SSO provider button
   },
   
   // Success validation after login attempt
@@ -61,6 +63,30 @@ const credentialSchema = new mongoose.Schema({
     
     // Custom validation (JSON string of rules)
     customRules: String
+  },
+  
+  // Form login specific options
+  formOptions: {
+    multiStep: { type: Boolean, default: false },      // Email first, then password
+    rememberMe: { type: Boolean, default: true },      // Check "remember me" if available
+    clearFieldsFirst: { type: Boolean, default: true }, // Clear fields before filling
+    submitDelay: { type: Number, default: 200 }        // Delay before submit (ms)
+  },
+  
+  // SSO specific options
+  ssoOptions: {
+    provider: String,                    // google, microsoft, github, okta, saml, auth0
+    flowType: { type: String, default: 'redirect', enum: ['redirect', 'popup', 'iframe'] },
+    autoClickProvider: { type: Boolean, default: true },
+    waitForAccountChooser: { type: Boolean, default: true },
+    accountHint: String                  // Pre-fill email in account chooser
+  },
+  
+  // MFA handling options
+  mfaOptions: {
+    detectMFA: { type: Boolean, default: true },
+    mfaSelectors: [String],              // Additional MFA detection selectors
+    action: { type: String, default: 'notify', enum: ['notify', 'wait', 'skip'] }
   },
   
   // Legacy support for header-based auth
