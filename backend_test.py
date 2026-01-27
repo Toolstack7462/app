@@ -1101,24 +1101,13 @@ class ToolStackCRMTester:
         return success
 
     def run_all_tests(self):
-        """Run comprehensive backend tests focusing on NEW Combo Auth implementation"""
-        print("🧪 TOOLSTACK CRM BACKEND TESTING - NEW COMBO AUTH IMPLEMENTATION...")
-        print("Context: Testing NEW Combo Auth backend implementation as per review request")
-        print("Priority: Admin Login → Create Combo Auth Tool → Verify Tool Retrieval → Test Tool Update")
+        """Run Session Bundle and Combo Auth Run Mode API tests as per review request"""
+        print("🧪 TOOLSTACK CRM BACKEND TESTING - SESSION BUNDLE & COMBO AUTH RUN MODE...")
+        print("Context: Testing Session Bundle APIs and Combo Auth Parallel Mode as per review request")
+        print("Priority: Session Bundle CRUD → Combo Auth Parallel Mode → Extension API verification")
         
-        # COMPREHENSIVE TEST as per review request
-        print("\n" + "="*70)
-        print("🎯 NEW COMBO AUTH BACKEND IMPLEMENTATION TESTING")
-        print("="*70)
-        
-        # 1. Admin Login - POST /api/crm/auth/login with admin@toolstack.com / Admin123!Secure
-        self.test_admin_bootstrap_verification()
-        
-        # 2. NEW: Combo Auth implementation testing (MAIN FOCUS)
-        self.test_combo_auth_implementation()
-        
-        # Print summary
-        success = self.print_summary()
+        # Run Session Bundle and Combo Auth tests
+        success = self.run_session_bundle_and_combo_auth_tests()
         return success
 
     def print_summary(self):
