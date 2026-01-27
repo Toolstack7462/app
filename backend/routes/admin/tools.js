@@ -3,8 +3,10 @@ const router = express.Router();
 const Tool = require('../../models/Tool');
 const ToolAssignment = require('../../models/ToolAssignment');
 const ActivityLog = require('../../models/ActivityLog');
+const CredentialAccessLog = require('../../models/CredentialAccessLog');
 const { requireAuth, requireAdmin, getClientIp } = require('../../middleware/authEnhanced');
 const { validate, schemas } = require('../../middleware/validation');
+const { decryptCookies } = require('../../utils/encryption');
 
 // Apply auth middleware
 router.use(requireAuth);
