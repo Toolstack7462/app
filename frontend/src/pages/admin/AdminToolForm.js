@@ -116,10 +116,18 @@ const AdminToolForm = () => {
     loginUrl: ''
   });
   
+  const [formOptions, setFormOptions] = useState({
+    multiStep: false,
+    rememberMe: true,
+    clearFieldsFirst: true,
+    submitDelay: 200
+  });
+  
   const [formSelectors, setFormSelectors] = useState({
     username: '',
     password: '',
     submit: '',
+    next: '',
     rememberMe: '',
     errorMessage: ''
   });
@@ -139,6 +147,20 @@ const AdminToolForm = () => {
     provider: '',
     buttonSelector: '',
     autoClick: true
+  });
+  
+  const [ssoOptions, setSsoOptions] = useState({
+    flowType: 'redirect',
+    autoClickProvider: true,
+    waitForAccountChooser: true,
+    accountHint: ''
+  });
+  
+  // MFA handling options
+  const [mfaOptions, setMfaOptions] = useState({
+    detectMFA: true,
+    action: 'notify',
+    mfaSelectors: ''
   });
   
   // Headers-specific state
