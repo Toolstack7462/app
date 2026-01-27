@@ -910,6 +910,23 @@ const AdminToolForm = () => {
             </div>
           </div>
         );
+
+      case 'sessionStorage':
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">SessionStorage Data (JSON)</label>
+              <textarea
+                value={comboAuth.sessionStorageConfig?.data || ''}
+                onChange={(e) => setComboAuth(prev => ({ ...prev, sessionStorageConfig: { ...prev.sessionStorageConfig, data: e.target.value }}))}
+                rows={5}
+                className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none font-mono text-sm"
+                placeholder='{"sessionKey": "sessionValue", "tempToken": "xyz789"}'
+              />
+              <p className="mt-1 text-xs text-toolstack-muted">JSON object with key-value pairs to inject into sessionStorage (cleared on tab close)</p>
+            </div>
+          </div>
+        );
         
       default:
         return <p className="text-toolstack-muted">Select an auth type to configure</p>;
