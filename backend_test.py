@@ -704,7 +704,6 @@ class ToolStackCRMTester:
         else:
             self.log_result("admin_dashboard", "Admin tools access", False, f"HTTP {response.status_code if response else 'No response'}")
         
->>>>>>> 50524b5 (Squashed after rollback: b35d0b22-fd0c-49a4-9da4-89095b06d1d6)
         # Test admin clients endpoint
         response = self.make_request("GET", "/admin/clients")
         if response and response.status_code == 200:
