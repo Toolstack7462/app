@@ -583,6 +583,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ received: true });
         break;
         
+      case 'LOGIN_CANCELLED':
+        // Cancel any active login for this tab
+        const tabId = sender.tab?.id;
+        if (tabId && activeLogins.has(tabId)) {
+          const flow = activeLogins.get(tabId);
+          logger.info('Login cancelled by user', { tool: flow.tool?.name, tabId });
+          activeLogins.delete(tabId);
+          // Cancel in orchestrator if there's an active flow
+          if (orchestrator && flow.flowId) {
+            orchestrator.cancelFlow(flow.flowId);
+          }
+        }
+        sendResponse({ received: true });
+        break;
+        
       default:
         sendResponse({ error: 'Unknown content message type' });
     }
