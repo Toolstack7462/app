@@ -40,7 +40,8 @@ class ToolStackCRMTester:
             "admin_dashboard": {"passed": 0, "failed": 0, "errors": []},
             "mongodb_persistence": {"passed": 0, "failed": 0, "errors": []},
             "extension_endpoints": {"passed": 0, "failed": 0, "errors": []},
-            "admin_tool_endpoints": {"passed": 0, "failed": 0, "errors": []}
+            "admin_tool_endpoints": {"passed": 0, "failed": 0, "errors": []},
+            "combo_auth": {"passed": 0, "failed": 0, "errors": []}
         }
         
         print(f"🚀 ToolStack CRM API Tester - URL Change Resilience & Persistence")
