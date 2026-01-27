@@ -386,6 +386,36 @@ router.get('/tools/:toolId/credentials', verifyExtensionToken, async (req, res) 
       return res.status(500).json({ error: 'Failed to decrypt credentials' });
     }
     
+    // Decrypt session bundle if available
+    let sessionBundle = null;
+    if (tool.sessionBundle) {
+      try {
+        sessionBundle = {
+          version: tool.sessionBundle.version || 1,
+          updatedAt: tool.sessionBundle.updatedAt,
+          cookies: null,
+          localStorage: null,
+          sessionStorage: null
+        };
+        
+        if (tool.sessionBundle.cookiesEncrypted) {
+          const cookiesJson = decryptCookies(tool.sessionBundle.cookiesEncrypted);
+          sessionBundle.cookies = JSON.parse(cookiesJson);
+        }
+        if (tool.sessionBundle.localStorageEncrypted) {
+          const localStorageJson = decryptCookies(tool.sessionBundle.localStorageEncrypted);
+          sessionBundle.localStorage = JSON.parse(localStorageJson);
+        }
+        if (tool.sessionBundle.sessionStorageEncrypted) {
+          const sessionStorageJson = decryptCookies(tool.sessionBundle.sessionStorageEncrypted);
+          sessionBundle.sessionStorage = JSON.parse(sessionStorageJson);
+        }
+      } catch (bundleError) {
+        console.error('Session bundle decryption error:', bundleError);
+        // Continue without session bundle
+      }
+    }
+    
     // Log successful access
     await CredentialAccessLog.log({
       clientId: req.clientId,
@@ -407,6 +437,31 @@ router.get('/tools/:toolId/credentials', verifyExtensionToken, async (req, res) 
       credentialType: credentials?.type || 'none'
     });
     
+    // Build combo auth config with parallel mode
+    const comboAuthConfig = tool.comboAuth ? {
+      enabled: tool.comboAuth.enabled || false,
+      runMode: tool.comboAuth.runMode || 'sequential',
+      primaryType: tool.comboAuth.primaryType || 'sso',
+      secondaryType: tool.comboAuth.secondaryType || 'form',
+      fallbackEnabled: tool.comboAuth.fallbackEnabled ?? true,
+      fallbackOnlyOnce: tool.comboAuth.fallbackOnlyOnce ?? true,
+      skipIfLoggedIn: tool.comboAuth.skipIfLoggedIn ?? true,
+      triggerOnAuto: tool.comboAuth.triggerOnAuto ?? true,
+      parallelSettings: {
+        prepSessionFirst: tool.comboAuth.parallelSettings?.prepSessionFirst ?? true,
+        parallelTimeout: tool.comboAuth.parallelSettings?.parallelTimeout ?? 30000,
+        commitLock: tool.comboAuth.parallelSettings?.commitLock ?? true,
+        verifyAfterAuth: tool.comboAuth.parallelSettings?.verifyAfterAuth ?? true
+      },
+      // Include form and SSO configs for combo auth
+      formConfig: tool.comboAuth.formConfig || {},
+      ssoConfig: tool.comboAuth.ssoConfig || {},
+      cookiesConfig: tool.comboAuth.cookiesConfig || {},
+      tokenConfig: tool.comboAuth.tokenConfig || {},
+      localStorageConfig: tool.comboAuth.localStorageConfig || {},
+      sessionStorageConfig: tool.comboAuth.sessionStorageConfig || {}
+    } : { enabled: false };
+    
     res.json({
       success: true,
       tool: {
@@ -416,8 +471,8 @@ router.get('/tools/:toolId/credentials', verifyExtensionToken, async (req, res) 
         loginUrl: tool.loginUrl || tool.targetUrl,
         domain: tool.domain,
         credentialVersion: tool.credentialVersion,
-        // Include combo auth configuration
-        comboAuth: tool.comboAuth || { enabled: false },
+        // Include combo auth configuration with parallel mode
+        comboAuth: comboAuthConfig,
         extensionSettings: {
           ...tool.extensionSettings,
           reloadAfterLogin: tool.extensionSettings?.reloadAfterLogin ?? true,
@@ -433,6 +488,8 @@ router.get('/tools/:toolId/credentials', verifyExtensionToken, async (req, res) 
           maxAutoAttempts: tool.extensionSettings?.maxAutoAttempts ?? 2
         }
       },
+      // Session bundle with decrypted data
+      sessionBundle,
       credentials: {
         ...credentials,
         // Include additional options from the tool schema
