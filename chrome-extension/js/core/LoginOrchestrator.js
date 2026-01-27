@@ -783,6 +783,25 @@ export class LoginOrchestrator {
       }
 
       if (loginResult.success) {
+        // Handle hidden mode success - redirect source tab
+        if (isHiddenMode && options.sourceTabId) {
+          await chrome.tabs.update(options.sourceTabId, { 
+            url: loginResult.currentUrl || tool.targetUrl 
+          });
+          await this.closeHiddenTab(loginTab);
+          return {
+            success: true,
+            tabId: options.sourceTabId,
+            finalUrl: loginResult.currentUrl,
+            method: 'form'
+          };
+        }
+        
+        // Make hidden tab visible if no source tab
+        if (isHiddenMode) {
+          await this.makeTabVisible(loginTab);
+        }
+        
         return {
           success: true,
           tabId: loginTab.id,
@@ -794,7 +813,7 @@ export class LoginOrchestrator {
       if (loginResult.hasMFA) {
         if (isHiddenMode) {
           // Bring hidden tab to foreground for MFA
-          await chrome.tabs.update(loginTab.id, { active: true });
+          await this.makeTabVisible(loginTab);
         }
         return {
           success: false,
@@ -806,18 +825,18 @@ export class LoginOrchestrator {
       }
 
       if (loginResult.hasError) {
-        await chrome.tabs.remove(loginTab.id).catch(() => {});
+        await this.closeHiddenTab(loginTab);
         return { 
           success: false, 
           error: loginResult.errorMessage || 'Login failed - invalid credentials?'
         };
       }
 
-      await chrome.tabs.remove(loginTab.id).catch(() => {});
+      await this.closeHiddenTab(loginTab);
       return { success: false, error: 'Login did not complete successfully' };
 
     } catch (error) {
-      await chrome.tabs.remove(loginTab.id).catch(() => {});
+      await this.closeHiddenTab(loginTab);
       throw error;
     }
   }
