@@ -303,14 +303,166 @@ export class LoginOrchestrator {
   }
 
   /**
-   * Execute Parallel Combo Auth - Run both auth methods simultaneously
+   * Execute Parallel Combo Auth - Apply all session data simultaneously
    * 
-   * 1. PREP: Apply cookies + localStorage + sessionStorage in parallel (before navigation)
-   * 2. COMMIT: Run selected auth methods (SSO / Form) in parallel
-   * 3. VERIFY: Check login success with commit-lock (only first success navigates)
-   * 4. FALLBACK: If not logged in, run other method once
+   * Simplified flow:
+   * 1. PREP: Apply cookies + localStorage + sessionStorage ALL AT ONCE
+   * 2. VERIFY: Check if login succeeded from session data alone
+   * 3. AUTH (optional): Run auth method (SSO/Form) if specified and not yet logged in
    */
   async executeParallelComboAuth(tool, credentials, options, flowId) {
+    const comboAuth = tool.comboAuth;
+    const authMethod = comboAuth.primaryType || 'none'; // 'none', 'sso', or 'form'
+    const parallelSettings = comboAuth.parallelSettings || {};
+    
+    this.logger.info('Executing Parallel/Simultaneous Mode', { authMethod });
+    
+    const result = {
+      success: false,
+      method: null,
+      attempts: 0,
+      errors: [],
+      tabId: null,
+      finalUrl: null
+    };
+
+    // Build session bundle from comboAuth config
+    const sessionBundle = {
+      cookies: null,
+      localStorage: null,
+      sessionStorage: null
+    };
+
+    // Parse cookies from config
+    if (comboAuth.cookiesConfig?.cookies) {
+      try {
+        sessionBundle.cookies = JSON.parse(comboAuth.cookiesConfig.cookies);
+      } catch (e) {
+        this.logger.warn('Failed to parse cookies config', e);
+      }
+    }
+
+    // Parse localStorage from config
+    if (comboAuth.localStorageConfig?.data) {
+      try {
+        sessionBundle.localStorage = JSON.parse(comboAuth.localStorageConfig.data);
+      } catch (e) {
+        this.logger.warn('Failed to parse localStorage config', e);
+      }
+    }
+
+    // Parse sessionStorage from config
+    if (comboAuth.sessionStorageConfig?.data) {
+      try {
+        sessionBundle.sessionStorage = JSON.parse(comboAuth.sessionStorageConfig.data);
+      } catch (e) {
+        this.logger.warn('Failed to parse sessionStorage config', e);
+      }
+    }
+
+    // Also use session bundle from options if provided (from API)
+    if (options.sessionBundle) {
+      if (options.sessionBundle.cookies) sessionBundle.cookies = options.sessionBundle.cookies;
+      if (options.sessionBundle.localStorage) sessionBundle.localStorage = options.sessionBundle.localStorage;
+      if (options.sessionBundle.sessionStorage) sessionBundle.sessionStorage = options.sessionBundle.sessionStorage;
+    }
+
+    const hasSessionData = sessionBundle.cookies || sessionBundle.localStorage || sessionBundle.sessionStorage;
+
+    // PHASE 1: PREP - Apply all session data simultaneously
+    if (hasSessionData) {
+      this.updateFlowStatus(flowId, 'parallel_prep_session');
+      this.logger.info('Phase 1: Applying ALL session data simultaneously');
+      
+      const prepResult = await this.applySessionBundleParallel(
+        tool.targetUrl, 
+        sessionBundle, 
+        tool.domain
+      );
+      
+      if (prepResult.anySuccess) {
+        this.logger.info('Session bundle applied successfully', prepResult);
+        result.attempts++;
+        
+        // PHASE 2: VERIFY - Check if session data alone logged us in
+        this.updateFlowStatus(flowId, 'parallel_verify');
+        await this.sleep(2000); // Wait for session to apply
+        
+        const loginCheck = await this.checkAlreadyLoggedIn(tool, credentials);
+        if (loginCheck.success) {
+          this.logger.info('Session data login successful!');
+          const tab = await chrome.tabs.create({ url: tool.targetUrl, active: true });
+          return {
+            success: true,
+            method: 'parallel_session',
+            tabId: tab.id,
+            finalUrl: tool.targetUrl,
+            attempts: result.attempts,
+            errors: []
+          };
+        }
+      } else {
+        this.logger.warn('Session bundle application failed', prepResult);
+        result.errors.push({ method: 'session_bundle', error: 'Failed to apply session data' });
+      }
+    }
+
+    // PHASE 3: AUTH - Run auth method if specified and not yet logged in
+    if (authMethod && authMethod !== 'none') {
+      this.updateFlowStatus(flowId, `parallel_auth_${authMethod}`);
+      this.logger.info(`Phase 3: Running ${authMethod} auth method`);
+
+      const authCredentials = this.buildAuthCredentials(tool, credentials, comboAuth);
+      const methodCredentials = authCredentials[authMethod];
+
+      if (methodCredentials) {
+        const authResult = await this.executeAuthMethod(authMethod, methodCredentials, tool, options);
+        result.attempts += authResult.attempts || 1;
+
+        if (authResult.success) {
+          result.success = true;
+          result.method = `parallel_${authMethod}`;
+          result.tabId = authResult.tabId;
+          result.finalUrl = authResult.finalUrl;
+          return result;
+        }
+
+        if (authResult.requiresManualAction) {
+          result.requiresManualAction = true;
+          result.manualActionReason = authResult.manualActionReason;
+          result.tabId = authResult.tabId;
+          return result;
+        }
+
+        result.errors.push({ method: authMethod, error: authResult.error });
+      }
+    }
+
+    // If we have session data but no auth method, just open the target URL
+    if (hasSessionData && (!authMethod || authMethod === 'none')) {
+      const tab = await chrome.tabs.create({ url: tool.targetUrl, active: true });
+      return {
+        success: true,
+        method: 'parallel_session_only',
+        tabId: tab.id,
+        finalUrl: tool.targetUrl,
+        attempts: result.attempts,
+        errors: result.errors
+      };
+    }
+
+    if (!result.success) {
+      result.error = this.buildActionableError(result.errors, tool);
+    }
+    
+    return result;
+  }
+
+  /**
+   * Execute Parallel Combo Auth (Legacy) - Keep for backward compatibility
+   * This runs two auth methods simultaneously with commit-lock
+   */
+  async executeParallelComboAuthLegacy(tool, credentials, options, flowId) {
     const comboAuth = tool.comboAuth;
     const primaryType = comboAuth.primaryType || 'sso';
     const secondaryType = comboAuth.secondaryType || 'form';
@@ -318,7 +470,7 @@ export class LoginOrchestrator {
     const parallelTimeout = parallelSettings.parallelTimeout || 30000;
     const fallbackOnlyOnce = comboAuth.fallbackOnlyOnce !== false;
     
-    this.logger.info('Executing Parallel Combo Auth', { 
+    this.logger.info('Executing Legacy Parallel Combo Auth', { 
       primaryType, 
       secondaryType, 
       parallelTimeout 
