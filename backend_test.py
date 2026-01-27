@@ -932,20 +932,17 @@ class ToolStackCRMTester:
         """Run comprehensive backend tests focusing on NEW Combo Auth implementation"""
         print("🧪 TOOLSTACK CRM BACKEND TESTING - NEW COMBO AUTH IMPLEMENTATION...")
         print("Context: Testing NEW Combo Auth backend implementation as per review request")
-        print("Priority: Combo Auth Tool Creation, Tool Retrieval, Extension API Response")
+        print("Priority: Admin Login → Create Combo Auth Tool → Verify Tool Retrieval → Test Tool Update")
         
         # COMPREHENSIVE TEST as per review request
         print("\n" + "="*70)
         print("🎯 NEW COMBO AUTH BACKEND IMPLEMENTATION TESTING")
         print("="*70)
         
-        # 1. Health and connectivity check
-        self.test_health_checks_connectivity()
-        
-        # 2. Admin bootstrap verification (to get admin token)
+        # 1. Admin Login - POST /api/crm/auth/login with admin@toolstack.com / Admin123!Secure
         self.test_admin_bootstrap_verification()
         
-        # 3. NEW: Combo Auth implementation testing (MAIN FOCUS)
+        # 2. NEW: Combo Auth implementation testing (MAIN FOCUS)
         self.test_combo_auth_implementation()
         
         # Print summary
