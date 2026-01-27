@@ -147,7 +147,8 @@ const schemas = {
         loginUrl: Joi.string().uri().allow('', null),
         multiStep: Joi.boolean().default(false),
         rememberMe: Joi.boolean().default(true),
-        submitDelay: Joi.number().min(0).max(5000).default(800)
+        submitDelay: Joi.number().min(0).max(5000).default(800),
+        autoSubmit: Joi.boolean().default(true)  // Auto-submit like SSO auto-click
       }).allow(null),
       ssoConfig: Joi.object({
         authStartUrl: Joi.string().uri().allow('', null),
