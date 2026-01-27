@@ -808,3 +808,176 @@ button:disabled .btn-loading {
   width: 14px;
   height: 14px;
 }
+
+/* Tool Error States */
+.tool-card.has-error {
+  border-color: var(--danger);
+}
+
+.tool-error {
+  font-size: 10px;
+  color: var(--danger);
+  margin-top: 4px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-manual {
+  font-size: 10px;
+  color: var(--warning);
+  margin-top: 4px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-badge.error {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+}
+
+.status-badge.manual {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning);
+}
+
+/* Debug Mode Toggle */
+.debug-toggle {
+  margin-bottom: 12px;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-label input[type="checkbox"] {
+  appearance: none;
+  width: 40px;
+  height: 22px;
+  background: var(--bg-tertiary);
+  border-radius: 11px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.toggle-label input[type="checkbox"]::before {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  background: var(--text-secondary);
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: all 0.2s;
+}
+
+.toggle-label input[type="checkbox"]:checked {
+  background: var(--accent);
+}
+
+.toggle-label input[type="checkbox"]:checked::before {
+  background: white;
+  transform: translateX(18px);
+}
+
+.toggle-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Debug Console in Profile */
+.debug-console {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 150px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 10px;
+}
+
+.debug-console .log-entry {
+  padding: 2px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.debug-console .log-entry:last-child {
+  border-bottom: none;
+}
+
+.debug-console .log-time {
+  color: var(--text-muted);
+}
+
+.debug-console .log-level-DEBUG {
+  color: var(--text-secondary);
+}
+
+.debug-console .log-level-INFO {
+  color: #3b82f6;
+}
+
+.debug-console .log-level-WARN {
+  color: var(--warning);
+}
+
+.debug-console .log-level-ERROR {
+  color: var(--danger);
+}
+
+/* Connection Status Indicator */
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+.connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.connection-dot.disconnected {
+  background: var(--danger);
+}
+
+.connection-dot.connecting {
+  background: var(--warning);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Retry button styling */
+.tool-action.retry {
+  background: var(--danger);
+}
+
+.tool-action.retry:hover {
+  background: #dc2626;
+}
