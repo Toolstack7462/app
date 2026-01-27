@@ -1085,6 +1085,54 @@ const AdminToolForm = () => {
                   <span className="font-medium text-white">Universal Combo Auth</span>
                   <span className="text-sm text-purple-300 ml-2">Combine ANY two auth types</span>
                 </div>
+
+                {/* Run Mode Selection */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-white mb-2">
+                    Run Mode
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setComboAuth(prev => ({ ...prev, runMode: 'sequential' }))}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        comboAuth.runMode === 'sequential'
+                          ? 'border-blue-500 bg-blue-500/20 ring-2 ring-blue-500/50'
+                          : 'border-toolstack-border bg-white/5 hover:border-blue-500/50'
+                      }`}
+                    >
+                      <div className="text-lg mb-1">🔄</div>
+                      <div className="font-medium text-white text-sm">Sequential</div>
+                      <div className="text-xs text-toolstack-muted">Primary → Fallback (if fails)</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setComboAuth(prev => ({ ...prev, runMode: 'parallel' }))}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        comboAuth.runMode === 'parallel'
+                          ? 'border-green-500 bg-green-500/20 ring-2 ring-green-500/50'
+                          : 'border-toolstack-border bg-white/5 hover:border-green-500/50'
+                      }`}
+                    >
+                      <div className="text-lg mb-1">⚡</div>
+                      <div className="font-medium text-white text-sm">Parallel / Simultaneous</div>
+                      <div className="text-xs text-toolstack-muted">Run both auth types at once</div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Parallel Mode Info */}
+                {comboAuth.runMode === 'parallel' && (
+                  <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-xl mb-4">
+                    <div className="text-sm text-green-200 mb-2 font-medium">⚡ Parallel Mode:</div>
+                    <ul className="text-xs text-green-300 space-y-1">
+                      <li>1. <strong>PREP:</strong> Apply cookies + localStorage + sessionStorage in parallel</li>
+                      <li>2. <strong>COMMIT:</strong> Run both auth methods simultaneously</li>
+                      <li>3. <strong>VERIFY:</strong> Check login success (commit-lock ensures single navigation)</li>
+                      <li>4. <strong>FALLBACK:</strong> If not logged in, try other method once</li>
+                    </ul>
+                  </div>
+                )}
                 
                 {/* Type Selection */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -1124,7 +1172,20 @@ const AdminToolForm = () => {
                 </div>
                 
                 {/* Strategy Controls */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10">
+                    <input
+                      type="checkbox"
+                      checked={comboAuth.skipIfLoggedIn}
+                      onChange={(e) => setComboAuth(prev => ({ ...prev, skipIfLoggedIn: e.target.checked }))}
+                      className="w-5 h-5 rounded border-toolstack-border text-green-500 focus:ring-green-500"
+                    />
+                    <div>
+                      <div className="font-medium text-white text-sm">Skip if Logged In</div>
+                      <div className="text-xs text-toolstack-muted">Check first</div>
+                    </div>
+                  </label>
+
                   <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10">
                     <input
                       type="checkbox"
@@ -1133,8 +1194,21 @@ const AdminToolForm = () => {
                       className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
                     />
                     <div>
-                      <div className="font-medium text-white text-sm">Fallback Enabled</div>
-                      <div className="text-xs text-toolstack-muted">Try secondary if primary fails</div>
+                      <div className="font-medium text-white text-sm">Fallback</div>
+                      <div className="text-xs text-toolstack-muted">Try secondary</div>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10">
+                    <input
+                      type="checkbox"
+                      checked={comboAuth.fallbackOnlyOnce}
+                      onChange={(e) => setComboAuth(prev => ({ ...prev, fallbackOnlyOnce: e.target.checked }))}
+                      className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
+                    />
+                    <div>
+                      <div className="font-medium text-white text-sm">Once Only</div>
+                      <div className="text-xs text-toolstack-muted">No retries</div>
                     </div>
                   </label>
                   
@@ -1146,8 +1220,8 @@ const AdminToolForm = () => {
                       className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
                     />
                     <div>
-                      <div className="font-medium text-white text-sm">Auto Trigger Only</div>
-                      <div className="text-xs text-toolstack-muted">Only run when ?auto=1 in URL</div>
+                      <div className="font-medium text-white text-sm">Auto Only</div>
+                      <div className="text-xs text-toolstack-muted">?auto=1</div>
                     </div>
                   </label>
                 </div>
