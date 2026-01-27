@@ -14,17 +14,24 @@ const mongoose = require('mongoose');
  */
 
 /**
- * Combo Auth Schema - Allows both SSO and Form in one tool
+ * Universal Combo Auth Schema - Allows ANY two auth types combined
  */
 const comboAuthSchema = new mongoose.Schema({
   // Enable combo auth mode
   enabled: { type: Boolean, default: false },
   
-  // Primary strategy to try first
-  primary: { 
+  // Primary auth type to try first
+  primaryType: { 
     type: String, 
-    enum: ['sso', 'form'], 
+    enum: ['sso', 'form', 'cookies', 'token', 'headers', 'localStorage', 'sessionStorage'], 
     default: 'sso' 
+  },
+  
+  // Secondary auth type (fallback)
+  secondaryType: { 
+    type: String, 
+    enum: ['sso', 'form', 'cookies', 'token', 'headers', 'localStorage', 'sessionStorage'], 
+    default: 'form' 
   },
   
   // Whether to try fallback strategy if primary fails
@@ -33,24 +40,43 @@ const comboAuthSchema = new mongoose.Schema({
   // Only trigger auto-login when ?auto=1 in URL
   triggerOnAuto: { type: Boolean, default: true },
   
-  // Form login configuration (when combo auth is enabled)
+  // Form login configuration
   formConfig: {
     username: String,
-    password: String, // Will be encrypted
+    password: String,
     loginUrl: String,
     multiStep: { type: Boolean, default: false },
     rememberMe: { type: Boolean, default: true },
     submitDelay: { type: Number, default: 800 },
-    autoSubmit: { type: Boolean, default: true }  // Auto-submit like SSO auto-click
+    autoSubmit: { type: Boolean, default: true }
   },
   
-  // SSO configuration (when combo auth is enabled)
+  // SSO configuration
   ssoConfig: {
     authStartUrl: String,
     postLoginUrl: String,
     provider: String,
     buttonSelector: String,
     autoClick: { type: Boolean, default: true }
+  },
+  
+  // Cookies configuration
+  cookiesConfig: {
+    cookies: String, // JSON array of cookies
+    injectFirst: { type: Boolean, default: true }
+  },
+  
+  // Token configuration
+  tokenConfig: {
+    token: String,
+    header: { type: String, default: 'Authorization' },
+    prefix: { type: String, default: 'Bearer ' },
+    storageKey: { type: String, default: 'access_token' }
+  },
+  
+  // LocalStorage configuration
+  localStorageConfig: {
+    data: String // JSON object
   }
 }, { _id: false });
 
