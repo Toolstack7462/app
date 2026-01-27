@@ -571,8 +571,16 @@ const AdminToolForm = () => {
   const renderComboTypeConfig = (type, role) => {
     const isHighlighted = role === 'primary' ? 'purple' : 'green';
     
+    // Helper to safely get config with defaults
+    const getSsoConfig = () => comboAuth.ssoConfig || { authStartUrl: '', postLoginUrl: '', provider: '', buttonSelector: '', autoClick: true };
+    const getFormConfig = () => comboAuth.formConfig || { username: '', password: '', loginUrl: '', multiStep: false, rememberMe: true, submitDelay: 800, autoSubmit: true };
+    const getCookiesConfig = () => comboAuth.cookiesConfig || { cookies: '', injectFirst: true };
+    const getTokenConfig = () => comboAuth.tokenConfig || { token: '', header: 'Authorization', prefix: 'Bearer ', storageKey: 'access_token' };
+    const getLocalStorageConfig = () => comboAuth.localStorageConfig || { data: '' };
+    
     switch (type) {
       case 'sso':
+        const ssoConfig = getSsoConfig();
         return (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -580,9 +588,9 @@ const AdminToolForm = () => {
                 <label className="block text-sm font-medium text-white mb-2">Auth Start URL</label>
                 <input
                   type="url"
-                  value={comboAuth.ssoConfig.authStartUrl}
-                  onChange={(e) => setComboAuth(prev => ({ ...prev, ssoConfig: { ...prev.ssoConfig, authStartUrl: e.target.value }}))}
-                  className={`w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:border-${isHighlighted}-500`}
+                  value={ssoConfig.authStartUrl || ''}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, ssoConfig: { ...getSsoConfig(), authStartUrl: e.target.value }}))}
+                  className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:border-purple-500"
                   placeholder="https://example.com/auth/sso"
                 />
               </div>
@@ -590,9 +598,9 @@ const AdminToolForm = () => {
                 <label className="block text-sm font-medium text-white mb-2">Post-Login URL</label>
                 <input
                   type="url"
-                  value={comboAuth.ssoConfig.postLoginUrl}
-                  onChange={(e) => setComboAuth(prev => ({ ...prev, ssoConfig: { ...prev.ssoConfig, postLoginUrl: e.target.value }}))}
-                  className={`w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:border-${isHighlighted}-500`}
+                  value={ssoConfig.postLoginUrl || ''}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, ssoConfig: { ...getSsoConfig(), postLoginUrl: e.target.value }}))}
+                  className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none focus:border-purple-500"
                   placeholder="https://example.com/dashboard"
                 />
               </div>
@@ -601,8 +609,8 @@ const AdminToolForm = () => {
               <div>
                 <label className="block text-sm font-medium text-white mb-2">SSO Provider</label>
                 <select
-                  value={comboAuth.ssoConfig.provider}
-                  onChange={(e) => setComboAuth(prev => ({ ...prev, ssoConfig: { ...prev.ssoConfig, provider: e.target.value }}))}
+                  value={ssoConfig.provider || ''}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, ssoConfig: { ...getSsoConfig(), provider: e.target.value }}))}
                   className="w-full px-3 py-2 bg-toolstack-bg border border-toolstack-border rounded-lg text-white focus:outline-none"
                 >
                   <option value="">Auto-detect</option>
@@ -617,8 +625,8 @@ const AdminToolForm = () => {
                 <label className="block text-sm font-medium text-white mb-2">Button Selector</label>
                 <input
                   type="text"
-                  value={comboAuth.ssoConfig.buttonSelector}
-                  onChange={(e) => setComboAuth(prev => ({ ...prev, ssoConfig: { ...prev.ssoConfig, buttonSelector: e.target.value }}))}
+                  value={ssoConfig.buttonSelector || ''}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, ssoConfig: { ...getSsoConfig(), buttonSelector: e.target.value }}))}
                   className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none"
                   placeholder='button[data-provider="google"]'
                 />
@@ -627,8 +635,8 @@ const AdminToolForm = () => {
             <label className="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/30 rounded-lg cursor-pointer hover:bg-green-500/20">
               <input
                 type="checkbox"
-                checked={comboAuth.ssoConfig.autoClick}
-                onChange={(e) => setComboAuth(prev => ({ ...prev, ssoConfig: { ...prev.ssoConfig, autoClick: e.target.checked }}))}
+                checked={ssoConfig.autoClick !== false}
+                onChange={(e) => setComboAuth(prev => ({ ...prev, ssoConfig: { ...getSsoConfig(), autoClick: e.target.checked }}))}
                 className="w-5 h-5 rounded border-toolstack-border text-green-500 focus:ring-green-500"
               />
               <div>
@@ -640,6 +648,7 @@ const AdminToolForm = () => {
         );
         
       case 'form':
+        const formConfig = getFormConfig();
         return (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -647,8 +656,8 @@ const AdminToolForm = () => {
                 <label className="block text-sm font-medium text-white mb-2">Username / Email</label>
                 <input
                   type="text"
-                  value={comboAuth.formConfig.username}
-                  onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...prev.formConfig, username: e.target.value }}))}
+                  value={formConfig.username || ''}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...getFormConfig(), username: e.target.value }}))}
                   className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none"
                   placeholder="user@example.com"
                 />
@@ -657,8 +666,8 @@ const AdminToolForm = () => {
                 <label className="block text-sm font-medium text-white mb-2">Password</label>
                 <input
                   type="password"
-                  value={comboAuth.formConfig.password}
-                  onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...prev.formConfig, password: e.target.value }}))}
+                  value={formConfig.password || ''}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...getFormConfig(), password: e.target.value }}))}
                   className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none"
                   placeholder="••••••••"
                 />
@@ -668,8 +677,8 @@ const AdminToolForm = () => {
               <label className="block text-sm font-medium text-white mb-2">Login URL (optional)</label>
               <input
                 type="url"
-                value={comboAuth.formConfig.loginUrl}
-                onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...prev.formConfig, loginUrl: e.target.value }}))}
+                value={formConfig.loginUrl || ''}
+                onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...getFormConfig(), loginUrl: e.target.value }}))}
                 className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none"
                 placeholder="https://example.com/login"
               />
@@ -678,8 +687,8 @@ const AdminToolForm = () => {
               <label className="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/30 rounded-lg cursor-pointer hover:bg-green-500/20">
                 <input
                   type="checkbox"
-                  checked={comboAuth.formConfig.autoSubmit !== false}
-                  onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...prev.formConfig, autoSubmit: e.target.checked }}))}
+                  checked={formConfig.autoSubmit !== false}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...getFormConfig(), autoSubmit: e.target.checked }}))}
                   className="w-5 h-5 rounded border-toolstack-border text-green-500 focus:ring-green-500"
                 />
                 <div>
@@ -690,8 +699,8 @@ const AdminToolForm = () => {
               <label className="flex items-center gap-3 p-3 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10">
                 <input
                   type="checkbox"
-                  checked={comboAuth.formConfig.multiStep}
-                  onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...prev.formConfig, multiStep: e.target.checked }}))}
+                  checked={formConfig.multiStep || false}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...getFormConfig(), multiStep: e.target.checked }}))}
                   className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
                 />
                 <div>
@@ -702,8 +711,8 @@ const AdminToolForm = () => {
               <label className="flex items-center gap-3 p-3 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10">
                 <input
                   type="checkbox"
-                  checked={comboAuth.formConfig.rememberMe}
-                  onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...prev.formConfig, rememberMe: e.target.checked }}))}
+                  checked={formConfig.rememberMe !== false}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...getFormConfig(), rememberMe: e.target.checked }}))}
                   className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
                 />
                 <div>
@@ -718,8 +727,8 @@ const AdminToolForm = () => {
                   min="0"
                   max="5000"
                   step="100"
-                  value={comboAuth.formConfig.submitDelay}
-                  onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...prev.formConfig, submitDelay: parseInt(e.target.value) || 800 }}))}
+                  value={formConfig.submitDelay || 800}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, formConfig: { ...getFormConfig(), submitDelay: parseInt(e.target.value) || 800 }}))}
                   className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white focus:outline-none"
                 />
               </div>
@@ -728,13 +737,14 @@ const AdminToolForm = () => {
         );
         
       case 'cookies':
+        const cookiesConfig = getCookiesConfig();
         return (
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-white mb-2">Cookies JSON</label>
               <textarea
-                value={comboAuth.cookiesConfig.cookies}
-                onChange={(e) => setComboAuth(prev => ({ ...prev, cookiesConfig: { ...prev.cookiesConfig, cookies: e.target.value }}))}
+                value={cookiesConfig.cookies || ''}
+                onChange={(e) => setComboAuth(prev => ({ ...prev, cookiesConfig: { ...getCookiesConfig(), cookies: e.target.value }}))}
                 rows={5}
                 className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none font-mono text-sm"
                 placeholder='[{"name": "session", "value": "abc123", "domain": ".example.com"}]'
@@ -744,8 +754,8 @@ const AdminToolForm = () => {
             <label className="flex items-center gap-3 p-3 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10">
               <input
                 type="checkbox"
-                checked={comboAuth.cookiesConfig.injectFirst}
-                onChange={(e) => setComboAuth(prev => ({ ...prev, cookiesConfig: { ...prev.cookiesConfig, injectFirst: e.target.checked }}))}
+                checked={cookiesConfig.injectFirst !== false}
+                onChange={(e) => setComboAuth(prev => ({ ...prev, cookiesConfig: { ...getCookiesConfig(), injectFirst: e.target.checked }}))}
                 className="w-5 h-5 rounded border-toolstack-border text-purple-500 focus:ring-purple-500"
               />
               <div>
@@ -757,6 +767,7 @@ const AdminToolForm = () => {
         );
         
       case 'token':
+        const tokenConfig = getTokenConfig();
         return (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -764,8 +775,8 @@ const AdminToolForm = () => {
                 <label className="block text-sm font-medium text-white mb-2">Header Name</label>
                 <input
                   type="text"
-                  value={comboAuth.tokenConfig.header}
-                  onChange={(e) => setComboAuth(prev => ({ ...prev, tokenConfig: { ...prev.tokenConfig, header: e.target.value }}))}
+                  value={tokenConfig.header || 'Authorization'}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, tokenConfig: { ...getTokenConfig(), header: e.target.value }}))}
                   className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white"
                   placeholder="Authorization"
                 />
@@ -774,8 +785,8 @@ const AdminToolForm = () => {
                 <label className="block text-sm font-medium text-white mb-2">Prefix</label>
                 <input
                   type="text"
-                  value={comboAuth.tokenConfig.prefix}
-                  onChange={(e) => setComboAuth(prev => ({ ...prev, tokenConfig: { ...prev.tokenConfig, prefix: e.target.value }}))}
+                  value={tokenConfig.prefix || 'Bearer '}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, tokenConfig: { ...getTokenConfig(), prefix: e.target.value }}))}
                   className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white"
                   placeholder="Bearer "
                 />
@@ -784,8 +795,8 @@ const AdminToolForm = () => {
                 <label className="block text-sm font-medium text-white mb-2">Storage Key</label>
                 <input
                   type="text"
-                  value={comboAuth.tokenConfig.storageKey}
-                  onChange={(e) => setComboAuth(prev => ({ ...prev, tokenConfig: { ...prev.tokenConfig, storageKey: e.target.value }}))}
+                  value={tokenConfig.storageKey || 'access_token'}
+                  onChange={(e) => setComboAuth(prev => ({ ...prev, tokenConfig: { ...getTokenConfig(), storageKey: e.target.value }}))}
                   className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white"
                   placeholder="access_token"
                 />
@@ -795,8 +806,8 @@ const AdminToolForm = () => {
               <label className="block text-sm font-medium text-white mb-2">Token Value</label>
               <input
                 type="password"
-                value={comboAuth.tokenConfig.token}
-                onChange={(e) => setComboAuth(prev => ({ ...prev, tokenConfig: { ...prev.tokenConfig, token: e.target.value }}))}
+                value={tokenConfig.token || ''}
+                onChange={(e) => setComboAuth(prev => ({ ...prev, tokenConfig: { ...getTokenConfig(), token: e.target.value }}))}
                 className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted font-mono"
                 placeholder="Enter token value..."
               />
@@ -817,13 +828,14 @@ const AdminToolForm = () => {
         );
         
       case 'localStorage':
+        const localStorageConfig = getLocalStorageConfig();
         return (
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-white mb-2">LocalStorage Data (JSON)</label>
               <textarea
-                value={comboAuth.localStorageConfig.data}
-                onChange={(e) => setComboAuth(prev => ({ ...prev, localStorageConfig: { ...prev.localStorageConfig, data: e.target.value }}))}
+                value={localStorageConfig.data || ''}
+                onChange={(e) => setComboAuth(prev => ({ ...prev, localStorageConfig: { ...getLocalStorageConfig(), data: e.target.value }}))}
                 rows={5}
                 className="w-full px-3 py-2 bg-white/5 border border-toolstack-border rounded-lg text-white placeholder-toolstack-muted focus:outline-none font-mono text-sm"
                 placeholder='{"key1": "value1", "token": "abc123"}'
