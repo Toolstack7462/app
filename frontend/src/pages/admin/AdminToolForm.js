@@ -427,10 +427,20 @@ const AdminToolForm = () => {
       if (isComboMode) {
         payload.comboAuth = {
           enabled: true,
+          runMode: comboAuth.runMode || 'sequential',
           primaryType: comboAuth.primaryType,
           secondaryType: comboAuth.secondaryType,
           fallbackEnabled: comboAuth.fallbackEnabled,
+          fallbackOnlyOnce: comboAuth.fallbackOnlyOnce,
+          skipIfLoggedIn: comboAuth.skipIfLoggedIn,
           triggerOnAuto: comboAuth.triggerOnAuto,
+          // Parallel settings
+          parallelSettings: {
+            prepSessionFirst: comboAuth.parallelSettings?.prepSessionFirst ?? true,
+            parallelTimeout: comboAuth.parallelSettings?.parallelTimeout ?? 30000,
+            commitLock: comboAuth.parallelSettings?.commitLock ?? true,
+            verifyAfterAuth: comboAuth.parallelSettings?.verifyAfterAuth ?? true
+          },
           // Form config
           formConfig: {
             username: comboAuth.formConfig.username,
@@ -464,6 +474,10 @@ const AdminToolForm = () => {
           // LocalStorage config
           localStorageConfig: {
             data: comboAuth.localStorageConfig.data
+          },
+          // SessionStorage config
+          sessionStorageConfig: {
+            data: comboAuth.sessionStorageConfig?.data || ''
           }
         };
       } else {
