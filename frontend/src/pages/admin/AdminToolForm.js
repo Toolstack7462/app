@@ -415,7 +415,15 @@ const AdminToolForm = () => {
               credentials.payload = {
                 username: formLoginData.username,
                 password: formLoginData.password,
-                loginUrl: formLoginData.loginUrl || formData.loginUrl
+                loginUrl: formLoginData.loginUrl || formData.loginUrl,
+                multiStep: formOptions.multiStep,
+                autoSubmit: formOptions.autoSubmit !== false  // Auto-submit like SSO auto-click
+              };
+              // Include form options
+              credentials.formOptions = {
+                multiStep: formOptions.multiStep,
+                rememberMe: formOptions.rememberMe,
+                autoSubmit: formOptions.autoSubmit !== false
               };
             }
             break;
