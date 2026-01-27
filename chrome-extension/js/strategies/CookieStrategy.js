@@ -1,240 +1,360 @@
 /**
- * Cookie Strategy
- * Handles session/cookie-based authentication
+ * Cookie Injection Strategy v2.1
+ * 
+ * Enhanced with:
+ * - Proper cookie attribute normalization (domain, sameSite, secure, path)
+ * - Injection before navigation for best reliability
+ * - Automatic reload coordination
+ * - Better error handling and logging
  */
-import { BaseStrategy } from './BaseStrategy.js';
 
-export class CookieStrategy extends BaseStrategy {
+import BaseStrategy from './BaseStrategy.js';
+
+class CookieStrategy extends BaseStrategy {
   constructor() {
-    super('Cookie');
+    super('cookies');
+    this.reloadAfterInjection = true;
+    this.injectionDelay = 500;
   }
-  
+
   /**
-   * Check if this strategy can handle the config
+   * Execute cookie injection strategy
    */
-  canHandle(config) {
-    return config.cookies && Array.isArray(config.cookies) && config.cookies.length > 0;
+  async execute(credentials, tool, tabId) {
+    this.log('info', 'Executing cookie injection', { tool: tool.name });
+
+    const result = {
+      success: false,
+      method: 'cookies',
+      tabId,
+      error: null,
+      injected: 0,
+      failed: 0
+    };
+
+    try {
+      // Get cookies from credentials
+      const cookies = this.extractCookies(credentials);
+      
+      if (!cookies || cookies.length === 0) {
+        result.error = 'No cookies to inject';
+        return result;
+      }
+
+      this.log('debug', 'Injecting cookies', { count: cookies.length });
+
+      // Inject cookies BEFORE opening tab
+      const injectionResult = await this.injectCookies(tool.targetUrl, cookies);
+      
+      result.injected = injectionResult.success;
+      result.failed = injectionResult.failed;
+
+      if (injectionResult.success === 0) {
+        result.error = 'All cookie injections failed';
+        result.failures = injectionResult.failures;
+        return result;
+      }
+
+      // Create or update tab
+      let targetTab;
+      if (tabId) {
+        await chrome.tabs.update(tabId, { url: tool.targetUrl, active: true });
+        targetTab = await chrome.tabs.get(tabId);
+      } else {
+        targetTab = await chrome.tabs.create({ url: tool.targetUrl, active: false });
+      }
+
+      // Wait for page to load
+      await this.waitForTabLoad(targetTab.id);
+
+      // Reload if needed to apply cookies
+      if (this.reloadAfterInjection) {
+        await this.sleep(this.injectionDelay);
+        await chrome.tabs.reload(targetTab.id);
+        await this.waitForTabLoad(targetTab.id);
+      }
+
+      result.success = true;
+      result.tabId = targetTab.id;
+
+    } catch (error) {
+      this.log('error', 'Cookie injection error', { error: error.message });
+      result.error = error.message;
+    }
+
+    return result;
   }
-  
+
   /**
-   * Execute cookie injection
+   * Extract cookies from various credential formats
    */
-  async execute(config, context) {
-    this.log('Executing cookie injection', { domain: config.domain, cookieCount: config.cookies.length });
+  extractCookies(credentials) {
+    const payload = credentials?.payload;
     
-    const targetUrl = config.targetUrl || `https://${config.domain}/`;
-    const targetDomain = this.extractDomain(targetUrl);
-    const isHttps = targetUrl.startsWith('https');
-    
-    let setCount = 0;
-    let failedCount = 0;
-    const failures = [];
-    const setDetails = [];
-    
-    for (const cookie of config.cookies) {
+    if (!payload) return [];
+
+    // Direct cookies array
+    if (Array.isArray(payload)) {
+      return payload;
+    }
+
+    // Cookies in payload.cookies
+    if (payload.cookies && Array.isArray(payload.cookies)) {
+      return payload.cookies;
+    }
+
+    // Single cookie object
+    if (payload.name && payload.value) {
+      return [payload];
+    }
+
+    return [];
+  }
+
+  /**
+   * Inject cookies with proper normalization
+   */
+  async injectCookies(targetUrl, cookies) {
+    const result = {
+      success: 0,
+      failed: 0,
+      failures: []
+    };
+
+    // Parse target URL
+    const url = new URL(targetUrl);
+    const targetDomain = url.hostname;
+    const isHttps = url.protocol === 'https:';
+
+    for (const cookie of cookies) {
       try {
-        const result = await this.setCookie(cookie, targetDomain, isHttps);
-        if (result.success) {
-          setCount++;
-          setDetails.push({ name: cookie.name, success: true });
+        const normalizedCookie = this.normalizeCookie(cookie, targetDomain, isHttps);
+        const setCookie = await chrome.cookies.set(normalizedCookie);
+        
+        if (setCookie) {
+          result.success++;
         } else {
-          throw new Error(result.error);
+          throw new Error('Cookie.set returned null');
         }
       } catch (error) {
-        failedCount++;
-        failures.push({ 
-          name: cookie.name, 
-          error: error.message,
-          reason: this.diagnoseCookieFailure(cookie, targetUrl, error)
+        result.failed++;
+        result.failures.push({
+          name: cookie.name,
+          error: error.message
         });
-        setDetails.push({ name: cookie.name, success: false, error: error.message });
+        this.log('warn', 'Failed to set cookie', { name: cookie.name, error: error.message });
       }
     }
-    
-    // Verify cookies were set
-    const verification = await this.verifyCookies(targetUrl, config.cookies);
-    
-    const success = setCount > 0 && failedCount === 0;
-    const partial = setCount > 0 && failedCount > 0;
-    
-    this.log(`Cookie injection complete: ${setCount} set, ${failedCount} failed`, { verification });
-    
-    return {
-      success,
-      partial,
-      strategy: this.name,
-      set: setCount,
-      failed: failedCount,
-      failures,
-      details: setDetails,
-      verification,
-      needsReload: success || partial
-    };
+
+    this.log('debug', 'Cookie injection complete', { 
+      success: result.success, 
+      failed: result.failed 
+    });
+
+    return result;
   }
-  
+
   /**
-   * Set a single cookie
+   * Normalize cookie attributes for Chrome cookies API
    */
-  async setCookie(cookie, targetDomain, isHttps) {
-    let cookieDomain = cookie.domain || targetDomain;
-    const secure = cookie.secure === true || (cookie.secure !== false && isHttps);
+  normalizeCookie(cookie, targetDomain, isHttps) {
+    // Normalize domain
+    let domain = cookie.domain || targetDomain;
     
-    // Handle SameSite attribute
-    let sameSite = (cookie.sameSite || 'lax').toLowerCase();
-    if (sameSite === 'no_restriction' || sameSite === 'none') {
-      sameSite = 'no_restriction';
-    } else if (sameSite === 'strict') {
-      sameSite = 'strict';
-    } else {
-      sameSite = 'lax';
+    // Remove leading dot for the URL, but keep for domain attribute
+    const domainForUrl = domain.startsWith('.') ? domain.substring(1) : domain;
+    
+    // Ensure domain starts with dot for subdomain cookies
+    if (domain !== targetDomain && !domain.startsWith('.')) {
+      // If it's a subdomain of target, add leading dot
+      if (targetDomain.endsWith(domain) || domain.endsWith(targetDomain)) {
+        domain = '.' + domain;
+      }
     }
+
+    // Normalize sameSite
+    let sameSite = this.normalizeSameSite(cookie.sameSite);
     
     // SameSite=None requires Secure
-    const finalSecure = sameSite === 'no_restriction' ? true : secure;
-    
-    // Build cookie URL
-    const protocol = finalSecure ? 'https' : 'http';
-    const cleanDomain = cookieDomain.startsWith('.') ? cookieDomain.substring(1) : cookieDomain;
-    const cookieUrl = `${protocol}://${cleanDomain}/`;
-    
+    let secure = cookie.secure;
+    if (sameSite === 'no_restriction') {
+      secure = true;
+    } else if (secure === undefined) {
+      secure = isHttps;
+    }
+
+    // Build URL for the cookie
+    const protocol = secure ? 'https' : 'http';
+    const path = cookie.path || '/';
+    const cookieUrl = `${protocol}://${domainForUrl}${path}`;
+
+    // Build cookie details
     const cookieDetails = {
       url: cookieUrl,
       name: cookie.name,
       value: cookie.value,
-      path: cookie.path || '/',
-      secure: finalSecure,
+      path: path,
+      secure: secure,
       httpOnly: cookie.httpOnly === true,
       sameSite: sameSite
     };
-    
-    // Set domain for subdomain cookies
-    if (cookieDomain.startsWith('.')) {
-      cookieDetails.domain = cookieDomain;
+
+    // Add domain only if it's a subdomain cookie (starts with dot)
+    if (domain.startsWith('.')) {
+      cookieDetails.domain = domain;
     }
-    
+
     // Handle expiration
-    if (cookie.expirationDate) {
-      cookieDetails.expirationDate = cookie.expirationDate;
-    } else if (cookie.expires) {
+    cookieDetails.expirationDate = this.normalizeExpiration(cookie);
+
+    return cookieDetails;
+  }
+
+  /**
+   * Normalize sameSite attribute
+   */
+  normalizeSameSite(sameSite) {
+    if (!sameSite) return 'lax';
+    
+    const value = sameSite.toString().toLowerCase();
+    
+    switch (value) {
+      case 'none':
+      case 'no_restriction':
+        return 'no_restriction';
+      case 'strict':
+        return 'strict';
+      case 'lax':
+      default:
+        return 'lax';
+    }
+  }
+
+  /**
+   * Normalize cookie expiration
+   */
+  normalizeExpiration(cookie) {
+    // Already in epoch seconds
+    if (cookie.expirationDate && typeof cookie.expirationDate === 'number') {
+      return cookie.expirationDate;
+    }
+
+    // Expires as date string or number
+    if (cookie.expires) {
+      if (typeof cookie.expires === 'number') {
+        // Check if it's already in seconds (< year 2100 in seconds)
+        if (cookie.expires < 4102444800) {
+          return cookie.expires;
+        }
+        // Otherwise it's in milliseconds
+        return Math.floor(cookie.expires / 1000);
+      }
+      
       const expiresDate = new Date(cookie.expires);
       if (!isNaN(expiresDate.getTime())) {
-        cookieDetails.expirationDate = expiresDate.getTime() / 1000;
+        return Math.floor(expiresDate.getTime() / 1000);
       }
-    } else {
-      // Default: 30 days
-      cookieDetails.expirationDate = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60);
     }
-    
-    const result = await chrome.cookies.set(cookieDetails);
-    
-    if (result) {
-      return { success: true, cookie: result };
-    } else {
-      return { success: false, error: 'chrome.cookies.set returned null' };
+
+    // Max-Age
+    if (cookie.maxAge) {
+      return Math.floor(Date.now() / 1000) + parseInt(cookie.maxAge, 10);
     }
+
+    // Default: 30 days
+    return Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60);
   }
-  
+
   /**
-   * Verify cookies were set
+   * Validate cookie credentials
    */
-  async verifyCookies(targetUrl, expectedCookies) {
-    const targetDomain = this.extractDomain(targetUrl);
-    const baseDomain = this.getBaseDomain(targetDomain);
+  async validate(credentials, tool) {
+    const cookies = this.extractCookies(credentials);
     
-    try {
-      // Get cookies for domain and subdomain
-      const [domainCookies, subdomainCookies] = await Promise.all([
-        chrome.cookies.getAll({ domain: targetDomain }),
-        chrome.cookies.getAll({ domain: `.${baseDomain}` })
-      ]);
-      
-      const allCookies = [...domainCookies, ...subdomainCookies];
-      const actualNames = new Set(allCookies.map(c => c.name));
-      
-      const verified = [];
-      const missing = [];
-      
-      for (const expected of expectedCookies) {
-        if (actualNames.has(expected.name)) {
-          verified.push(expected.name);
-        } else {
-          missing.push(expected.name);
-        }
+    if (!cookies || cookies.length === 0) {
+      return { valid: false, error: 'No cookies found in credentials' };
+    }
+
+    // Validate each cookie has required fields
+    for (const cookie of cookies) {
+      if (!cookie.name) {
+        return { valid: false, error: 'Cookie missing name' };
       }
+      if (cookie.value === undefined || cookie.value === null) {
+        return { valid: false, error: `Cookie ${cookie.name} missing value` };
+      }
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Clear cookies for a domain
+   */
+  async clearDomainCookies(domain) {
+    try {
+      const cookies = await chrome.cookies.getAll({ domain });
       
-      return {
-        success: missing.length === 0,
-        verified,
-        missing,
-        totalFound: allCookies.length
-      };
+      for (const cookie of cookies) {
+        const url = `http${cookie.secure ? 's' : ''}://${cookie.domain}${cookie.path}`;
+        await chrome.cookies.remove({
+          url,
+          name: cookie.name
+        });
+      }
+
+      this.log('debug', 'Cleared cookies for domain', { domain, count: cookies.length });
+      return { success: true, cleared: cookies.length };
     } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-        verified: [],
-        missing: expectedCookies.map(c => c.name)
-      };
+      return { success: false, error: error.message };
     }
   }
-  
+
   /**
-   * Diagnose cookie failure
+   * Get all cookies for a domain
    */
-  diagnoseCookieFailure(cookie, targetUrl, error) {
-    const isHttps = targetUrl.startsWith('https');
-    const targetDomain = this.extractDomain(targetUrl);
-    const cookieDomain = cookie.domain || targetDomain;
-    
-    if (cookie.secure && !isHttps) {
-      return 'SECURE_FLAG_REQUIRES_HTTPS';
-    }
-    
-    if ((cookie.sameSite || '').toLowerCase() === 'none' && !cookie.secure) {
-      return 'SAMESITE_NONE_REQUIRES_SECURE';
-    }
-    
-    if (cookieDomain && !targetDomain.endsWith(cookieDomain.replace(/^\./, ''))) {
-      return 'DOMAIN_MISMATCH';
-    }
-    
-    return 'UNKNOWN_ERROR';
-  }
-  
-  /**
-   * Extract domain from URL
-   */
-  extractDomain(url) {
+  async getDomainCookies(domain) {
     try {
-      return new URL(url).hostname;
-    } catch (e) {
-      return url;
+      const cookies = await chrome.cookies.getAll({ domain });
+      return cookies;
+    } catch (error) {
+      return [];
     }
   }
-  
+
   /**
-   * Get base domain
+   * Wait for tab to load
    */
-  getBaseDomain(hostname) {
-    const parts = hostname.split('.');
-    if (parts.length <= 2) return hostname;
-    const multiPartTLDs = ['co.uk', 'com.au', 'co.nz', 'co.in', 'com.br'];
-    const lastTwo = parts.slice(-2).join('.');
-    if (multiPartTLDs.includes(lastTwo)) {
-      return parts.slice(-3).join('.');
-    }
-    return parts.slice(-2).join('.');
+  waitForTabLoad(tabId, timeout = 15000) {
+    return new Promise((resolve, reject) => {
+      const startTime = Date.now();
+
+      const checkTab = () => {
+        chrome.tabs.get(tabId, (tab) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+
+          if (tab.status === 'complete') {
+            resolve(tab);
+          } else if (Date.now() - startTime > timeout) {
+            resolve(tab); // Resolve anyway after timeout
+          } else {
+            setTimeout(checkTab, 100);
+          }
+        });
+      };
+
+      checkTab();
+    });
   }
-  
+
   /**
-   * Verify login was successful by checking for session cookies
+   * Sleep utility
    */
-  async verify(config, context) {
-    const verification = await this.verifyCookies(
-      config.targetUrl || `https://${config.domain}/`,
-      config.cookies
-    );
-    return verification.success;
+  sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
 
