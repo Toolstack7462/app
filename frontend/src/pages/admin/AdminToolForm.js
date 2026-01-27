@@ -52,12 +52,15 @@ const AdminToolForm = () => {
     }
   });
 
-  // Combo Auth state - allows both SSO + Form in one tool
+  // Universal Combo Auth state - allows ANY two auth types combined
   const [comboAuth, setComboAuth] = useState({
     enabled: false,
-    primary: 'sso',
+    // Universal: Select which two types to combine
+    primaryType: 'sso',      // First auth type to try
+    secondaryType: 'form',   // Second auth type (fallback)
     fallbackEnabled: true,
     triggerOnAuto: true,
+    // Form login configuration
     formConfig: {
       username: '',
       password: '',
@@ -65,19 +68,50 @@ const AdminToolForm = () => {
       multiStep: false,
       rememberMe: true,
       submitDelay: 800,
-      autoSubmit: true  // NEW: Auto-submit form when ?auto=1
+      autoSubmit: true
     },
+    // SSO configuration
     ssoConfig: {
       authStartUrl: '',
       postLoginUrl: '',
       provider: '',
       buttonSelector: '',
       autoClick: true
+    },
+    // Cookies configuration (for Cookies + SSO or Cookies + Form combos)
+    cookiesConfig: {
+      cookies: '',  // JSON array of cookies
+      injectFirst: true  // Inject cookies before trying other auth
+    },
+    // Token configuration
+    tokenConfig: {
+      token: '',
+      header: 'Authorization',
+      prefix: 'Bearer ',
+      storageKey: 'access_token'
+    },
+    // Headers configuration  
+    headersConfig: {
+      headers: []  // Array of {name, value, prefix}
+    },
+    // LocalStorage configuration
+    localStorageConfig: {
+      data: ''  // JSON object
     }
   });
 
-  // Combo auth tab state
-  const [comboAuthTab, setComboAuthTab] = useState('sso');
+  // Combo auth tab state - dynamically set based on selected types
+  const [comboAuthTab, setComboAuthTab] = useState('primary');
+
+  // Available combo types
+  const COMBO_AUTH_TYPES = [
+    { value: 'sso', label: 'SSO / OAuth', icon: '🔐' },
+    { value: 'form', label: 'Form Login', icon: '📝' },
+    { value: 'cookies', label: 'Cookies', icon: '🍪' },
+    { value: 'token', label: 'Bearer Token', icon: '🔑' },
+    { value: 'headers', label: 'Custom Headers', icon: '📋' },
+    { value: 'localStorage', label: 'Local Storage', icon: '💾' }
+  ];
 
   const CATEGORIES = ['AI', 'Academic', 'SEO', 'Productivity', 'Graphics & SEO', 'Text Humanizers', 'Career-Oriented', 'Miscellaneous', 'Other'];
   
