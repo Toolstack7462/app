@@ -55,11 +55,22 @@ const AdminToolForm = () => {
   // Universal Combo Auth state - allows ANY two auth types combined
   const [comboAuth, setComboAuth] = useState({
     enabled: false,
+    // Run mode: 'sequential' (primary->fallback) or 'parallel' (simultaneous)
+    runMode: 'sequential',
     // Universal: Select which two types to combine
     primaryType: 'sso',      // First auth type to try
     secondaryType: 'form',   // Second auth type (fallback)
     fallbackEnabled: true,
+    fallbackOnlyOnce: true,  // Only try fallback once
+    skipIfLoggedIn: true,    // Skip if already logged in
     triggerOnAuto: true,
+    // Parallel mode settings
+    parallelSettings: {
+      prepSessionFirst: true,    // Apply session bundle before auth
+      parallelTimeout: 30000,    // Timeout for parallel execution (ms)
+      commitLock: true,          // Ensure only one navigation
+      verifyAfterAuth: true      // Verify login after auth
+    },
     // Form login configuration
     formConfig: {
       username: '',
@@ -97,8 +108,20 @@ const AdminToolForm = () => {
     // LocalStorage configuration
     localStorageConfig: {
       data: ''  // JSON object
+    },
+    // SessionStorage configuration
+    sessionStorageConfig: {
+      data: ''  // JSON object
     }
   });
+
+  // Session Bundle state - unified storage for cookies + localStorage + sessionStorage
+  const [sessionBundle, setSessionBundle] = useState({
+    cookies: '',
+    localStorage: '',
+    sessionStorage: ''
+  });
+  const [sessionBundleVersion, setSessionBundleVersion] = useState(null);
 
   // Combo auth tab state - dynamically set based on selected types
   const [comboAuthTab, setComboAuthTab] = useState('primary');
